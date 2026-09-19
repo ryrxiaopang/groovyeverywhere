@@ -1,0 +1,32 @@
+# Python 3.11 required (TensorFlow/OpenL3 have no Python 3.14 wheels yet;
+# Essentia has no Windows wheels at all and is deferred - see PROJECT_SUMMARY.md)
+
+# CPU-only torch build (no NVIDIA GPU on this machine)
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# resampy (an openl3 dependency) still imports pkg_resources, which setuptools
+# 81+ dropped entirely - pin below that until resampy is fixed upstream
+setuptools<81
+
+# Embeddings
+openl3
+tensorflow-cpu
+torch
+
+# Audio
+librosa
+soundfile
+
+# Spotify + Deezer access
+spotipy
+requests
+
+# Storage / data handling
+pandas
+pyarrow
+numpy
+scikit-learn
+
+# Utilities
+python-dotenv
+tqdm
