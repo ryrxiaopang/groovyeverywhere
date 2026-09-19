@@ -3,8 +3,10 @@ Milestone 0: local storage setup.
 
 Creates data/lodge.db (SQLite) with a single `tracks` table that Milestone 1
 (catalog building) will populate: one row per pop-pilot track, holding
-Spotify metadata, the matched Deezer preview, and (later) paths to the
-downloaded audio clip and its embedding.
+Spotify catalog metadata, the Deezer-sourced popularity signal (Spotify no
+longer returns popularity/followers/genres for apps without a quota
+extension - confirmed during Milestone 0), the matched Deezer preview, and
+(later) paths to the downloaded audio clip and its embedding.
 
 Run once: python init_db.py
 """
@@ -20,10 +22,11 @@ CREATE TABLE IF NOT EXISTS tracks (
     name                TEXT NOT NULL,
     artist_name         TEXT NOT NULL,
     spotify_artist_id   TEXT NOT NULL,
-    popularity          INTEGER,
-    artist_followers    INTEGER,
-    genre               TEXT,
     deezer_track_id     TEXT,
+    deezer_rank         INTEGER,
+    deezer_artist_id    TEXT,
+    artist_nb_fan       INTEGER,
+    genre               TEXT,
     deezer_preview_url  TEXT,
     audio_path          TEXT,
     embedding_path      TEXT,

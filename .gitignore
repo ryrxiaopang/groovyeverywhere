@@ -4,6 +4,7 @@ venv/
 __pycache__/
 *.pyc
 .env
+.cache
 data/audio/
 data/*.parquet
 data/*.db

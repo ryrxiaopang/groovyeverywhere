@@ -87,12 +87,24 @@ Only start after Milestone 4's sanity check passes. Two phases:
 
 ## Milestone plan
 
-**Milestone 0 — Environment & Scope** *(in progress)*
+**Milestone 0 — Environment & Scope** *(done)*
 - [x] Confirm pilot genre = pop
-- [ ] Set up Python env: GPU PyTorch, Essentia/OpenL3, Deezer client (`requirements.txt` provided)
-- [ ] Set up local storage (SQLite or Parquet)
-- [ ] Confirm pilot catalog size target: 2,000–5,000 tracks
-- [ ] Validate Spotify basic endpoints work with your app credentials — use `validate_spotify_access.py` (provided); confirm `search`/track/artist lookups succeed and `audio_features` fails with 403 as expected
+- [x] Set up Python env: CPU PyTorch (no NVIDIA GPU on this machine — Intel
+      Arc only; GPU work deferred to a separate RTX 5070 desktop), OpenL3
+      (Essentia deferred — no Windows wheels, source-only on PyPI), Deezer
+      via `requests` (`requirements.txt` provided, Python 3.11 required —
+      TensorFlow/OpenL3 have no 3.14 wheels yet)
+- [x] Set up local storage (SQLite — `data/lodge.db` via `init_db.py`)
+- [x] Confirm pilot catalog size target: 3,000 tracks (middle of the
+      2,000–5,000 range)
+- [x] Validate Spotify basic endpoints work with your app credentials — use
+      `validate_spotify_access.py` (provided); confirms `search`/track/artist
+      lookups succeed and `audio_features` fails with 403 as expected.
+      **Update:** as of Milestone 0, Spotify no longer returns `popularity`,
+      `followers`, or `genres` on any endpoint for this app (not just
+      audio-features — broader than originally assumed). Switched the
+      popularity/obscurity signal to Deezer's track `rank` and artist
+      `nb_fan`, since Deezer is already required for audio previews.
 
 **Milestone 1 — Build the Pop Pilot Catalog**
 - Source genre-tagged pop candidates (Kaggle dataset or Spotify `search`)
