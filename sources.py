@@ -1,14 +1,17 @@
-"""Get song info + a temporary audio file from Jamendo or Audius.
+"""Get song info + a temporary audio file from Jamendo, Audius, FMA or YouTube.
 
 Rules kept here:
-  * Only tracks the site marks as downloadable are used.
+  * Only tracks the site marks as downloadable are used (Jamendo/Audius). FMA is the open research dataset.
+  * YouTube audio (via yt-dlp) is used ONLY to compute and store the recommendation numbers; the audio file
+    itself is deleted the instant analysis ends, exactly like every other source. No audio is ever kept.
   * Audio goes into a TemporaryDirectory and is deleted as soon as analysis ends.
   * Keys come from environment variables; nothing personal is sent.
       JAMENDO_CLIENT_ID   (required for Jamendo)  https://devportal.jamendo.com
       AUDIUS_API_KEY      (optional, higher limits) https://api.audius.co/plans
+      (YouTube needs yt-dlp + ffmpeg on PATH; song lists are built with build_youtube.py)
 """
 from __future__ import annotations
-import os, time, contextlib, tempfile
+import os, time, contextlib, tempfile, subprocess, glob
 import requests
 
 JAMENDO = "https://api.jamendo.com/v3.0"
@@ -215,6 +218,30 @@ def temp_audio(info):
                     f.write(chunk)
             yield path
         return
+    if info["source"] == "youtube":                      # audio fetched with yt-dlp, then deleted straight away
+        with tempfile.TemporaryDirectory(prefix="hg_") as d:
+            out = os.path.join(d, "song.%(ext)s")
+            cmd = ["yt-dlp", "-q", "--no-warnings", "--no-playlist", "--force-ipv4",
+                   "--retries", "3", "--socket-timeout", "30", "--sleep-requests", "1",
+                   "-f", "bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", "0",
+                   "-o", out, info["download_url"]]
+            try:
+                subprocess.run(cmd, check=True, timeout=600,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as e:
+                msg = (e.stderr or b"").decode("utf-8", "replace").strip().lower()
+                if any(w in msg for w in ("unavailable", "private", "removed", "not available",
+                                          "age-restricted", "age restricted", "sign in", "copyright",
+                                          "blocked", "terminated")):
+                    err = requests.HTTPError("youtube video unavailable")   # treated like a deleted track:
+                    err.response = type("R", (), {"status_code": 404})()    # marked 'missing', not retried 3x
+                    raise err
+                raise RuntimeError(f"yt-dlp failed: {msg[:200] or e}")
+            files = glob.glob(os.path.join(d, "song.*"))
+            if not files:
+                raise RuntimeError("yt-dlp produced no audio file")
+            yield files[0]
+        return                                            # leaving the 'with' deletes the folder and the audio
     headers = _audius_headers() if info["source"] == "audius" else {}
     with tempfile.TemporaryDirectory(prefix="hg_") as d:
         r = _get(info["download_url"], headers=headers, stream=True)

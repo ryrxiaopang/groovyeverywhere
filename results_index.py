@@ -27,7 +27,7 @@ def latest_rows(res=RES):
 
 
 POOL_LISTS = ("pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv",
-              "pool_fma.csv")
+              "pool_fma.csv", "pool_youtube.csv")
 
 
 def excluded_keys(here=HERE):
@@ -108,7 +108,7 @@ GENRE_NAME = {"pop": "pop", "vocal_pop": "pop",
 
 def genre_of(group):
     g = (group or "").lower()
-    for p in ("pool_vocal_", "pool_audius_", "pool_jamendo_", "pool_fma_", "pool_"):
+    for p in ("pool_vocal_", "pool_audius_", "pool_jamendo_", "pool_fma_", "yt_", "pool_"):
         if g.startswith(p):
             g = g[len(p):]; break
     return GENRE_NAME.get(g, g or "?")

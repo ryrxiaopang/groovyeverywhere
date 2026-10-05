@@ -156,12 +156,16 @@ def main():
     src_of = lambda r: "".join(ch for ch in (r.get("source") or "jamendo").lower() if ch.isalpha()) or "jamendo"
     aud_rows = [r for r in rows if src_of(r) == "audius"]
     fma_rows = [r for r in rows if src_of(r) == "fma"]
-    rows = [r for r in rows if src_of(r) not in ("audius", "fma")]
+    yt_rows = [r for r in rows if src_of(r) == "youtube"]
+    rows = [r for r in rows if src_of(r) not in ("audius", "fma", "youtube")]
     todo = [r for r in rows if f"jamendo_{r['jamendo_id']}" not in skip]
     aud_todo = [r for r in aud_rows if f"audius_{r['track_id']}" not in skip]
     fma_todo = [r for r in fma_rows if f"fma_{r['track_id']}" not in skip]
-    print(f"{len(rows) + len(aud_rows) + len(fma_rows)} songs in {a.list} ({len(rows)} Jamendo, {len(aud_rows)} Audius"
-          + (f", {len(fma_rows)} FMA" if fma_rows else "") + f"), {len(todo) + len(aud_todo) + len(fma_todo)} still to do")
+    yt_todo = [r for r in yt_rows if f"youtube_{r['track_id']}" not in skip]
+    print(f"{len(rows) + len(aud_rows) + len(fma_rows) + len(yt_rows)} songs in {a.list} "
+          f"({len(rows)} Jamendo, {len(aud_rows)} Audius"
+          + (f", {len(fma_rows)} FMA" if fma_rows else "") + (f", {len(yt_rows)} YouTube" if yt_rows else "")
+          + f"), {len(todo) + len(aud_todo) + len(fma_todo) + len(yt_todo)} still to do")
     gone = 0
     meta = sources.jamendo_tracks([int(r["jamendo_id"]) for r in todo]) if todo else {}
     for r in todo:
@@ -198,6 +202,17 @@ def main():
                     licence=r.get("licence"), page=r.get("listen"), fma_genres=r.get("fma_genres"),
                     download_allowed=True, download_url="fma")
         process(key, info, sources.temp_audio(info), {"group": r["group"]})
+        n += 1
+
+    for r in yt_todo:                      # YouTube songs from pool_youtube.csv (audio deleted straight after analysis)
+        vid = r["track_id"]; key = f"youtube_{vid}"
+        info = dict(source="youtube", id=vid, title=r.get("title"), artist=r.get("artist"),
+                    duration=float(r.get("duration") or 0), listens=r.get("listens"),
+                    licence=r.get("licence") or "youtube-standard", page=r.get("listen"),
+                    site_genre=r.get("site_genre"), download_allowed=True,
+                    download_url=f"https://www.youtube.com/watch?v={vid}")
+        process(key, info, sources.temp_audio(info),
+                {"group": r["group"], "site_genre": r.get("site_genre")})
         n += 1
 
     if a.audius:

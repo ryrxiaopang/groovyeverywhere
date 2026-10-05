@@ -5,3 +5,4 @@ essentia-tensorflow==2.1b6.dev1438
 numpy
 requests
 matplotlib
+yt-dlp          # YouTube audio for the recommendation pool (build_youtube.py); needs ffmpeg on PATH. Audio is deleted straight after analysis.
