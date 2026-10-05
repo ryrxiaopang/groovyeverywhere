@@ -41,7 +41,7 @@ def mtg():
 
 def main():
     lists = {}
-    for fn in ("edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv"):
+    for fn in ("edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv", "pool_youtube.csv"):
         p = os.path.join(HERE, fn)
         if os.path.exists(p):
             with open(p, encoding="utf-8-sig") as f:

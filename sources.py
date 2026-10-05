@@ -11,7 +11,7 @@ Rules kept here:
       (YouTube needs yt-dlp + ffmpeg on PATH; song lists are built with build_youtube.py)
 """
 from __future__ import annotations
-import os, time, contextlib, tempfile, subprocess, glob
+import os, re, time, contextlib, tempfile, subprocess, glob
 import requests
 
 JAMENDO = "https://api.jamendo.com/v3.0"
@@ -28,18 +28,37 @@ def _polite(min_gap=0.35):
     _last[0] = time.time()
 
 
+_SECRET = re.compile(r"(client_id|api_key|key|access_token)=[^&\s'\")]+", re.I)
+
+
+def redact(text):
+    """Error text without keys: a failed request's message contains its full URL (with the API key), and error
+    text is written to index.csv, the logs and the backups."""
+    return _SECRET.sub(r"\1=REDACTED", str(text))
+
+
+def safe_exc(e):
+    """The same kind of exception (and the same .response, so status codes still work) with keys removed."""
+    try:
+        err = type(e)(redact(e))
+    except Exception:
+        err = requests.RequestException(redact(e))
+    err.response = getattr(e, "response", None)
+    return err
+
+
 def _get(url, params=None, headers=None, stream=False, tries=3):
     for i in range(tries):
         _polite()
         try:
             r = requests.get(url, params=params, headers={**UA, **(headers or {})}, timeout=60, stream=stream)
-            if r.status_code == 429:
+            if r.status_code == 429 and i < tries - 1:
                 time.sleep(5 * (i + 1)); continue
-            r.raise_for_status()
+            r.raise_for_status()                 # (a 429 on the last try is raised here, never returned as None)
             return r
-        except requests.RequestException:
+        except requests.RequestException as e:
             if i == tries - 1:
-                raise
+                raise safe_exc(e) from None
             time.sleep(2 * (i + 1))
 
 
@@ -194,6 +213,21 @@ def _fma_zip():
 
 
 # ------------------------------------------------------------------ temporary audio
+def sweep_stale_temp(max_age_s=7200):
+    """Delete audio folders (hg_*, hg_cap_*, hg_blind_*) left behind by a run that was killed hard (power cut,
+    kill -9): the `with` block that normally deletes them never got to run. Only folders untouched for more than
+    `max_age_s` (2 h) go, so a run in progress is never disturbed. Returns how many were removed."""
+    import shutil
+    n = 0
+    for d in glob.glob(os.path.join(tempfile.gettempdir(), "hg_*")):
+        try:
+            if os.path.isdir(d) and not os.path.islink(d) and time.time() - os.path.getmtime(d) > max_age_s:
+                shutil.rmtree(d); n += 1
+        except OSError:
+            pass
+    return n
+
+
 @contextlib.contextmanager
 def temp_audio(info):
     """Download into a temp folder, yield the path, delete everything afterwards."""

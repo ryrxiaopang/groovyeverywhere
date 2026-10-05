@@ -21,6 +21,7 @@ For the app itself no API is needed: a "Search on YouTube" link
 """
 import argparse, csv, datetime as dt, difflib, os, random, re, sys, time
 import requests
+import sources
 from check_platforms import norm, same_artist
 from results_index import latest_rows, pool_keys, read_meta, RES
 
@@ -36,10 +37,13 @@ class QuotaUsed(Exception):
 
 
 def _call(path, **params):
-    r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=20)
-    if r.status_code == 403 and "quota" in r.text.lower():
-        raise QuotaUsed()
-    r.raise_for_status()
+    try:
+        r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=20)
+        if r.status_code == 403 and "quota" in r.text.lower():
+            raise QuotaUsed()
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise sources.safe_exc(e) from None          # the error text would otherwise contain the API key
     return r.json()
 
 

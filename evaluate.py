@@ -45,7 +45,33 @@ def load():
                 print(f"  skipped a damaged file: {k} (run python check_results.py --fix)")
                 continue
             songs.append({"key": k, "meta": r, **d})
+    rescale_sound(songs)
     return rows, songs
+
+
+_SC = None
+
+
+def rescale_sound(songs):
+    """Every Sound comparison in this report uses the rescaled numbers (match.sound_scale(), the same scale the app
+    uses): each of the 1,280 numbers minus the pool's average, divided by its spread. The straight-line change keeps
+    the 3 parts and the clip averages consistent; the original numbers stay in effnet_whole_raw (the own mood model
+    was trained on those)."""
+    global _SC
+    import match
+    _SC = match.sound_scale()
+    for s in songs:
+        s["effnet_whole_raw"] = s["effnet_whole"]
+        s["effnet_whole"] = scoring.scale_sound(s["effnet_whole"], _SC)
+        s["effnet_parts"] = scoring.scale_sound(s["effnet_parts"], _SC)
+
+
+def mtg_test_ids():
+    """Jamendo song keys in the official MTG-Jamendo TEST split (the sealed split)."""
+    p = os.path.join(HERE, "data", "split0-autotagging-test.tsv")
+    with open(p) as f:
+        next(f)
+        return {"jamendo_" + line.split("\t")[0].split("_")[1] for line in f}
 
 
 def class_names(name, n):
@@ -485,7 +511,7 @@ def _random_clip(s, avoid_parts):
         w = (centres[st], centres[st] + 30)
         if avoid_parts and any(min(w[1], p[1]) - max(w[0], p[0]) > 10 for p in s["parts"]):
             continue
-        return ch[st: st + need].mean(axis=0)
+        return scoring.scale_sound(ch[st: st + need].mean(axis=0), _SC)
     return None
 
 
@@ -945,7 +971,7 @@ def t14_mood_candidates(R, songs, summary):
     own = os.path.join(HERE, "own_mood.npz")
     if os.path.exists(own):
         o = np.load(own)
-        X = np.array([np.concatenate([s["effnet_whole"], s["musicnn_whole"]]) for s in S])
+        X = np.array([np.concatenate([s["effnet_whole_raw"], s["musicnn_whole"]]) for s in S])
         sc = ((X - o["mu"]) / o["sd"]) @ o["w"] + float(o["b"])
         cands[f"Own trained model (cross-val {float(o['cv_auc']):.2f})"] = np.column_stack([sc, cur[:, 1]])
     rows, res = [], {}
@@ -1064,8 +1090,16 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--with-pool", action="store_true", help="also score the real pool songs (no human tags)")
+    ap.add_argument("--split", choices=("all", "test", "validation"), default="all",
+                    help="'test' = ONLY the official MTG-Jamendo test-split songs (the final honest score, written to "
+                         "report_test.html); 'validation' = everything except them (report_validation.html)")
     a = ap.parse_args()
     rows, allsongs = load()
+    if a.split != "all":
+        test = mtg_test_ids()
+        allsongs = [s for s in allsongs if (s["key"] in test) == (a.split == "test")]
+        if a.split == "test" and not allsongs:
+            raise SystemExit("no test-split songs analysed yet")
     # train_* songs only train our own mood model; pool_* songs have no human tags. Neither is scored.
     # songs you marked i_agree = n are left out of every scored test (their human label is wrong)
     songs = [s for s in allsongs if not s["meta"].get("group", "").startswith("train_")
@@ -1083,9 +1117,9 @@ def main():
         t14_mood_candidates(R, songs, summary); t15_rhythm_candidates(R, songs, summary); t10_flags(R, songs)
         summary['songs_analysed'] = len(allsongs); summary['songs_scored'] = len(songs)
         summary['checks'] = [(a, b, c) for a, b, c in R.summary]
-        with open(os.path.join(HERE, 'evidence_summary.json'), 'w') as f:
+        with open(os.path.join(HERE, 'evidence_summary.json' if a.split == "all" else f'evidence_summary_{a.split}.json'), 'w') as f:
             json.dump(summary, f, indent=1, default=str)
-    out = os.path.join(HERE, "report.html"); R.write(out)
+    out = os.path.join(HERE, "report.html" if a.split == "all" else f"report_{a.split}.html"); R.write(out)
     for a_, b, c in R.summary:
         print(f"{b:5s} {a_}: {c}")
     print("\nreport written to", out)

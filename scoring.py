@@ -27,6 +27,32 @@ def cosine(query: np.ndarray, pool: np.ndarray) -> np.ndarray:
     return p @ q
 
 
+# Sound is compared AFTER rescaling each of its 1,280 numbers: minus the pool's average, divided by (spread ** 0.25),
+# then cosine. Chosen on the VALIDATION data (6 Oct 2026, 1,468 scored songs; nothing from the test split):
+#   rescaling                 styles apart (bar 85%)   genres   same artist in top 10 (held-out artists)
+#   plain cosine                   87%                  79%         45.5%
+#   centre only (power 0)          89%                  80%         47.1%
+#   spread ** 0.25  <- used        88%                  80%         47.9%
+#   spread ** 0.5                  85%                  79%         48.3%
+#   full z-score (power 1)         79% (fails the bar)  77%         48.7%
+# Full z-score finds the same artist best but blurs coarse style differences (classical vs electronic) and drops below the
+# pre-set bar; 0.25 keeps nearly all of the same-artist gain and beats plain cosine on every measure.
+SOUND_SPREAD_POWER = 0.25
+
+
+def fit_sound_scale(X: np.ndarray, power: float = SOUND_SPREAD_POWER) -> tuple[np.ndarray, np.ndarray]:
+    """(average, spread ** power) of each Sound number over a library of songs (n, 1280). Fitted once per pool version.
+    power=1 is the full z-score (every number ends with spread 1); the default is the compromise above."""
+    X = np.asarray(X, float)
+    return X.mean(axis=0), (X.std(axis=0) + 1e-6) ** power
+
+
+def scale_sound(x: np.ndarray, scale) -> np.ndarray:
+    """Rescale Sound numbers (1280,) or (n, 1280) with a scale from fit_sound_scale (None = leave as they are).
+    The rescaling is a straight-line change, so the mean of rescaled chunks = the rescaled mean."""
+    return np.asarray(x, float) if scale is None else (np.asarray(x, float) - scale[0]) / scale[1]
+
+
 def robust_scale_stats(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Median and IQR per column, computed once per pool version and stored."""
     med = np.median(values, axis=0)
@@ -129,7 +155,9 @@ def combine(per_pair_percentiles: list[dict[str, np.ndarray]],
             den += np.where(have, w[f], 0.0)
             ok &= ~have | (v >= feature_floor)          # every chosen feature must clear the floor
         score = np.where(den > 0, num / np.maximum(den, 1e-9), -np.inf)
-        better = score > best                            # best part chosen AFTER combining
+        # best part chosen AFTER combining. A part that clears every floor beats one that doesn't, however high the
+        # other scores: a song must not be turned down when some part of it passes all the rules.
+        better = (ok & ~passes) | ((ok == passes) & (score > best))
         best = np.where(better, score, best)
         best_pair = np.where(better, k, best_pair)
         passes = np.where(better, ok, passes)
@@ -198,9 +226,44 @@ def instrument_somewhere(inst: np.ndarray, class_names: list[str], choice: str, 
     return np.isin(np.argsort(-np.asarray(inst, float), axis=1)[:, :top], cols).any(axis=1)
 
 
+# ---------------------------------------------------------------- hidden-gem quality guard
+SKIP_LEAST_PLAYED = 10.0     # percent of each site's songs (the least played) that cannot win as a "hidden gem"
+
+
+def least_played(listens, source, pct: float = SKIP_LEAST_PLAYED, favourites=None, min_songs: int = 20,
+                 min_favourites: float = 3) -> np.ndarray:
+    """(n,) bool, True = among the least-played `pct`% of the songs of its OWN site, so it must not win only
+    because almost nobody has played it (the very least-played uploads are often the roughest).
+    Play counts only compare within one site (a YouTube view is not a Jamendo listen), so each source is
+    treated alone. Ties at the cut count as inside it, so a site where many songs have the same low count loses all
+    of them. A site with fewer than `min_songs` known counts is left alone, and so is a site where every song would
+    be flagged (nothing to choose from). Songs with an unknown count are never flagged.
+    favourites: optional (n,) counts (NaN = unknown, e.g. FMA's favourites). A song with at least `min_favourites`
+    favourites is kept even when few have played it: few plays but liked is exactly a hidden gem. The bar is 3, not 1:
+    on FMA 69% of all songs have a favourite and so do 31% of the least played, and those exempt songs would just
+    rise to the top of the list again (measured with gem_guard_check.py --favourites)."""
+    listens = np.asarray(listens, float)
+    source = np.asarray(source)
+    out = np.zeros(len(listens), bool)
+    if pct <= 0:
+        return out
+    for s in set(source):
+        m = (source == s) & ~np.isnan(listens)
+        if m.sum() < min_songs:
+            continue
+        cut = np.percentile(listens[m], pct)
+        flagged = m & (listens <= cut)
+        if flagged.sum() == m.sum():
+            continue
+        out |= flagged
+    if favourites is not None:
+        out &= ~(np.nan_to_num(np.asarray(favourites, float), nan=0.0) >= min_favourites)
+    return out
+
+
 def pick_hidden_gems(match, passes, obscurity, same_artist_or_dup, k=10,
                      start=90.0, step=5.0, floor=70.0, artists=None, max_per_artist=1,
-                     favour=None, favour_mode="prefer"):
+                     favour=None, favour_mode="prefer", skip=None):
     """Keep match >= start, drop same artist / duplicates, sort least popular first.
     At most `max_per_artist` songs by any one artist in the list (pass `artists`, one label per song), so an
     artist with many songs in the pool can't fill the list. Lower the bar by `step` down to `floor` if fewer
@@ -209,7 +272,11 @@ def pick_hidden_gems(match, passes, obscurity, same_artist_or_dup, k=10,
     favour: optional (n,) bool, e.g. from instrument_presence() for the user's favourite instrument.
       favour_mode "prefer": songs with it come first (each group least popular first); the rest fill the list.
                   "only":   songs without it are left out (the list may then be shorter).
-    The match bar is never lowered just to find favoured songs: the instrument steers, Sound still decides."""
+    The match bar is never lowered just to find favoured songs: the instrument steers, Sound still decides.
+
+    skip: optional (n,) bool, e.g. from least_played(): those songs are never picked (the quality guard)."""
+    if skip is not None:
+        passes = passes & ~np.asarray(skip, bool)
     if favour is not None and favour_mode == "only":
         passes = passes & np.asarray(favour, bool)
     def capped(idx):

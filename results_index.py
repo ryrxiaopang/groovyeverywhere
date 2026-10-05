@@ -47,15 +47,21 @@ def list_key(r):
     return f"{r.get('source') or 'jamendo'}_{r.get('track_id') or r.get('jamendo_id')}"
 
 
+# Genres left out of the recommendation pool: the pool keeps the mainstream genres (decided 6 Oct 2026). The songs stay
+# analysed and stored (nothing is deleted); they are just not recommended. To bring a genre back, remove it here.
+OFF_POOL_GENRES = {"punk", "latin", "funk", "classical", "soundtrack"}
+
+
 def pool_keys(here=HERE):
-    """Every song in a pool list and not marked i_agree = n. Pool membership comes from the lists, not from the
-    group a song was first analysed under (a song can be both a test song and a pool song)."""
+    """Every song in a pool list, not marked i_agree = n, and not in an OFF_POOL_GENRES genre. Pool membership
+    comes from the lists, not from the group a song was first analysed under (a song can be both a test song and a
+    pool song)."""
     keys = set()
     for fn in POOL_LISTS:
         p = os.path.join(here, fn)
         if os.path.exists(p):
             with open(p, encoding="utf-8-sig") as f:
-                keys |= {list_key(r) for r in csv.DictReader(f)}
+                keys |= {list_key(r) for r in csv.DictReader(f) if genre_of(r.get("group")) not in OFF_POOL_GENRES}
     return keys - excluded_keys(here)
 
 
@@ -103,6 +109,9 @@ GENRE_NAME = {"pop": "pop", "vocal_pop": "pop",
               "hiphop": "hiphop", "rap": "hiphop", "hip-hop_rap": "hiphop", "korean_hiphop": "hiphop",
               "indie": "indie", "alternative": "alternative", "rock": "rock",
               "singersongwriter": "singer-songwriter", "singer-songwriter": "singer-songwriter",
+              # YouTube genre keys (build_youtube.py): read as the mainstream genre they belong to
+              "kpop": "pop", "jpop": "pop", "cpop": "pop", "cantopop": "pop", "khiphop": "hiphop", "krnb": "rnb",
+              "singer": "singer-songwriter",
               "electronic": "electronic"}
 
 

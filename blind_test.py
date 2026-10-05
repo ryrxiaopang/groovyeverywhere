@@ -61,8 +61,41 @@ def pool():
         P = _pool_from_files()
         P["from"] = "files"
     print(f"  pool: {len(P['key'])} songs (from the {P['from']})")
+    _attach_parts(P)
+    import match
+    P["scale"] = match.sound_scale()                       # Sound is compared after rescaling (scoring.fit_sound_scale)
+    P["whole_z"] = scoring.scale_sound(P["whole"], P["scale"])
+    P["parts_z"] = scoring.scale_sound(P["parts"], P["scale"])
     _pool = _finish(P)
     return _pool
+
+
+def parts3(a, whole):
+    """(k, d) per-part numbers -> exactly 3 rows. A short song has fewer parts: the missing ones repeat the whole song."""
+    a = np.asarray(a, float)
+    a = a[None] if a.ndim == 1 else a
+    return a[:3] if len(a) >= 3 else np.vstack([a, np.repeat(np.asarray(whole, float)[None], 3 - len(a), 0)])
+
+
+def _attach_parts(P):
+    """Per-part Instruments (n,3,40) and Mood (n,3,2; the original MusiCNN model, the only one that has parts) from
+    the results/ files - the database keeps whole-song numbers only. A song whose file is missing uses its whole-song
+    numbers for every part."""
+    n = len(P["key"])
+    P["inst_parts"] = np.repeat(P["inst"][:, None, :], 3, axis=1)
+    P["va_mc_parts"] = np.repeat(P["va_mc"][:, None, :], 3, axis=1)
+    vi, ai = _cls("emomusic", "valence", 0), _cls("emomusic", "arousal", 1)
+    missing = 0
+    for i, k in enumerate(P["key"]):
+        try:
+            with np.load(os.path.join(RES, f"{k}.npz")) as d:
+                P["inst_parts"][i] = parts3(d["instruments_parts"], d["instruments_whole"])
+                ep = parts3(d["emomusic_parts"], d["emomusic_whole"])
+                P["va_mc_parts"][i] = np.column_stack([ep[:, vi], ep[:, ai]])
+        except Exception:
+            missing += 1
+    if missing:
+        print(f"  note: {missing} of {n} pool songs have no readable results file, so their parts reuse whole-song numbers")
 
 
 def _pool_from_files():
@@ -123,31 +156,69 @@ def _finish(P):
     return P
 
 
-def similarities(q):
-    """Raw similarity of the starting song to every pool song, per feature."""
-    P = pool()
-    sound = np.maximum(scoring.cosine(q["whole"], P["whole"]),
-                       np.max([scoring.cosine(q["whole"], P["parts"][:, i]) for i in range(3)], axis=0))
-    try:                                   # a 30 s clip is also compared with EVERY ~30 s stretch of each song
+def window_sound(q, P, scaled=True):
+    """Sound of the clip against the best ~30 s stretch of every pool song (None if the window cache is unavailable).
+    scaled=False gives plain cosine, for the same-song / weak-capture checks whose limits were set on plain cosine."""
+    try:
         import match
         lib_keys = match.library()[0]
-        owner, vecs = match.windows()
-        c = np.asarray(q["whole"], np.float32); c = c / (np.linalg.norm(c) + 1e-9)
+        owner, vecs = match.windows(scaled)
+        c = scoring.scale_sound(q["whole"], P.get("scale") if scaled else None).astype(np.float32)
+        c = c / (np.linalg.norm(c) + 1e-9)
         best = np.full(len(lib_keys), -2.0, np.float32)
         np.maximum.at(best, owner, vecs @ c)
         pos = {k: i for i, k in enumerate(lib_keys)}
-        win = np.array([best[pos[k]] if k in pos else -2.0 for k in P["key"]])
-        sound = np.maximum(sound, win)
+        return np.array([best[pos[k]] if k in pos else -2.0 for k in P["key"]])
     except Exception as e:
         print(f"  (sliding windows not used: {str(e)[:80]})")
-    qva = q["va_vg"] if P["mood_kind"] == "vggish" and not np.isnan(q["va_vg"]).any() else q["va_mc"]
-    pva = P["va"] if qva is q["va_vg"] or P["mood_kind"] == "musicnn" else P["va_mc"]
-    mood = scoring.mood_similarity(qva, pva, pva.mean(0), pva.std(0) + 1e-9)
+        return None
+
+
+def pair_similarities(q, P, win_sound=None):
+    """Raw similarities as a list of pairs: the clip against pool part 0, 1 and 2, then against the whole song.
+    Inside one pair every feature comes from the SAME stretch of the pool song (Sound, Instruments and Mood from
+    that part; Rhythm is whole-song, so it repeats), so scoring.combine can pick the best stretch AFTER combining.
+    The whole-song pair uses whole-song Instruments / Mood and the better of whole-song Sound and the sliding windows."""
     rhythm = scoring.rhythm_similarity({k: q[k] for k in ("bpm", "confidence", "steadiness", "busyness")},
                                        {k: P[k] for k in ("bpm", "confidence", "steadiness", "busyness")},
                                        P["rh_med"], P["rh_iqr"])
-    inst = scoring.cosine(q["inst"], P["inst"])
-    return {"sound": sound, "mood": mood, "rhythm": rhythm, "instruments": inst}
+    qs = scoring.scale_sound(q["whole"], P.get("scale"))                # no "scale" in P = plain cosine
+    whole, parts = P.get("whole_z", P["whole"]), P.get("parts_z", P["parts"])
+    pairs = []
+    for j in range(3):
+        pv = P["va_mc_parts"][:, j]
+        pairs.append({"sound": scoring.cosine(qs, parts[:, j]),
+                      "instruments": scoring.cosine(q["inst"], P["inst_parts"][:, j]),
+                      "mood": scoring.mood_similarity(q["va_mc"], pv, pv.mean(0), pv.std(0) + 1e-9),
+                      "rhythm": rhythm})
+    qva = q["va_vg"] if P["mood_kind"] == "vggish" and not np.isnan(q["va_vg"]).any() else q["va_mc"]
+    pva = P["va"] if qva is q["va_vg"] or P["mood_kind"] == "musicnn" else P["va_mc"]
+    sound = scoring.cosine(qs, whole)
+    if win_sound is not None:
+        sound = np.maximum(sound, win_sound)
+    pairs.append({"sound": sound,
+                  "instruments": scoring.cosine(q["inst"], P["inst"]),
+                  "mood": scoring.mood_similarity(qva, pva, pva.mean(0), pva.std(0) + 1e-9),
+                  "rhythm": rhythm})
+    return pairs
+
+
+def raw_sound(q, P):
+    """Plain-cosine Sound (whole song, 3 parts, any ~30 s stretch) for the same-song and weak-capture checks:
+    DUP_COSINE and WEAK_COSINE were set on plain cosine and mean something different after rescaling."""
+    best = np.max([scoring.cosine(q["whole"], P["parts"][:, j]) for j in range(3)]
+                  + [scoring.cosine(q["whole"], P["whole"])], axis=0)
+    w = window_sound(q, P, scaled=False)
+    return best if w is None else np.maximum(best, w)
+
+
+def similarities(q, pairs=None):
+    """Raw similarity of the starting song to every pool song, per feature (Sound = its best stretch). Used for
+    list A, the same-song check and the genre of the closest match; list B uses pair_similarities."""
+    P = pool()
+    pairs = pairs or pair_similarities(q, P, window_sound(q, P))
+    return {"sound": np.max([p["sound"] for p in pairs], axis=0), "mood": pairs[-1]["mood"],
+            "rhythm": pairs[-1]["rhythm"], "instruments": pairs[-1]["instruments"]}
 
 
 def query_from_analysis(feats):
@@ -162,24 +233,59 @@ DUP_COSINE = 0.97    # Sound this close = the same recording (e.g. the friend's 
 WEAK_COSINE = 0.45   # PROVISIONAL: below this the capture is probably mostly room noise; set it from the mic check
 
 
-def make_lists(q, feature, seed=0):
+_fma_fav = None
+
+
+def fma_favourites(keys):
+    """FMA favourites count per song key (NaN for songs from other sites, or when fma/tracks.csv is not downloaded)."""
+    global _fma_fav
+    out = np.full(len(keys), np.nan)
+    if _fma_fav is None:                             # fma/tracks.csv is large: read it once per run
+        try:
+            import fma_pool
+            _fma_fav = {"fma_" + str(r.get("track_id")): r.get("track.favorites") for r in fma_pool.load()}
+        except BaseException as e:                   # fma_pool exits (SystemExit) when the file is missing
+            print(f"  (FMA favourites not used: {str(e)[:80]})")
+            _fma_fav = {}
+    fav = _fma_fav
+    for i, k in enumerate(keys):
+        try:
+            out[i] = float(fav[k])
+        except (KeyError, TypeError, ValueError):
+            pass
+    return out
+
+
+def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False):
     """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
-    genre group of the closest Sound match. Each list: K songs, least popular good matches first, 1 per artist."""
+    genre group of the closest Sound match. Each list: K songs, least popular good matches first, 1 per artist.
+    Quality guard: A and B never pick a song from the least-played `skip_least`% of its own site (0 = off), so the
+    very least-played, often roughest, uploads do not win automatically. use_favourites keeps FMA songs that someone
+    favourited even when few played them (needs fma/tracks.csv). C is the random control and is not filtered."""
     P = pool()
-    sims = similarities(q)
+    skip = scoring.least_played(P["listens"], P["source"], skip_least,
+                                favourites=fma_favourites(P["key"]) if use_favourites else None)
+    pairs = pair_similarities(q, P, window_sound(q, P))
+    sims = similarities(q, pairs)
     pct = {f: scoring.to_percentile(s) for f, s in sims.items()}
+    pair_pct = [{f: scoring.to_percentile(v) for f, v in p.items()} for p in pairs]
     n = len(P["key"]); artists = np.array(P["artist"])
     # the starting song itself (or a copy of it under another site) must never be recommended back,
     # nor other songs by that artist: near-identical Sound = the same recording
-    dup = sims["sound"] >= DUP_COSINE
+    plain = raw_sound(q, P)                                 # plain cosine, for the two checks below
+    dup = plain >= DUP_COSINE
     dup_artists = {artists[i] for i in np.where(dup)[0]}
     none = dup | np.isin(artists, list(dup_artists))
-    a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists)
+    a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists,
+                                              skip=skip)
     chosen = ["sound"] + [f for f in feature.split("+") if f != "sound"]    # e.g. "mood+rhythm"
-    match, _, _, passes = scoring.combine([{f: pct[f] for f in chosen}], chosen)
-    b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=K, artists=artists)
+    # the best stretch of each pool song is chosen AFTER combining the features (scoring.combine), so a song whose
+    # Sound matches in part 1 but whose Mood matches in part 3 is not scored as if both matched the same stretch
+    match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
+    b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=K, artists=artists, skip=skip)
     from results_index import genre_of
     best = int(np.argmax(np.where(none, -np.inf, sims["sound"])))
+    best_plain = float(np.max(np.where(none, -np.inf, plain)))
     top_group = genre_of(P["group"][best])                  # one genre across sites, not one source list
     rng = random.Random(seed)
     used = set(a_idx) | set(b_idx)
@@ -188,14 +294,16 @@ def make_lists(q, feature, seed=0):
     out = {}
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
         out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
-                          sound_pct=round(float(pct["sound"][i]), 1),
-                          feature_pct=round(float(np.mean([pct[f][i] for f in chosen])), 1),
+                          sound_pct=round(float((pair_pct[best_pair[i]] if name == "B" else pct)["sound"][i]), 1),
+                          feature_pct=round(float(np.mean([(pair_pct[best_pair[i]] if name == "B" else pct)[f][i]
+                                                           for f in chosen])), 1),
                           obscurity=round(float(P["obscurity"][i]), 1))
                      for i in idx]
         out[name + "_bar"] = bar
     out["genre_group"] = top_group
-    out["best_sound_cosine"] = round(float(sims["sound"][best]), 3)     # how strong the closest real match is
-    out["weak_capture"] = bool(sims["sound"][best] < WEAK_COSINE)
+    out["best_sound_cosine"] = round(best_plain, 3)         # how strong the closest real match is (plain cosine)
+    out["weak_capture"] = bool(best_plain < WEAK_COSINE)
+    out["skipped_least_played"] = int(skip.sum())
     out["excluded_as_same_song"] = [P["key"][i] for i in np.where(dup)[0]]
     out["mood_model"] = P["mood_kind"] if not np.isnan(q["va_vg"]).any() else "musicnn"
     return out

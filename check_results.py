@@ -73,7 +73,7 @@ def main():
     from results_index import list_key
     here = os.path.dirname(os.path.abspath(__file__))
     lists = set()
-    for fn in ("edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv"):
+    for fn in ("edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv", "pool_youtube.csv"):
         fp = os.path.join(here, fn)
         if os.path.exists(fp):
             with open(fp, encoding="utf-8-sig") as f:

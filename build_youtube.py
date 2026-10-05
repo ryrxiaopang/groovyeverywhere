@@ -24,6 +24,7 @@ i_agree column (n = "wrong genre, drop it") are carried over, like every other p
 """
 import argparse, os, re, sys, time
 import requests
+import sources
 from results_index import write_list, pool_keys, latest_rows, HERE
 
 API = "https://www.googleapis.com/youtube/v3"
@@ -59,10 +60,13 @@ class QuotaUsed(Exception):
 
 def _call(path, **params):
     _polite()
-    r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=30)
-    if r.status_code == 403 and "quota" in r.text.lower():
-        raise QuotaUsed()
-    r.raise_for_status()
+    try:
+        r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=30)
+        if r.status_code == 403 and "quota" in r.text.lower():
+            raise QuotaUsed()
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise sources.safe_exc(e) from None          # the error text would otherwise contain the API key
     return r.json()
 
 

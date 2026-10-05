@@ -117,6 +117,9 @@ def main():
                     help="try again the songs earlier runs marked 'no longer available' or gave up on after 3 failures")
     a = ap.parse_args()
     os.makedirs(RES, exist_ok=True)
+    n_old = sources.sweep_stale_temp()
+    if n_old:
+        print(f"removed {n_old} leftover audio folder(s) from an earlier run that was stopped hard")
     skip = done_keys(a.recheck_missing)
     if a.upgrade:
         import analyze

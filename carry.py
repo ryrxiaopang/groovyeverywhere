@@ -11,7 +11,7 @@ Unpacking MERGES, it never replaces: taps filled on either machine are kept, cap
 log rows are added once. Every desktop file it changes is first copied to <name>.before-carry.
 Song analysis (results/*.npz) is NOT carried: the desktop does the analysing.
 """
-import argparse, csv, glob, os, shutil, sys, time, zipfile
+import argparse, csv, glob, io, os, shutil, sys, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
@@ -36,8 +36,20 @@ def pack(dest):
 
 
 def read_csv(text):
-    rd = csv.DictReader(text.splitlines())
+    rd = csv.DictReader(io.StringIO(text, newline=""))        # (not splitlines(): a title may contain a line break)
     return rd.fieldnames or [], list(rd)
+
+
+def carried(name):
+    """True only for the files this tool packs, and only if they land inside this folder (a zip entry named
+    ../../x must never write outside it)."""
+    if name.endswith("/") or ".." in name.replace("\\", "/").split("/"):
+        return False
+    ok = (name == "taps.csv" or name in LOGS or name == "results/blind/key.csv"
+          or (name.startswith("results/blind/") and name.endswith(".json"))
+          or (name.startswith("blind_sheets/") and name.endswith(".csv")))
+    root = os.path.realpath(HERE)
+    return ok and os.path.realpath(os.path.join(HERE, name)).startswith(root + os.sep)
 
 
 def write_csv(path, fields, rows):
@@ -59,6 +71,8 @@ def unpack(zpath):
     added = {}
     with zipfile.ZipFile(zpath) as z:
         for name in z.namelist():
+            if not carried(name):
+                print(f"  skipped {name}: not a file this tool carries"); continue
             text = z.read(name).decode("utf-8-sig")
             dst = os.path.join(HERE, name)
             os.makedirs(os.path.dirname(dst), exist_ok=True)

@@ -180,9 +180,9 @@ class H(BaseHTTPRequestHandler):
                 # Finding the exact song is stricter than the app needs. What matters for recommendations:
                 # does the clip pull up the same NEIGHBOURS as the real song? (share of the 20 closest in common)
                 _, _, W, _ = match.library()
-                t = keys.index(expected)
-                o_true, _ = match.rank(W[t], exclude={expected})
-                o_clip = [i for i in order if i != t]
+                ti = keys.index(expected)                     # (not `t`: that holds the start time for "seconds")
+                o_true, _ = match.rank(W[ti], exclude={expected}, prepared=True)
+                o_clip = [i for i in order if i != ti]
                 overlap = len(set(o_clip[:20]) & set(o_true[:20].tolist())) / 20
                 res["neighbour_overlap"] = overlap
                 row.update(top_share_pct=round(100 * pos / len(keys), 1), neighbour_overlap=round(overlap, 2))
@@ -268,7 +268,8 @@ def summary():
 if __name__ == "__main__":
     if "--summary" in sys.argv:
         summary(); sys.exit()
-    import match
+    import match, sources
+    sources.sweep_stale_temp()
     n = len(match.library()[0])
     print(f"library: {n} analysed songs. Open http://localhost:8765 in Chrome or Edge (Ctrl+C here to stop).")
     print("tapping page: http://localhost:8765/tap")

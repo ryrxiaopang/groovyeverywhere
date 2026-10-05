@@ -125,7 +125,7 @@ def main():
         line = []
         lib_keys, _, W, _ = match.library()
         t = lib_keys.index(k)
-        true_top = set(match.rank(W[t], exclude={k})[0][:20].tolist())     # the real song's 20 closest songs
+        true_top = set(match.rank(W[t], exclude={k}, prepared=True)[0][:20].tolist())     # the real song's 20 closest songs
         for name, v in versions(clip, rng).items():
             emb = np.asarray(effnet(v))
             for method in METHODS:

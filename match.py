@@ -3,24 +3,66 @@
 A clip is compared with each song's whole-song average AND its 3 parts; the best of those counts
 (the clip test showed 'best of whole or parts' finds the right song most often).
 """
-import os
+import hashlib, os
 import numpy as np
+import scoring
 from results_index import latest_rows, RES
 
 _lib = None
+_scale = None
+MIN_SCALE_SONGS = 200      # fewer pool songs than this -> the average and spread come from every analysed song
+
+
+def sound_scale():
+    """(average, spread) of each of the 1,280 Sound numbers, from the recommendation pool (or, while the pool is
+    tiny, from every analysed song). THE one scale every Sound comparison uses (blind test, clip matching, evaluate.py),
+    so they all agree. Cached in results/sound_scale.npz and refitted when the pool changes."""
+    global _scale
+    if _scale is not None:
+        return _scale
+    from results_index import pool_keys
+    rows = latest_rows(RES)
+    done = sorted(k for k, r in rows.items() if r["status"] == "done" and os.path.exists(os.path.join(RES, f"{k}.npz")))
+    pk = pool_keys()
+    keys, basis = [k for k in done if k in pk], "pool"
+    if len(keys) < MIN_SCALE_SONGS:
+        keys, basis = done, "all analysed"
+    h = hashlib.md5(("\n".join(keys) + f"|power={scoring.SOUND_SPREAD_POWER}").encode()).hexdigest()   # refit if either changes
+    cache = os.path.join(RES, "sound_scale.npz")
+    if os.path.exists(cache):
+        with np.load(cache) as d:
+            if str(d["hash"]) == h:
+                _scale = (d["mu"], d["sd"]); return _scale
+    X = []
+    for k in keys:
+        try:
+            with np.load(os.path.join(RES, f"{k}.npz")) as d:
+                X.append(np.asarray(d["effnet_whole"], np.float64))
+        except Exception:
+            continue
+    _scale = scoring.fit_sound_scale(np.stack(X))
+    np.savez(cache[:-4] + ".tmp.npz", hash=h, mu=_scale[0], sd=_scale[1], n=len(X))
+    os.replace(cache[:-4] + ".tmp.npz", cache)
+    print(f"  Sound scale fitted on {len(X)} {basis} songs")
+    return _scale
+
+
+def _unit(a):
+    return a / (np.linalg.norm(a, axis=-1, keepdims=True) + 1e-9)
 
 
 def library():
-    """(keys, rows, whole[N,1280], parts[N,3,1280]) for every analysed song, L2-normalised. Loaded once."""
+    """(keys, rows, whole[N,1280], parts[N,3,1280]) for every analysed song, rescaled with sound_scale() and then
+    L2-normalised. Loaded once."""
     global _lib
     if _lib is not None:
         return _lib
     import pool_db
     P = pool_db.load(pool_only=False)          # the database first (the app's store) ...
     if P is not None:
-        W = P["whole"].astype(np.float32); Pt = P["parts"].astype(np.float32)
-        W /= np.linalg.norm(W, axis=1, keepdims=True) + 1e-9
-        Pt /= np.linalg.norm(Pt, axis=2, keepdims=True) + 1e-9
+        sc = sound_scale()
+        W = _unit(scoring.scale_sound(P["whole"], sc)).astype(np.float32)
+        Pt = _unit(scoring.scale_sound(P["parts"], sc)).astype(np.float32)
         meta = [dict(title=t, artist=a, page=l) for t, a, l in zip(P["title"], P["artist_name"], P["link"])]
         _lib = (P["key"], meta, W, Pt)
         return _lib
@@ -40,30 +82,40 @@ def library():
         if parts.shape[0] < 3:
             parts = np.vstack([parts, np.repeat(w[None], 3 - parts.shape[0], 0)])
         keys.append(k); meta.append(r); W.append(w); P.append(parts[:3])
-    W = np.stack(W); P = np.stack(P)
-    W /= np.linalg.norm(W, axis=1, keepdims=True) + 1e-9
-    P /= np.linalg.norm(P, axis=2, keepdims=True) + 1e-9
+    sc = sound_scale()
+    W = _unit(scoring.scale_sound(np.stack(W), sc)).astype(np.float32)
+    P = _unit(scoring.scale_sound(np.stack(P), sc)).astype(np.float32)
     _lib = (keys, meta, W, P)
     return _lib
 
 
 WIN, HOP = 30, 15        # sliding windows: 30 chunks (~30 s), a new one every 15 chunks (~15 s)
 _win = None
+_win_plain = None
 
 
-def windows():
-    """(owner index per window, unit vectors [n_windows,1280] float16): every ~30 s stretch of every song, so a
+def windows(scaled=True):
+    """(owner index per window, rescaled unit vectors [n_windows,1280]): every ~30 s stretch of every song, so a
     clip from ANY part of a song has a stored stretch to match, not just the 3 sampled parts.
-    Built from the per-chunk numbers in results/*.npz and cached in results/windows_cache.npz."""
-    global _win
+    Built from the per-chunk numbers in results/*.npz; the raw window averages are cached in
+    results/windows_cache.npz and rescaled with sound_scale() when loaded."""
+    global _win, _win_plain
+    if not scaled:                      # plain (unrescaled) unit vectors, for checks calibrated on plain cosine
+        if _win_plain is None:
+            windows()                   # makes sure the cache file exists and is current
+            with np.load(os.path.join(RES, "windows_cache.npz"), allow_pickle=False) as d:
+                _win_plain = (d["owner"], _unit(d["vecs"].astype(np.float32)).astype(np.float32))
+        return _win_plain
     if _win is not None:
         return _win
     keys = library()[0]
     cache = os.path.join(RES, "windows_cache.npz")
+    sc = sound_scale()
     if os.path.exists(cache):
         with np.load(cache, allow_pickle=False) as d:
-            if list(d["keys"]) == list(keys):
-                _win = (d["owner"], d["vecs"].astype(np.float32)); return _win
+            if "raw" in d.files and list(d["keys"]) == list(keys):          # (older caches held unit vectors: rebuilt)
+                _win = (d["owner"], _unit(scoring.scale_sound(d["vecs"].astype(np.float32), sc)).astype(np.float32))
+                return _win
     print(f"  building the sliding-window index for {len(keys)} songs (once; ~1-3 minutes) ...")
     owner, vecs = [], []
     for i, k in enumerate(keys):
@@ -74,23 +126,26 @@ def windows():
             continue
         starts = range(0, max(1, len(ch) - WIN + 1), HOP)
         for st in starts:
-            v = ch[st: st + WIN].mean(axis=0)
-            vecs.append((v / (np.linalg.norm(v) + 1e-9)).astype(np.float16)); owner.append(i)
+            vecs.append(ch[st: st + WIN].mean(axis=0).astype(np.float16)); owner.append(i)     # raw means
     owner = np.array(owner, np.int32); vecs = np.stack(vecs)
-    np.savez(cache[:-4] + ".tmp.npz", keys=np.array(keys), owner=owner, vecs=vecs)
+    np.savez(cache[:-4] + ".tmp.npz", keys=np.array(keys), owner=owner, vecs=vecs, raw=np.array(1))
     os.replace(cache[:-4] + ".tmp.npz", cache)
-    _win = (owner, vecs.astype(np.float32))
+    _win = (owner, _unit(scoring.scale_sound(vecs.astype(np.float32), sc)).astype(np.float32))
     return _win
 
 
-def rank(clip_emb, exclude=None, method="both"):
-    """clip_emb: [chunks,1280] or [1280]. Returns (order of song indices best-first, scores).
+def rank(clip_emb, exclude=None, method="both", prepared=False):
+    """clip_emb: [chunks,1280] or [1280] of raw Sound numbers (they are rescaled here). prepared=True when it is
+    already a library row (library()[2] / [3]), which is rescaled and unit length already.
+    Returns (order of song indices best-first, scores).
     method: "whole" (whole-song average only), "both" (whole or one of the 3 stored parts, the original rule),
             "windows" (whole or ANY ~30 s stretch of the song)."""
     keys, meta, W, P = library()
     c = np.asarray(clip_emb, np.float32)
     if c.ndim == 2:
         c = c.mean(axis=0)
+    if not prepared:
+        c = scoring.scale_sound(c, sound_scale()).astype(np.float32)
     c = c / (np.linalg.norm(c) + 1e-9)
     s = W @ c
     if method == "both":

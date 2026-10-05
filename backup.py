@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "backups")
 DB = os.environ.get("HG_DB", "postgresql://hg:hg@localhost:5432/hiddengems")
 FILES = ["edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv",
-         "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv", "taps.csv", "own_mood.npz", "catalogue.csv", "evidence_summary.json"]
+         "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv", "pool_youtube.csv", "test_split.csv", "test_split_freeze.json", "taps.csv", "own_mood.npz", "catalogue.csv", "evidence_summary.json"]
 RESTORE = """How to restore this backup (inside Ubuntu, in ~/hidden-gems-tests with the test kit unzipped):
   1. unzip -o hidden-gems-<date>.zip          # puts back results/ and the lists
   2. sudo service postgresql start
