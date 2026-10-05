@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capture Test</title>
+<style>
+  :root { --bg:#F7F5EF; --ink:#14213D; --muted:#5b6475; --line:#d9d4c7; --accent:#C8641F; --ok:#2F6FB0; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14181f; --ink:#ece8de; --muted:#a3a9b5; --line:#2c323d; --card:#1b2029; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.note { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  select, input { width:100%; box-sizing:border-box; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); font:inherit; }
+  button { margin-top:14px; padding:10px 18px; border:0; border-radius:6px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  #status { margin-top:12px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td, th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  tr.hit td { color:var(--ok); font-weight:700; }
+  .warn { color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Capture test</h1>
+  <p class="note">Records 30 seconds, finds the 10 closest analysed songs, then deletes the audio. Only capture from Jamendo, Audius or Free Music Archive pages.</p>
+
+  <div class="card">
+    <label for="method">How to capture</label>
+    <select id="method">
+      <option value="tab">Browser tab audio (play the song in another tab)</option>
+      <option value="mic">Microphone (play the song out loud from a speaker or phone)</option>
+    </select>
+    <label for="site">Where the song is playing</label>
+    <select id="site">
+      <option value="jamendo">Jamendo</option>
+      <option value="audius">Audius</option>
+      <option value="fma">Free Music Archive</option>
+      <option value="local file">A file on this computer</option>
+    </select>
+    <label for="expected">Which song is it? (track number, or jamendo_123 / audius_abc / fma_456; optional)</label>
+    <input id="expected" placeholder="e.g. 959961">
+    <button id="go">Start 30-second capture</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:17px;margin:0 0 4px">Blind test</h2>
+    <p class="note" style="margin:0">Play a friend's song out loud from a phone near this computer. It makes 3 hidden lists of pool songs for the friend to rate later. You won't see the lists, so the test stays blind.</p>
+    <label for="friend">Friend (initials)</label>
+    <input id="friend" placeholder="e.g. JL">
+    <label for="song">Their song (title and artist, for the sheet)</label>
+    <input id="song" placeholder="e.g. Song title - Artist">
+    <label for="feature">What they like most about it</label>
+    <select id="feature">
+      <option value="sound">The overall sound</option>
+      <option value="mood">The mood (happy / sad, calm / intense)</option>
+      <option value="rhythm">The rhythm (speed, groove)</option>
+      <option value="instruments">The instruments</option>
+      <option value="mood+rhythm">The mood and the rhythm</option>
+    </select>
+    <button id="blind">Record 30 seconds with the microphone</button>
+    <div id="bstatus"></div>
+  </div>
+
+  <div class="card" id="out" hidden></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const SECONDS = 30;
+
+function wav(samples, rate) {
+  const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+async function getStream(method) {
+  if (method === "mic")
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  s.getVideoTracks().forEach(t => t.stop());
+  if (!s.getAudioTracks().length) throw new Error("No tab audio. Pick the tab again and tick 'Also share tab audio'.");
+  return s;
+}
+
+async function record(method, status) {
+  const stream = await getStream(method);
+  try {
+    const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    for (let t = SECONDS; t > 0; t--) { status.textContent = `Recording… ${t} s left`; await new Promise(r => setTimeout(r, 1000)); }
+    proc.disconnect(); src.disconnect();
+    const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n);
+    let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+    const rate = ctx.sampleRate; await ctx.close();
+    return wav(all, rate);
+  } finally { stream.getTracks().forEach(t => t.stop()); }
+}
+
+async function blind() {
+  const friend = $("friend").value.trim(), song = $("song").value.trim(), feature = $("feature").value;
+  if (!friend || !song) { $("bstatus").innerHTML = '<span class="warn">Fill in the friend and the song first.</span>'; return; }
+  $("blind").disabled = true;
+  try {
+    const body = await record("mic", $("bstatus"));
+    $("bstatus").textContent = "Analysing (up to a minute on a laptop)…";
+    const r = await fetch("/blind?" + new URLSearchParams({ friend, song, feature }), { method: "POST", body });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "analysis failed");
+    $("bstatus").textContent = d.warning ? d.warning : `Saved: ${d.songs} songs for ${friend} to rate. The audio has been deleted.`;
+    if (!d.warning) $("song").value = "";
+  } catch (e) { $("bstatus").innerHTML = `<span class="warn">${esc(e.message)}</span>`; }
+  $("blind").disabled = false;
+}
+
+async function capture() {
+  const method = $("method").value, site = $("site").value, expected = $("expected").value.trim();
+  $("go").disabled = true; $("out").hidden = true;
+  let stream;
+  try {
+    stream = await getStream(method);
+    const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    for (let t = SECONDS; t > 0; t--) { $("status").textContent = `Recording… ${t} s left`; await new Promise(r => setTimeout(r, 1000)); }
+    proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop());
+    const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n);
+    let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+    const rate = ctx.sampleRate; await ctx.close();
+    $("status").textContent = "Analysing…";
+    const q = new URLSearchParams({ method, site, expected });
+    const r = await fetch("/analyse?" + q, { method: "POST", body: wav(all, rate) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "analysis failed");
+    show(d, expected);
+    $("status").textContent = "Done. The audio has been deleted.";
+  } catch (e) {
+    $("status").innerHTML = `<span class="warn">${e.message}</span>`;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+  }
+  $("go").disabled = false;
+}
+
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function show(d, expected) {
+  const out = $("out"); out.hidden = false;
+  let h = `<p>Level ${d.signal.rms_db} dB, silent ${Math.round(d.signal.silent_share * 100)}% of the time.</p>`;
+  if (d.warning) { out.innerHTML = h + `<p class="warn">${esc(d.warning)}</p>`; return; }
+  if (expected) h += d.expected_position ? `<p><b>Your song came ${d.expected_position === 1 ? "first" : "#" + d.expected_position}.</b></p>`
+                                         : `<p class="warn">That song isn't among the analysed songs.</p>`;
+  const key = /^\d+$/.test(expected) ? ($("site").value === "fma" ? "fma_" : "jamendo_") + expected : expected;
+  h += "<table><tr><th>#</th><th>Song</th><th>Artist</th><th>Closeness</th></tr>";
+  d.results.forEach((s, i) => {
+    const name = esc(s.title || s.key);
+    const t = /^https:\/\//.test(s.link) ? `<a href="${esc(s.link)}" target="_blank" rel="noopener">${name}</a>` : name;
+    h += `<tr class="${s.key === key ? "hit" : ""}"><td>${i + 1}</td><td>${t}</td><td>${esc(s.artist)}</td><td>${s.score}</td></tr>`;
+  });
+  out.innerHTML = h + "</table>";
+}
+$("go").onclick = capture;
+$("blind").onclick = blind;
+</script>
+</body>
+</html>

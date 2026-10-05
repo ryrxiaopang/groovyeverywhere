@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tap the Beat</title>
+<style>
+  :root { --bg:#F7F5EF; --ink:#14213D; --muted:#5b6475; --line:#d9d4c7; --accent:#C8641F; --ok:#2F6FB0; --card:#fff; --pad:#fbe9dc; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14181f; --ink:#ece8de; --muted:#a3a9b5; --line:#2c323d; --card:#1b2029; --pad:#3a2a1f; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .note { color:var(--muted); margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .song { font-size:18px; font-weight:600; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  button, a.btn { padding:9px 16px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); font:inherit; cursor:pointer; text-decoration:none; }
+  button.main { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  #pad { width:100%; height:150px; margin-top:12px; border:2px dashed var(--accent); border-radius:12px; background:var(--pad); color:var(--ink); font-size:20px; font-weight:600; cursor:pointer; user-select:none; }
+  #pad.hit { background:var(--accent); color:#fff; }
+  #bpm { font-size:42px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:6px; }
+  #bar div { height:100%; background:var(--ok); width:0; }
+  .done { color:var(--ok); font-weight:600; }
+  .warn { color:var(--accent); font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td { padding:4px; border-bottom:1px solid var(--line); }
+  td.v { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.cur td { font-weight:700; }
+  tr { cursor:pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tap the beat</h1>
+  <p class="note">Open the song, let it play for a few seconds, then tap along to the beat you would nod your head to: the space bar or the box below, at least 8 taps. Save when the number settles. No beat to tap to? Press "No beat". Every answer is saved straight into taps.csv.</p>
+
+  <div class="card">
+    <div id="progress"></div>
+    <div id="bar"><div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="song" id="title">Loading…</div>
+    <div class="note" id="artist" style="margin:0"></div>
+    <div class="row">
+      <a class="btn" id="open" target="_blank" rel="noopener">Open the song on Jamendo</a>
+      <span id="saved"></span>
+    </div>
+    <button id="pad" type="button">Tap here (or press the space bar)</button>
+    <div class="row">
+      <div><div id="bpm">–</div><div class="note" id="count" style="margin:0">0 taps</div></div>
+    </div>
+    <div class="row">
+      <button class="main" id="save" type="button">Save this speed</button>
+      <button id="none" type="button">No beat</button>
+      <button id="reset" type="button">Start tapping again</button>
+      <button id="prev" type="button">Previous</button>
+      <button id="next" type="button">Skip for now</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <table id="list"></table>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let rows = [], cur = 0, taps = [];
+
+function bpm() {
+  if (taps.length < 2) return null;
+  const iv = [];
+  for (let i = 1; i < taps.length; i++) iv.push(taps[i] - taps[i - 1]);
+  const recent = iv.slice(-16).sort((a, b) => a - b);
+  const med = recent[Math.floor(recent.length / 2)];
+  return 60000 / med;
+}
+function showTaps() {
+  const b = bpm();
+  $("bpm").textContent = b ? b.toFixed(1) : "–";
+  $("count").textContent = `${taps.length} tap${taps.length === 1 ? "" : "s"}` + (taps.length && taps.length < 8 ? " (keep going: 8 or more)" : "");
+}
+function tap() {
+  const now = performance.now();
+  if (taps.length && now - taps[taps.length - 1] > 2500) taps = [];   // a long pause starts a new count
+  taps.push(now); showTaps();
+  $("pad").classList.add("hit"); setTimeout(() => $("pad").classList.remove("hit"), 80);
+}
+function render() {
+  const n = rows.length, done = rows.filter(r => (r.tapped_bpm || "").trim()).length;
+  $("progress").innerHTML = `<b>${done} of ${n}</b> songs done` + (done === n && n ? ' <span class="done">All done. Run python evaluate.py</span>' : "");
+  $("bar").firstElementChild.style.width = n ? `${100 * done / n}%` : "0";
+  const r = rows[cur];
+  if (!r) { $("title").textContent = "No songs in taps.csv. Run python make_tap_list.py first."; return; }
+  $("title").textContent = `${cur + 1}. ${r.title || "Untitled"}`;
+  $("artist").textContent = r.artist || "";
+  $("open").href = r.listen;
+  const v = (r.tapped_bpm || "").trim();
+  $("saved").innerHTML = v ? `<span class="done">Saved: ${esc(v === "none" ? "no beat" : v + " BPM")}</span>` : "";
+  taps = []; showTaps(); $("msg").textContent = "";
+  $("list").innerHTML = rows.map((x, i) => `<tr data-i="${i}" class="${i === cur ? "cur" : ""}"><td>${i + 1}</td><td>${esc(x.title)}</td><td>${esc(x.artist)}</td><td class="v">${esc(x.tapped_bpm || "")}</td></tr>`).join("");
+  document.querySelectorAll("#list tr").forEach(tr => tr.onclick = () => { cur = +tr.dataset.i; render(); });
+}
+async function save(value) {
+  const r = rows[cur];
+  try {
+    const res = await fetch(`/taps?${new URLSearchParams({ id: r.jamendo_id, bpm: value })}`, { method: "POST" });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || "could not save");
+    rows = d;
+    const next = rows.findIndex((x, i) => i > cur && !(x.tapped_bpm || "").trim());
+    cur = next >= 0 ? next : Math.min(cur + 1, rows.length - 1);
+    render();
+  } catch (e) { $("msg").innerHTML = `<span class="warn">${esc(e.message)}</span>`; }
+}
+$("pad").onclick = tap;
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && !e.repeat && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) { e.preventDefault(); tap(); }
+});
+$("save").onclick = () => {
+  const b = bpm();
+  if (!b || taps.length < 8) { $("msg").innerHTML = '<span class="warn">Tap at least 8 times first.</span>'; return; }
+  save(b.toFixed(1));
+};
+document.addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); });   // stops a focused button also "clicking"
+$("none").onclick = () => save("none");
+$("reset").onclick = () => { taps = []; showTaps(); };
+$("prev").onclick = () => { cur = Math.max(0, cur - 1); render(); };
+$("next").onclick = () => { cur = Math.min(rows.length - 1, cur + 1); render(); };
+fetch("/taps").then(r => r.json()).then(d => {
+  rows = d;
+  const first = rows.findIndex(x => !(x.tapped_bpm || "").trim());
+  cur = first >= 0 ? first : 0;
+  render();
+}).catch(() => { $("title").textContent = "Couldn't reach the server. Is python capture_server.py running?"; });
+</script>
+</body>
+</html>

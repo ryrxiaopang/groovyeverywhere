@@ -1,0 +1,19 @@
+# Data and outputs stay on your own machines (backed up separately with backup.py)
+.venv/
+__pycache__/
+models/
+results/
+backups/
+blind_sheets/
+logs/
+report/
+fma/
+taps.csv*
+pool_*.csv*
+own_mood.npz
+catalogue*
+*.log
+nohup.out
+*.bak
+*.tmp
+.env

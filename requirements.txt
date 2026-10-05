@@ -1,0 +1,7 @@
+# Linux / WSL2 only (essentia-tensorflow has no native Windows or Apple-silicon wheel).
+# Pinned to the build used on the laptop (Python 3.14) so every machine gives identical numbers.
+# If pip says this version doesn't exist for your Python, check `python3 --version` (laptop: 3.14).
+essentia-tensorflow==2.1b6.dev1438
+numpy
+requests
+matplotlib
