@@ -42,6 +42,20 @@ DEFAULT_GENRES = {
     "rnb":      "r&b soul vocal",
     "hiphop":   "underground hip hop",
     "singer":   "singer songwriter acoustic vocal",
+    # added 7 Oct: phrases close to the project owner's own playlist, plus a few more mainstream gaps
+    "kindie":   "korean indie",
+    "kballad":  "korean ballad",
+    "klofi":    "korean lofi hip hop",
+    "mrnb":     "mandarin r&b",
+    "chiphop":  "chinese hip hop",
+    "twindie":  "taiwan indie",
+    "jrnb":     "japanese r&b",
+    "citypop":  "city pop",
+    "indiepop": "bedroom pop",
+    "indierock": "indie rock band",
+    "altrock":  "alternative rock band",
+    "indiefolk": "indie folk",
+    "electro":  "melodic electronic vocal",
 }
 
 # Titles that are almost never an original song with singing. Found by check_youtube_quality.py: about 38% of the first

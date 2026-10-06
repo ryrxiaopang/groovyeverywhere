@@ -99,12 +99,42 @@ def score():
     print(f"\nsongs that are real, original and well recorded: {100 * np.mean(good):.0f}%")
 
 
+SHEET2 = os.path.join(HERE, "youtube_listen_sheet_underrated.csv")
+
+
+def make_selected_sheet(n, seed):
+    """A listening sheet drawn from underrated_selected.csv (build_underrated.py): half from the web-list artists, half
+    from the user's own playlist, one song per artist, seeded. Playlist rows ask whether it is the artist meant."""
+    sel = list(csv.DictReader(open(os.path.join(HERE, "underrated_selected.csv"), encoding="utf-8-sig")))
+    rng = random.Random(seed)
+    by_artist = collections.defaultdict(list)
+    for r in sel:
+        by_artist[(r["genre"], r["artist"])].append(r)
+    web = [k for k in by_artist if k[0] != "playlist"]
+    mine = [k for k in by_artist if k[0] == "playlist"]
+    rng.shuffle(web); rng.shuffle(mine)
+    picks = [(k, "web list") for k in web[: n // 2]] + [(k, "your playlist") for k in mine[: n - n // 2]]
+    rng.shuffle(picks)
+    qs = QUESTIONS[:1] + ["is_this_the_artist_I_meant (y/n)"] + QUESTIONS[1:]
+    with open(SHEET2, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(["item", "from", "genre", "artist", "title", "views", "channel_followers", "like_rate_pct", "listen_here"] + qs)
+        for i, (k, origin) in enumerate(picks, 1):
+            r = rng.choice(by_artist[k])
+            w.writerow([f"u-{i:02d}", origin, k[0], k[1], r["title"], r["views"], r["followers"] or "label channel",
+                        r["like_pct"], r["link"]] + [""] * len(qs))
+    print(f"listening sheet with {len(picks)} songs ({n // 2} web-list artists, {n - n // 2} from your playlist): {SHEET2}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--score", action="store_true", help="summarise a filled-in sheet")
+    ap.add_argument("--selected", action="store_true", help="sheet from the underrated-artist selection instead")
     a = ap.parse_args()
+    if a.selected:
+        return make_selected_sheet(a.n, a.seed)
     if a.score:
         return score()
     rows = read_list()

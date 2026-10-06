@@ -1,4 +1,4 @@
-genre,artist,hint,source,why
+﻿genre,artist,hint,source,why
 hiphop,fakemink,UK rap Terrified,Ones To Watch: best underground artists 2026,distorted electronic production and sticky hooks
 hiphop,EsDeeKid,UK rap Rebel,Ones To Watch: best underground artists 2026,dark rage-coded UK sound
 hiphop,Nettspend,Early Life Crisis,Ones To Watch: best underground artists 2026,DMV rap
@@ -145,7 +145,7 @@ playlist,oceanfromtheblue,,User playlist,from the user's playlist; relatively un
 playlist,soowoo,,User playlist,from the user's playlist; relatively unknown
 playlist,Jesse Barrera,,User playlist,from the user's playlist; relatively unknown
 playlist,PRYVT,,User playlist,from the user's playlist; relatively unknown
-playlist,Sour Moon,,User playlist,from the user's playlist; relatively unknown
+playlist,Sour Moon,酸月亮,User playlist,from the user's playlist; relatively unknown
 playlist,SOLE,,User playlist,from the user's playlist; relatively unknown
 playlist,BNZA,,User playlist,from the user's playlist; relatively unknown
 playlist,XMASwu,,User playlist,from the user's playlist; relatively unknown
@@ -155,5 +155,5 @@ playlist,Tr33,,User playlist,from the user's playlist; relatively unknown
 playlist,8lak,,User playlist,from the user's playlist; relatively unknown
 playlist,陈村长,,User playlist,from the user's playlist (Spotify link); Chinese artist
 playlist,Ginger,,User playlist,from the user's playlist; relatively unknown
-playlist,Shi Shi,,User playlist,from the user's playlist; relatively unknown
+playlist,Shi Shi,孫盛希 Taiwanese R&B,User playlist,from the user's playlist; relatively unknown
 playlist,Kire,,User playlist,from the user's playlist; relatively unknown

@@ -49,14 +49,17 @@ def strict_by(channel, title, artist):
     """For common-word names: the channel is the artist's own (the name plus only non-Latin words such as a Korean
     spelling, or 'Topic'), or the title is 'Name - Song'. 'Ginger Root' is not 'Ginger'; a song called 'Seya' is
     not the artist seya."""
-    an, ch = norm(artist), norm(channel)
-    if an and an in ch:
-        rest = ch.replace(an, " ").split()
-        if all(t in _PLAIN or not re.search(r"[a-z]", t) for t in rest):
-            return True
+    ch = norm(channel)
+    for name in [artist] + ALIASES.get(artist, []):          # aliases: spellings the user's artist is known by
+        an = norm(name)
+        if an and an in ch:
+            rest = ch.replace(an, " ").split()
+            if all(t in _PLAIN or not re.search(r"[a-z]", t) for t in rest):
+                return True
     return re.match(r"^[\W_]*" + re.escape(artist) + r"\s*[-\u2013\u2014]\s", (title or "").strip(), re.I) is not None
 
 
+ALIASES = {"Shi Shi": ["Shi Shi Sun", "\u5b6b\u76db\u5e0c", "\u5b59\u76db\u5e0c"]}   # Taiwanese-Korean R&B singer Sun Shengxi
 STRICT = set()          # artists whose names are common words (the user's own list): match the channel or "Name - Title" only
 
 
@@ -87,9 +90,14 @@ def fetch_artist(artist, hint, n_search, n_full):
         return [e for e in flat if is_by(e, artist) and 90 <= (e.get("duration") or 0) <= 480
                 and not NOT_A_SONG.search(e.get("title") or "")]
     ok = keep(res)
-    if not ok:                                   # second try with plainer words
+    extra = ["official music video", "official audio", "lyrics", "MV"] if artist in STRICT else ["official music video"]
+    for q in extra:
+        if ok and artist not in STRICT:
+            break
         with ydl("in_playlist") as y:
-            ok = keep(y.extract_info(f"ytsearch{n_search}:{artist} official music video", download=False) or {})
+            more = keep(y.extract_info(f"ytsearch{n_search}:{artist} {q}", download=False) or {})
+        have = {e["id"] for e in ok}
+        ok += [e for e in more if e["id"] not in have]
     ok.sort(key=lambda e: -(e.get("view_count") or 0))
     with ydl(False) as y:
         for e in ok[:n_full]:

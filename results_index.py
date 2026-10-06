@@ -112,6 +112,9 @@ GENRE_NAME = {"pop": "pop", "vocal_pop": "pop",
               # YouTube genre keys (build_youtube.py): read as the mainstream genre they belong to
               "kpop": "pop", "jpop": "pop", "cpop": "pop", "cantopop": "pop", "khiphop": "hiphop", "krnb": "rnb",
               "singer": "singer-songwriter",
+              "kindie": "indie", "twindie": "indie", "indiepop": "indie", "indierock": "indie", "altrock": "alternative",
+              "kballad": "pop", "citypop": "pop", "klofi": "hiphop", "chiphop": "hiphop", "mrnb": "rnb", "jrnb": "rnb",
+              "indiefolk": "folk", "electro": "electronic", "playlist": "playlist",
               "electronic": "electronic"}
 
 
