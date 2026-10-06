@@ -42,12 +42,32 @@ def own_channel(channel, artist):
     return ch in (an, an + " topic") or (len(an) >= 5 and an in ch)
 
 
+_PLAIN = {"topic", "official", "music", "records", "channel", "vevo", "label"}
+
+
+def strict_by(channel, title, artist):
+    """For common-word names: the channel is the artist's own (the name plus only non-Latin words such as a Korean
+    spelling, or 'Topic'), or the title is 'Name - Song'. 'Ginger Root' is not 'Ginger'; a song called 'Seya' is
+    not the artist seya."""
+    an, ch = norm(artist), norm(channel)
+    if an and an in ch:
+        rest = ch.replace(an, " ").split()
+        if all(t in _PLAIN or not re.search(r"[a-z]", t) for t in rest):
+            return True
+    return re.match(r"^[\W_]*" + re.escape(artist) + r"\s*[-\u2013\u2014]\s", (title or "").strip(), re.I) is not None
+
+
+STRICT = set()          # artists whose names are common words (the user's own list): match the channel or "Name - Title" only
+
+
 def is_by(entry, artist):
     """Is this search result really by the artist? Short or common names need their own channel."""
     an = norm(artist)
     chan = norm(entry.get("channel") or entry.get("uploader") or "")
     title = norm(entry.get("title"))
     chan_ok = chan in (an, an + " topic") or (len(an) >= 5 and an in chan)
+    if artist in STRICT:
+        return strict_by(entry.get("channel") or entry.get("uploader"), entry.get("title"), artist)
     title_ok = (len(an) >= 5 and an in title) or title.startswith(an + " ")
     return chan_ok or title_ok
 
@@ -107,6 +127,7 @@ def main():
             if seen[r["genre"]] <= a.limit:
                 keep.append(r)
         rows = keep
+    STRICT.update(r["artist"] for r in rows if r["source"].startswith("User playlist"))
     cache = json.load(open(CACHE, encoding="utf-8")) if os.path.exists(CACHE) else {}
     t0 = time.time()
     for i, r in enumerate(rows, 1):
@@ -125,6 +146,9 @@ def main():
     for r in rows:
         songs = [s for s in cache.get(f"{r['genre']}|{r['artist']}", []) if s.get("views") and s["views"] >= MIN_VIEWS
                  and s["views"] <= a.max_song_views and s.get("likes")]
+        songs = [s for s in songs if not NOT_A_SONG.search(s["title"] or "")]     # also for results fetched earlier
+        if r["artist"] in STRICT:
+            songs = [s for s in songs if strict_by(s.get("channel"), s.get("title"), r["artist"])]
         # the same song uploaded as a video and as a visualiser counts once (best like rate wins)
         best = {}
         for s in songs:
@@ -152,7 +176,7 @@ def main():
     chosen = []
     for g, arts in by_genre.items():
         arts.sort(key=lambda x: -x["median_like_rate"])
-        for rank, art in enumerate(arts[:a.top], 1):
+        for rank, art in enumerate(arts if g == "playlist" else arts[:a.top], 1):      # the user's own list is kept whole
             for s in art["songs"]:
                 chosen.append(dict(genre=g, rank=rank, artist=art["artist"], followers=art["followers"] or "",
                                    median_like_pct=round(100 * art["median_like_rate"], 2), title=s["title"], views=s["views"],
