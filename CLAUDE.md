@@ -83,13 +83,23 @@ Last updated 7 Oct 2026.
 * **Voice feature:** design only (`VOICE_PIPELINE.md`). Primary question (user decision): Sound + Voice vs Sound alone, as an extra
   filter like the other features; Demucs (GPU) + the five Sony singer-identity models; develop on TRAIN-split same-artist songs,
   freeze, then score once on the sealed test split with extra same-artist test songs (user agreed to top up the test list with a
-  fixed seed). Needs about 250 questions for 90% power. Still awaiting the user's OK to set up the GPU environment (`.venv-voice`).
+  fixed seed). Needs about 250 questions for 90% power.
+  **Built 7 Oct:** GPU env `.venv-voice` (Python 3.12, torch 2.11+cu128, demucs, Sony models cloned and patched in `~/ssl-singer-identity`;
+  the 'uniformity' model is `unif-align` on Hugging Face). Demucs ~3-5 s per song on the RTX 5070. `analyze_voice.py` (one song,
+  in memory) + `run_voice.py --list` (resumable, writes `results/voice/<key>.npz`, run with `.venv-voice`), `select_voice_dev.py`
+  -> `voice_dev.csv` (811 train-split songs: 140 artists + 420 distractors). Overnight 7 Oct: `voice_dev.csv` run queued after the
+  YouTube analysis (`start_voice_dev.sh` in /tmp), then `grow_pool_overnight.sh` (YouTube genres + analysis). NEXT: development
+  analysis script (pick model 1 of 5, stem vs mix, window averaging, rescaling, singing gate; ALL on train songs), write
+  `voice_freeze.json`, top up the test list, run `run_voice.py --list` on it, score once. Still missing: offline deletion test for
+  `analyze_voice.py` (fake separator is built in via `FAKE_VOICE=1`), adding `voice` to `blind_test.FEATURES`.
+  Two sealed-test songs were put through Voice for timing only (no scores looked at).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
 2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.
-3. Rhythm: the beat-detection checks fail on validation and test; switch the "is there a beat?" signal to busyness (0.78 vs 0.66 on
-   test) and finish tapping 50 songs (11 done) to choose the speed method.
+3. Rhythm: the beat-detection checks fail on validation and test. Busyness as the "is there a beat?" signal won on test (0.78 vs 0.66)
+   but NOT clearly on validation (0.754 vs 0.733, n=64), so the switch was NOT made (test numbers must not drive choices). Rhythm
+   stays the least validated model: finish tapping 50 songs (11 done) to choose the speed method; present it as weak/optional.
 4. Friends' blind listening test (after the Voice decision), then the user test; pool freeze as "version 1".
 5. Housekeeping: switch `similar.py` to the rescaled Sound; install `psycopg` + `bash setup_db.sh` if the database is wanted;
    re-run `check_platforms.py` when Spotify's limit resets; keep the Evidence Report doc in step with new results.

@@ -17,3 +17,4 @@ nohup.out
 *.bak
 *.tmp
 .env
+.venv-voice/

@@ -56,6 +56,46 @@ DEFAULT_GENRES = {
     "altrock":  "alternative rock band",
     "indiefolk": "indie folk",
     "electro":  "melodic electronic vocal",
+    # western families that already exist in the pool (from build_underrated.py) but had no search of their own
+    "rock":        "rock band new song",
+    "pop":         "pop singer new song",
+    "alternative": "alternative band",
+    "electronic":  "electronic vocal track",
+    "indie":       "indie band",
+}
+
+# More variety INSIDE the existing genres (no new genres): other sub-styles, languages and scenes of each genre.
+# `--variety` runs these after the main search above, round by round (every genre gets its round-1 query before any
+# gets its round-2 query), so a stopped or quota-limited run is still spread across all genres.
+EXTRA_QUERIES = {
+    "kpop":      ["korean pop new release", "k-pop girl group debut", "korean boy band b-side"],
+    "krnb":      ["korean r&b", "krnb slow jam", "korean soul vocal"],
+    "khiphop":   ["korean rapper new", "korean underground rap", "korean trap"],
+    "cpop":      ["mandopop ballad", "chinese pop new song", "mandarin indie folk"],
+    "cantopop":  ["cantonese pop ballad", "hong kong indie band", "cantonese r&b"],
+    "jpop":      ["japanese pop new song", "j-rock band", "japanese indie pop"],
+    "vocal_pop": ["dream pop vocal", "synth pop vocal", "bedroom pop vocal"],
+    "rnb":       ["neo soul", "alternative r&b", "contemporary r&b new"],
+    "hiphop":    ["conscious rap", "boom bap new", "melodic rap"],
+    "singer":    ["acoustic singer songwriter original", "piano singer songwriter", "folk pop singer"],
+    "kindie":    ["korean indie band", "korean indie folk", "korean shoegaze"],
+    "kballad":   ["korean ost ballad", "korean piano ballad", "korean acoustic ballad"],
+    "klofi":     ["korean chill hip hop", "korean lofi r&b", "korean jazz hip hop"],
+    "mrnb":      ["mandopop r&b", "taiwan r&b", "chinese neo soul"],
+    "chiphop":   ["chinese rap new", "chinese trap", "chinese underground rap"],
+    "twindie":   ["taiwan indie band", "taiwan folk", "taiwan bedroom pop"],
+    "jrnb":      ["japanese neo soul", "japanese r&b new", "japanese soul vocal"],
+    "citypop":   ["japanese city pop new", "city pop inspired", "japanese funk pop vocal"],
+    "indiepop":  ["indie pop new", "jangle pop", "lofi indie pop"],
+    "indierock": ["indie rock new", "garage rock band", "math rock vocal"],
+    "altrock":   ["alternative rock new", "post-grunge band", "emo rock band"],
+    "indiefolk": ["indie folk new", "chamber folk", "folk rock band"],
+    "electro":   ["synthwave vocal", "future bass vocal", "downtempo vocal"],
+    "rock":      ["hard rock band new", "classic rock style band", "soft rock band"],
+    "pop":       ["pop ballad new", "dance pop new", "electropop"],
+    "alternative": ["alternative pop", "dark alternative", "alternative r&b rock"],
+    "electronic": ["house vocal", "trip hop", "chillwave vocal"],
+    "indie":     ["indie singer songwriter band", "indie electronic", "lofi indie"],
 }
 
 # Titles that are almost never an original song with singing. Found by check_youtube_quality.py: about 38% of the first
@@ -177,6 +217,9 @@ def main():
                     help="search order (default 'date': recent uploads tend to have fewer views)")
     ap.add_argument("--genres", nargs="*", help="genre keys to build (default: all)")
     ap.add_argument("--cc-only", action="store_true", help="keep only Creative-Commons-licensed videos")
+    ap.add_argument("--variety", action="store_true",
+                    help="run the EXTRA_QUERIES (other sub-styles of the same genres) instead of the main search; "
+                         "--per then means songs per query")
     ap.add_argument("--list-genres", action="store_true", help="print the genre searches and exit")
     a = ap.parse_args()
 
@@ -201,11 +244,23 @@ def main():
 
     added, new_rows = {}, []
     try:
-        for g, q in genres.items():
-            got = pick_for_genre(g, q, a.per, a.max_views, a.pages, a.order, a.cc_only, taken)
-            new_rows += got
-            added[g] = len(got)
-            print(f"  {g:10s} +{len(got):3d}  (searched: {q!r})")
+        if a.variety:                                # extra searches inside the SAME genres, round by round
+            for rnd in range(max(len(v) for v in EXTRA_QUERIES.values())):
+                order = ("date", "relevance", "date")[rnd % 3]
+                for g in genres:
+                    qs = EXTRA_QUERIES.get(g, [])
+                    if rnd >= len(qs):
+                        continue
+                    got = pick_for_genre(g, qs[rnd], a.per, a.max_views, a.pages, order, a.cc_only, taken)
+                    new_rows += got
+                    added[g] = added.get(g, 0) + len(got)
+                    print(f"  {g:11s} +{len(got):3d}  (round {rnd + 1}, {order}: {qs[rnd]!r})")
+        else:
+            for g, q in genres.items():
+                got = pick_for_genre(g, q, a.per, a.max_views, a.pages, a.order, a.cc_only, taken)
+                new_rows += got
+                added[g] = len(got)
+                print(f"  {g:10s} +{len(got):3d}  (searched: {q!r})")
     except QuotaUsed:
         print("\n!! YouTube daily quota used up. Saving what was found; run again tomorrow to add more.")
     except KeyError as e:
