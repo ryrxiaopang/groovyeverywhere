@@ -71,7 +71,8 @@ def mtg_test_ids():
     p = os.path.join(HERE, "data", "split0-autotagging-test.tsv")
     with open(p) as f:
         next(f)
-        return {"jamendo_" + line.split("\t")[0].split("_")[1] for line in f}
+        # the file writes ids zero-padded (track_0000214); the analysed songs are keyed jamendo_214
+        return {"jamendo_" + str(int(line.split("\t")[0].split("_")[1])) for line in f}
 
 
 def class_names(name, n):
@@ -83,19 +84,21 @@ def class_names(name, n):
 
 
 def mtg_tags():
-    """jamendo_id -> {'genre':set,'mood':set,'inst':set} from the MTG-Jamendo validation split."""
+    """jamendo_id -> {'genre':set,'mood':set,'inst':set} from the MTG-Jamendo validation AND test splits (a song is in
+    only one split, so there is no overlap; --split chooses which songs are scored, not which tags are read)."""
     out = {}
-    p = os.path.join(HERE, "data", "split0-autotagging-validation.tsv")
-    if not os.path.exists(p):
-        return out
-    with open(p) as f:
-        next(f)
-        for line in f:
-            x = line.rstrip("\n").split("\t")
-            jid = int(x[0].split("_")[1]); t = x[5:]
-            out[jid] = {"genre": {s.split("---")[1] for s in t if s.startswith("genre")},
-                        "mood": {s.split("---")[1] for s in t if s.startswith("mood")},
-                        "inst": {s.split("---")[1] for s in t if s.startswith("instrument")}}
+    for fn in ("split0-autotagging-validation.tsv", "split0-autotagging-test.tsv"):
+        p = os.path.join(HERE, "data", fn)
+        if not os.path.exists(p):
+            continue
+        with open(p) as f:
+            next(f)
+            for line in f:
+                x = line.rstrip("\n").split("\t")
+                jid = int(x[0].split("_")[1]); t = x[5:]
+                out[jid] = {"genre": {s.split("---")[1] for s in t if s.startswith("genre")},
+                            "mood": {s.split("---")[1] for s in t if s.startswith("mood")},
+                            "inst": {s.split("---")[1] for s in t if s.startswith("instrument")}}
     return out
 
 

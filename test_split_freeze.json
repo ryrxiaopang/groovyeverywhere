@@ -94,5 +94,16 @@
   "mtg_jamendo_instrument-discogs-effnet-1.json",
   "mtg_jamendo_instrument-discogs-effnet-1.pb"
  ],
- "note": "Written BEFORE any test-split song was analysed. Changing code or thresholds after seeing test results voids the official score; if you must, say so in the report."
+ "note": "Written BEFORE any test-split song was analysed. Changing code or thresholds after seeing test results voids the official score; if you must, say so in the report.",
+ "amendments": [
+  {
+   "made": "2026-10-06 10:11",
+   "file": "evaluate.py",
+   "sha256_before": "5164bfb2e9fa1ba19faf071fa5844e76b9c555f6a17195a0be434e037681fabe",
+   "sha256_after": "35371393f6fa56b8c073c42178cd1fc397e5235d5bbd53d2711fd8fd4c52f71e",
+   "kind": "bug fix in how test songs are selected and tagged; no model, threshold, pass mark or test logic changed",
+   "what": "(1) --split test compared zero-padded MTG ids (jamendo_0000214) with song keys (jamendo_214), so only songs with 7-digit ids matched: the first scoring run covered 634 of 1,143 analysed test songs, a biased subset. (2) mtg_tags() read human tags from the validation file only, so tag-based tests had no tags for test songs (they printed nan). Both fixed; offline test added (synthetic_tests.py section 6).",
+   "first_run": "The first run's outputs are kept unchanged as eval_test_run1_defective.log, report_test_run1_defective.html and evidence_summary_test_run1_defective.json. It is not the official score and no setting was changed because of anything in it."
+  }
+ ]
 }

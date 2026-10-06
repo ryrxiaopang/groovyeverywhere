@@ -324,6 +324,19 @@ def audio_and_safety_tests():
     print("   all audio / safety checks passed")
 
 
+def split_filter_test():
+    """evaluate.py --split test must match song keys (jamendo_214), not the zero-padded ids in the MTG files
+    (track_0000214), and must read human tags for test-split songs too. (Both were wrong in the first scoring run.)"""
+    print("\n6. TEST-SPLIT SCORING: song ids and tags")
+    import evaluate
+    ids = evaluate.mtg_test_ids()
+    assert "jamendo_214" in ids and "jamendo_0000214" not in ids and len(ids) > 10000
+    tags = evaluate.mtg_tags()
+    assert 214 in tags and "punkrock" in tags[214]["genre"]      # first song of the test file
+    print(f"   {len(ids)} test-split song keys, e.g. jamendo_214; tags found for it: {sorted(tags[214]['genre'])}")
+    print("   split filter checks passed")
+
+
 def make_dry_run_files(folder):
     """Synthetic 'songs' named group__name.wav so run_tests.py --local-dir can exercise the whole pipeline."""
     import essentia.standard as es
@@ -353,3 +366,4 @@ if __name__ == "__main__":
     sound_scale_test()
     blind_pairing_test()
     audio_and_safety_tests()
+    split_filter_test()

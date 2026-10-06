@@ -1,0 +1,206 @@
+{
+ "evidence_sound": [
+  NaN,
+  NaN,
+  NaN
+ ],
+ "evidence_mood": [
+  NaN,
+  NaN,
+  NaN
+ ],
+ "evidence_instruments": [
+  NaN,
+  NaN,
+  NaN
+ ],
+ "evidence_rhythm": [
+  0.816,
+  0.85,
+  0.811
+ ],
+ "evidence_mood6_feel": [
+  NaN,
+  NaN,
+  NaN,
+  NaN
+ ],
+ "evidence_table": {
+  "sound|genre": null,
+  "sound|mood": null,
+  "sound|feel": null,
+  "sound|inst": null,
+  "sound|speed": 0.85,
+  "mood|genre": null,
+  "mood|mood": null,
+  "mood|feel": null,
+  "mood|inst": null,
+  "mood|speed": 0.828,
+  "instruments|genre": null,
+  "instruments|mood": null,
+  "instruments|feel": null,
+  "instruments|inst": null,
+  "instruments|speed": 0.832,
+  "rhythm|genre": null,
+  "rhythm|mood": null,
+  "rhythm|feel": null,
+  "rhythm|inst": null,
+  "rhythm|speed": 0.816,
+  "mood (6 numbers)|genre": null,
+  "mood (6 numbers)|mood": null,
+  "mood (6 numbers)|feel": null,
+  "mood (6 numbers)|inst": null,
+  "mood (6 numbers)|speed": 0.832,
+  "random|genre": null,
+  "random|mood": null,
+  "random|feel": null,
+  "random|inst": null,
+  "random|speed": 0.811
+ },
+ "overlap_sound_mood": 0.93,
+ "overlap_sound_instruments": 2.92,
+ "overlap_sound_rhythm": 0.52,
+ "overlap_mood_instruments": 0.68,
+ "overlap_mood_rhythm": 0.27,
+ "overlap_instruments_rhythm": 0.35,
+ "balance_plain_pct_bad": 1.8,
+ "balance_rule_pct_bad": 0.0,
+ "balance_feature_means": {
+  "sound": 95.2,
+  "mood": 91.7,
+  "instruments": 92.1,
+  "rhythm": 88.0
+ },
+ "beat_signals": {
+  "RhythmExtractor confidence (current)": 0.699,
+  "TempoCNN confidence": 0.73,
+  "TempoCNN: share of sections agreeing on tempo": 0.635,
+  "Danceability model: P(danceable)": 0.817,
+  "Essentia Danceability (current)": 0.804,
+  "Busyness (notes per second)": 0.846
+ },
+ "songs_analysed": 634,
+ "songs_scored": 634,
+ "checks": [
+  [
+   "Full-length check",
+   "PASS",
+   "100% of downloads match the listed length \u00b13 s (n=634)"
+  ],
+  [
+   "Mood tells loud-happy from loud-sad",
+   "PASS",
+   "best valence score 0.84 (95% range 0.68\u20130.98, emomusic_vggish) vs loudness-only 0.53. Pass = \u22650.75 and \u22650.10 above loudness"
+  ],
+  [
+   "Happy vs sad by measured loudness",
+   "SKIP",
+   "need \u226512 songs with happy or sad tags"
+  ],
+  [
+   "Sound keeps different styles apart",
+   "FAIL",
+   "same-style pairs are more alike than cross-style pairs 66% of the time"
+  ],
+  [
+   "Mood keeps same-mood songs together across styles",
+   "PASS",
+   "average happiness differs by 0.37 (1\u20139 scale) between happy classical and happy electronic"
+  ],
+  [
+   "Sound separates genres",
+   "PASS",
+   "same-genre pairs closer than cross-genre pairs 81% of the time across 17 genres (227 songs)"
+  ],
+  [
+   "Expected instrument near the top",
+   "PASS",
+   "75% of single-instrument songs"
+  ],
+  [
+   "'voice' class detects singing (to skip Voice for instrumentals)",
+   "PASS",
+   "score 0.88 using Jamendo's vocal/instrumental label (n=201 vocal / 433 instrumental)"
+  ],
+  [
+   "Beat confidence is low for acoustic songs without drums",
+   "WARN",
+   "beat songs score higher 70% of the time vs quiet sad / solo piano / strings"
+  ],
+  [
+   "Beat confidence is low for beatless songs",
+   "FAIL",
+   "beat songs score higher 66% of the time"
+  ],
+  [
+   "Which comparison finds the song from a 30 s clip",
+   "PASS",
+   "tie on finding the song (96/94/97%) - pool too small to separate them; safety margin whole 0.273, parts 0.258, both 0.274 -> leaning 'both'. Re-run on a pool of 1,000+"
+  ],
+  [
+   "Main features measure different things",
+   "PASS",
+   "strongest overlap: sound \u2194 instruments = 0.45 (above 0.8 = nearly the same thing)"
+  ],
+  [
+   "Sound finds the same artist's other album",
+   "PASS",
+   "partner in top 10: 40% (n=48, pool=634) \u2014 this is the number Voice A/B must beat by 10 points"
+  ],
+  [
+   "Earn its place",
+   "SKIP",
+   "need \u226520 Jamendo songs with MTG tags"
+  ],
+  [
+   "Sound finds songs that share its own label",
+   "FAIL",
+   "nan vs best other feature nan vs random nan"
+  ],
+  [
+   "Mood finds songs that share its own label",
+   "FAIL",
+   "nan vs best other feature nan vs random nan"
+  ],
+  [
+   "Instruments finds songs that share its own label",
+   "FAIL",
+   "nan vs best other feature nan vs random nan"
+  ],
+  [
+   "Rhythm finds songs that share its own label",
+   "SKIP",
+   "Jamendo's speed label is the same for 81% of random song pairs, so it can't judge Rhythm; use tapped BPM instead"
+  ],
+  [
+   "Richer Mood (6 numbers) vs current Mood (2 numbers) on feeling labels",
+   "FAIL",
+   "6 numbers nan vs 2 numbers nan vs Sound nan vs random nan"
+  ],
+  [
+   "Happy/sad side",
+   "SKIP",
+   "need \u226530 happy- or sad-tagged songs"
+  ],
+  [
+   "Every-feature minimum removes one-sided matches",
+   "PASS",
+   "2% of plain-average picks hide a bad mismatch vs 0% with the rule"
+  ],
+  [
+   "Mood candidates",
+   "SKIP",
+   "need \u226540 happy/sad-tagged songs analysed with the new models (have 0); run --upgrade / the big pass"
+  ],
+  [
+   "Tempo methods vs true speed",
+   "SKIP",
+   "need \u226510 songs with a tapped or Audius speed (have 0): run make_tap_list.py and fill taps.csv"
+  ],
+  [
+   "Best 'is there a beat?' signal",
+   "WARN",
+   "Busyness (notes per second): 0.85 vs current 0.70 (n=49 beat / 53 beatless)"
+  ]
+ ]
+}
