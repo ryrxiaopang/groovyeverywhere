@@ -64,7 +64,7 @@ NOT_A_SONG = re.compile(
     r"\b(how to|tutorial|playlist|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
     r"instrumental|reaction|trailer|podcast|asmr|interview|nightcore|slowed|sped ?up|bass boosted|mashup|bootleg|"
     r"\d+ ?(hours?|hrs?)|1 ?h(our)?|mix|explained|breakdown|play-?through|drum cover|bass cover)\b"
-    r"|\bwhy\b.{0,60}\b(is|are|works?|genius|slaps)\b|\bon (drums|guitar|piano|bass|keys)\b|\bvlog\b|\ube0c\uc774\ub85c\uadf8|\bteaser\b|\bmaking (film|of)\b", re.I)
+    r"|\bwhy\b.{0,60}\b(is|are|works?|genius|slaps)\b|\bon (drums|guitar|piano|bass|keys)\b|\bvlog\b|\ube0c\uc774\ub85c\uadf8|\bteaser\b|\bbehind the\b|\blessons?\b|\u6559\u5ba4|\u5e55\u5f8c|\u82b1\u7d6e|\u65e5\u8a18|\u6559\u5b78|\u6559\u5b66|\bmaking (film|of)\b", re.I)
 
 _last = [0.0]
 

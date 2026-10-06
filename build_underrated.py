@@ -80,9 +80,29 @@ def ydl(flat):
                              "ignoreerrors": True, "socket_timeout": 30, "retries": 2, "noplaylist": True})
 
 
-def fetch_artist(artist, hint, n_search, n_full):
-    """Candidate songs for one artist, each with views, likes, channel followers."""
+def fetch_artist(artist, hint, n_search, n_full, channel_url=""):
+    """Candidate songs for one artist, each with views, likes, channel followers.
+    channel_url (a YouTube channel link the user gave) bypasses the search and reads that channel's uploads."""
     out = []
+    if channel_url:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": True,
+                               "ignoreerrors": True, "socket_timeout": 30, "playlist_items": "1:80"}) as y:
+            res = y.extract_info(channel_url.rstrip("/") + "/videos", download=False) or {}
+        flat = [e for e in (res.get("entries") or []) if e and e.get("id")]
+        ok = [e for e in flat if 90 <= (e.get("duration") or 0) <= 480 and not NOT_A_SONG.search(e.get("title") or "")]
+        ok.sort(key=lambda e: -(e.get("view_count") or 0))
+        with ydl(False) as y:
+            for e in ok[:n_full]:
+                time.sleep(1.0)
+                try:
+                    d = y.extract_info(f"https://www.youtube.com/watch?v={e['id']}", download=False) or {}
+                except Exception:
+                    continue
+                if d.get("id"):
+                    out.append(dict(id=d["id"], title=d.get("title"), channel=d.get("channel") or d.get("uploader"),
+                                    views=d.get("view_count"), likes=d.get("like_count"), followers=d.get("channel_follower_count"),
+                                    duration=d.get("duration"), upload_date=d.get("upload_date")))
+        return out
     with ydl("in_playlist") as y:
         res = y.extract_info(f"ytsearch{n_search}:{artist} {hint}", download=False) or {}
     def keep(res):
@@ -143,7 +163,7 @@ def main():
         if key in cache:
             continue
         try:
-            cache[key] = fetch_artist(r["artist"], r.get("hint", ""), 15, 6)
+            cache[key] = fetch_artist(r["artist"], r.get("hint", ""), 15, 6 if not r.get("channel_url") else 10, r.get("channel_url") or "")
         except Exception as e:
             print(f"  !! {r['artist']}: {str(e)[:80]}"); continue
         json.dump(cache, open(CACHE, "w", encoding="utf-8"), ensure_ascii=False)
@@ -155,7 +175,7 @@ def main():
         songs = [s for s in cache.get(f"{r['genre']}|{r['artist']}", []) if s.get("views") and s["views"] >= MIN_VIEWS
                  and s["views"] <= a.max_song_views and s.get("likes")]
         songs = [s for s in songs if not NOT_A_SONG.search(s["title"] or "")]     # also for results fetched earlier
-        if r["artist"] in STRICT:
+        if r["artist"] in STRICT and not r.get("channel_url"):
             songs = [s for s in songs if strict_by(s.get("channel"), s.get("title"), r["artist"])]
         # the same song uploaded as a video and as a visualiser counts once (best like rate wins)
         best = {}
@@ -168,7 +188,7 @@ def main():
             continue
         # reach = followers of the ARTIST'S OWN channel. A song hosted on a label's channel says nothing about the artist
         # (the same 3 to 5 million followers showed up for unrelated artists), so those are ignored.
-        fol = [s["followers"] for s in songs if s.get("followers") and own_channel(s.get("channel"), r["artist"])]
+        fol = [s["followers"] for s in songs if s.get("followers") and (r.get("channel_url") or own_channel(s.get("channel"), r["artist"]))]
         followers = max(fol) if fol else None
         if followers is not None and followers > a.max_followers:
             continue
