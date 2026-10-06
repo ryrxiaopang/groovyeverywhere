@@ -44,6 +44,13 @@ DEFAULT_GENRES = {
     "singer":   "singer songwriter acoustic vocal",
 }
 
+# Titles that are almost never an original song with singing. Found by check_youtube_quality.py: about 38% of the first
+# 312 titles had a hint of this kind, and a random sample held a tutorial, a playlist teaser and a cover.
+NOT_A_SONG = re.compile(
+    r"\b(how to|tutorial|playlist|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
+    r"instrumental|reaction|trailer|podcast|asmr|interview|nightcore|slowed|sped ?up|bass boosted|mashup|bootleg|"
+    r"\d+ ?(hours?|hrs?)|1 ?h(our)?|mix)\b", re.I)
+
 _last = [0.0]
 
 
@@ -125,6 +132,8 @@ def pick_for_genre(genre, query, per, max_views, pages, order, cc_only, taken):
         if not (60 <= d["duration"] <= 600):
             continue
         if d["views"] > max_views:
+            continue
+        if NOT_A_SONG.search(d["title"] or ""):          # tutorials, playlists, covers, type beats ... (see check_youtube_quality.py)
             continue
         if cc_only and d["licence"] != "creativeCommon":
             continue

@@ -105,5 +105,10 @@
    "what": "(1) --split test compared zero-padded MTG ids (jamendo_0000214) with song keys (jamendo_214), so only songs with 7-digit ids matched: the first scoring run covered 634 of 1,143 analysed test songs, a biased subset. (2) mtg_tags() read human tags from the validation file only, so tag-based tests had no tags for test songs (they printed nan). Both fixed; offline test added (synthetic_tests.py section 6).",
    "first_run": "The first run's outputs are kept unchanged as eval_test_run1_defective.log, report_test_run1_defective.html and evidence_summary_test_run1_defective.json. It is not the official score and no setting was changed because of anything in it."
   }
- ]
+ ],
+ "official_scoring_scale": {
+  "file": "results/sound_scale_official_test.npz (copy of the Sound scale in use on 6 Oct 2026)",
+  "fitted_on_pool_songs": 4406,
+  "note": "Sound is rescaled with the pool average and spread, and the pool grows. This copy lets the official score be reproduced exactly."
+ }
 }
