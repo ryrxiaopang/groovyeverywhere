@@ -33,8 +33,9 @@ NAMED = {"ruel": ("Ruel", "rnb"), "jupiterkid": ("jupiterkid", "indie"), "2holli
 
 
 def norm(s):
-    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
-    return re.sub(r"[^a-z0-9 ]+", " ", s).split()
+    """Lower case words; accents folded (Monae = Monáe) but Korean / Japanese / Chinese letters kept."""
+    s = "".join(c for c in unicodedata.normalize("NFKD", s or "") if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^\w]+", " ", s.replace("_", " ")).split()
 
 
 def clean_title(t):
@@ -78,9 +79,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="only the first N tracks of each source (testing)")
+    ap.add_argument("--sources", default=SOURCES, help="JSON file of sources (default spotify_tracks.json). An entry may carry "
+                    "'genre' (an existing pool genre) and, for kind=artist, 'more': N extra songs from the artist's own channel")
+    ap.add_argument("--no-named", action="store_true", help="skip the built-in NAMED artists (ruel, jupiterkid, 2hollis)")
     a = ap.parse_args()
     cache = json.load(open(CACHE, encoding="utf-8")) if os.path.exists(CACHE) else {}
-    sources = json.load(open(SOURCES, encoding="utf-8"))
+    sources = json.load(open(a.sources, encoding="utf-8"))
     existing = list(csv.DictReader(open(POOL, encoding="utf-8-sig"))) if os.path.exists(POOL) else []
     taken = set(pool_keys()) | set(latest_rows()) | {f"youtube_{r['track_id']}" for r in existing}
     ydl = yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True})
@@ -97,12 +101,12 @@ def main():
         return True
 
     for src in sources:
-        genre = GENRE_OF_SOURCE.get(src["id"], "indie")
+        genre = src.get("genre") or GENRE_OF_SOURCE.get(src["id"], "indie")
         print(f"\n== {src['name']} ({len(src['tracks'])} tracks) -> yt_{genre}")
         for t in (src["tracks"][: a.limit] if a.limit else src["tracks"]):
             title, artists = t["title"], (t["artists"] or "").replace("\xa0", " ")
             first = artists.split(",")[0].strip()
-            if per_artist.get(first.lower(), 0) >= MAX_PER_ARTIST:
+            if per_artist.get(first.lower(), 0) >= (10 if src.get("kind") == "artist" else MAX_PER_ARTIST):
                 continue
             ck = f"{first}|{title}"
             if ck not in cache:
@@ -117,13 +121,13 @@ def main():
             if add(e, title, first, genre):
                 per_artist[first.lower()] = per_artist.get(first.lower(), 0) + 1
 
-    print("\n== named artists (their most-viewed songs on their own channel)")
-    for key, (name, genre) in NAMED.items():
-        ck = f"named|{key}"
+    def named_songs(name, genre, n):
+        """The artist's most-viewed songs from their OWN channel (channel name contains the artist's name)."""
+        ck = f"named|{name.lower()}|{n}"
         if ck not in cache:
             ents = flat_search(ydl, name, 40)
             nm = norm(name)
-            own = [e for e in ents if all(w in " ".join(norm(e.get("channel") or e.get("uploader"))) for w in nm)
+            own = [e for e in ents if nm and all(w in " ".join(norm(e.get("channel") or e.get("uploader"))) for w in nm)
                    and not NOT_A_SONG.search(e.get("title") or "") and 90 <= (e.get("duration") or 0) <= 480]
             seen, pick = set(), []
             for e in sorted(own, key=lambda e: -(e.get("view_count") or 0)):
@@ -131,13 +135,20 @@ def main():
                 if k in seen:
                     continue
                 seen.add(k); pick.append(e)
-            cache[ck] = pick[:6]
+            cache[ck] = pick[:n]
             json.dump(cache, open(CACHE, "w", encoding="utf-8"))
         got = 0
         for e in cache[ck]:
             title = re.sub(rf"^{re.escape(name)}\s*[-–:]\s*", "", e.get("title") or "", flags=re.I)
             got += add(e, title, name, genre)
-        print(f"  {name}: {got} songs" + ("" if got else "   (no songs found on a channel with that name: send me a link)"))
+        print(f"  {name}: {got} songs from their own channel" + ("" if got else "   (none found on a channel with that name: send me a link)"))
+
+    print("\n== named artists (their most-viewed songs on their own channel)")
+    for key, (name, genre) in ({} if a.no_named else NAMED).items():
+        named_songs(name, genre, 6)
+    for src in sources:                                  # artist pages: also their own channel's other songs ("more": N)
+        if src.get("kind") == "artist" and src.get("more"):
+            named_songs(src["name"], src.get("genre") or "indie", int(src["more"]))
 
     print(f"\n{len(rows)} verified songs to add; {len(missed)} tracks had no verified YouTube match (skipped)")
     for m in missed[:40]:

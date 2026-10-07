@@ -1,0 +1,474 @@
+[
+ {
+  "kind": "artist",
+  "id": "50fy7gkGQi1bdvREWPV6ZP",
+  "name": "Joon",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "with ease",
+    "artists": "Joon",
+    "seconds": 186.678
+   },
+   {
+    "title": "by my side (feat. bixby)",
+    "artists": "Joon, bixby",
+    "seconds": 195.87
+   },
+   {
+    "title": "cynical",
+    "artists": "Joon",
+    "seconds": 137.157
+   },
+   {
+    "title": "seasons",
+    "artists": "Joon",
+    "seconds": 188.567
+   },
+   {
+    "title": "hypocritical (feat. starfall)",
+    "artists": "Joon, starfall",
+    "seconds": 177.455
+   },
+   {
+    "title": "Take Time",
+    "artists": "Joon, bixby",
+    "seconds": 155.0
+   },
+   {
+    "title": "nervousness",
+    "artists": "Joon",
+    "seconds": 215.0
+   },
+   {
+    "title": "falling for you",
+    "artists": "Joon",
+    "seconds": 225.461
+   },
+   {
+    "title": "a little more honest",
+    "artists": "Joon",
+    "seconds": 181.935
+   },
+   {
+    "title": "take it back",
+    "artists": "Joon",
+    "seconds": 196.741
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "4C3iHuAHTUbOigoE9lmhdx",
+  "name": "머무르",
+  "genre": "indie",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "The Adult I Dreamed Of",
+    "artists": "머무르",
+    "seconds": 207.428
+   },
+   {
+    "title": "I Won’t Put a Period After You",
+    "artists": "머무르",
+    "seconds": 228.047
+   },
+   {
+    "title": "Adult-ish",
+    "artists": "머무르",
+    "seconds": 256.0
+   },
+   {
+    "title": "Is This How Everyone Lives?",
+    "artists": "머무르",
+    "seconds": 222.68
+   },
+   {
+    "title": "Even Without Forever",
+    "artists": "머무르",
+    "seconds": 207.05
+   },
+   {
+    "title": "Learning to Hold Myself",
+    "artists": "머무르",
+    "seconds": 209.784
+   },
+   {
+    "title": "Stray",
+    "artists": "머무르",
+    "seconds": 213.145
+   },
+   {
+    "title": "Youth on Pause",
+    "artists": "머무르",
+    "seconds": 183.75
+   },
+   {
+    "title": "Somehow Sunny",
+    "artists": "머무르",
+    "seconds": 166.166
+   },
+   {
+    "title": "I Want to Buy a House Too",
+    "artists": "머무르",
+    "seconds": 203.183
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "6gMyLqdBGrHjR8TdCutVIP",
+  "name": "Peter Fenn",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Far Away",
+    "artists": "Peter Fenn",
+    "seconds": 131.937
+   },
+   {
+    "title": "Mona Lisa",
+    "artists": "Valntn, Peter Fenn, Tray Haggerty",
+    "seconds": 157.019
+   },
+   {
+    "title": "Here for You",
+    "artists": "Peter Fenn",
+    "seconds": 167.072
+   },
+   {
+    "title": "Arizona Summer",
+    "artists": "Peter Fenn, SEB",
+    "seconds": 174.678
+   },
+   {
+    "title": "Next to Me",
+    "artists": "Peter Fenn",
+    "seconds": 169.322
+   },
+   {
+    "title": "Mona Lisa (Acoustic Version)",
+    "artists": "Valntn, Peter Fenn, Tray Haggerty",
+    "seconds": 120.491
+   },
+   {
+    "title": "Okay",
+    "artists": "Peter Fenn",
+    "seconds": 142.439
+   },
+   {
+    "title": "Against Your Tide",
+    "artists": "Peter Fenn, remy",
+    "seconds": 142.702
+   },
+   {
+    "title": "Cadillac Dreams",
+    "artists": "Peter Fenn",
+    "seconds": 149.363
+   },
+   {
+    "title": "Like Crzy",
+    "artists": "Peter Fenn",
+    "seconds": 179.22
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "3sKeaby6GMSJWgYueZaSjE",
+  "name": "Mokita",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "colorblind",
+    "artists": "Mokita",
+    "seconds": 193.976
+   },
+   {
+    "title": "With You",
+    "artists": "Mokita",
+    "seconds": 154.65
+   },
+   {
+    "title": "London",
+    "artists": "Mokita",
+    "seconds": 160.225
+   },
+   {
+    "title": "I Still Do",
+    "artists": "Mokita",
+    "seconds": 202.023
+   },
+   {
+    "title": "Ready Yet",
+    "artists": "Mokita",
+    "seconds": 152.922
+   },
+   {
+    "title": "More Than Friends",
+    "artists": "Mokita",
+    "seconds": 159.039
+   },
+   {
+    "title": "Lonely City",
+    "artists": "Mokita",
+    "seconds": 157.523
+   },
+   {
+    "title": "down",
+    "artists": "Mokita",
+    "seconds": 194.68
+   },
+   {
+    "title": "Love Alone",
+    "artists": "Mokita",
+    "seconds": 185.107
+   },
+   {
+    "title": "Don't Leave the Light On",
+    "artists": "Mokita",
+    "seconds": 149.459
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "3aD9K1zaLQ3G7yp9XV5E4D",
+  "name": "Isac Elliot",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Kaiken Varalta",
+    "artists": "Isac Elliot",
+    "seconds": 160.0
+   },
+   {
+    "title": "Eilinen",
+    "artists": "Isac Elliot, Ares",
+    "seconds": 180.967
+   },
+   {
+    "title": "Ai Että",
+    "artists": "Isac Elliot",
+    "seconds": 161.632
+   },
+   {
+    "title": "Mannerheim",
+    "artists": "Isac Elliot, Turisti",
+    "seconds": 168.0
+   },
+   {
+    "title": "Sinfoniaa",
+    "artists": "Isac Elliot",
+    "seconds": 187.0
+   },
+   {
+    "title": "Palamaan",
+    "artists": "Isac Elliot, Mirella",
+    "seconds": 205.0
+   },
+   {
+    "title": "Reissumies",
+    "artists": "Isac Elliot",
+    "seconds": 173.0
+   },
+   {
+    "title": "Ehkä Se Siitä",
+    "artists": "Isac Elliot",
+    "seconds": 182.348
+   },
+   {
+    "title": "Four Seasons",
+    "artists": "Isac Elliot, Averagekidluke",
+    "seconds": 183.124
+   },
+   {
+    "title": "Best For You",
+    "artists": "Isac Elliot",
+    "seconds": 150.0
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "2C2sVVXanbOpymYBMpsi89",
+  "name": "The Cab",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Angel With a Shotgun",
+    "artists": "The Cab",
+    "seconds": 223.092
+   },
+   {
+    "title": "Temporary Bliss",
+    "artists": "The Cab",
+    "seconds": 224.932
+   },
+   {
+    "title": "Stand Up",
+    "artists": "The Cab",
+    "seconds": 263.213
+   },
+   {
+    "title": "Endlessly",
+    "artists": "The Cab",
+    "seconds": 237.879
+   },
+   {
+    "title": "Lock Me Up",
+    "artists": "The Cab",
+    "seconds": 209.626
+   },
+   {
+    "title": "One Of THOSE Nights",
+    "artists": "The Cab",
+    "seconds": 228.84
+   },
+   {
+    "title": "Moon",
+    "artists": "The Cab",
+    "seconds": 196.72
+   },
+   {
+    "title": "Angel With a Shotgun - Sped Up Version",
+    "artists": "The Cab",
+    "seconds": 191.375
+   },
+   {
+    "title": "Bad",
+    "artists": "The Cab",
+    "seconds": 201.506
+   },
+   {
+    "title": "Intoxicated",
+    "artists": "The Cab",
+    "seconds": 249.426
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "53GouHDfCfsBJIn1OjYmPO",
+  "name": "Benjamin Kheng",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Better With You",
+    "artists": "Gentle Bones, Benjamin Kheng",
+    "seconds": 166.0
+   },
+   {
+    "title": "Not Alone",
+    "artists": "NDPeeps, Benjamin Kheng",
+    "seconds": 208.8
+   },
+   {
+    "title": "time with myself",
+    "artists": "lullaboy, Benjamin Kheng",
+    "seconds": 184.588
+   },
+   {
+    "title": "Shared Trauma (feat. Keenan Te)",
+    "artists": "Benjamin Kheng, Keenan Te",
+    "seconds": 157.647
+   },
+   {
+    "title": "Good For A Time (feat. Bea Lorenzo)",
+    "artists": "Benjamin Kheng, Bea Lorenzo",
+    "seconds": 144.25
+   },
+   {
+    "title": "Fresh Feelings (feat. J.Sheon)",
+    "artists": "Benjamin Kheng, J.Sheon",
+    "seconds": 185.777
+   },
+   {
+    "title": "一樣美麗 - 同心版",
+    "artists": "Eric Chou, Cath Wong, Phil Lam, Haeil, Sezairi, Jason Chan, Benjamin Kheng, Ben&Ben, Kelly Cheng, Narelle",
+    "seconds": 280.0
+   },
+   {
+    "title": "Lovers Forever",
+    "artists": "Benjamin Kheng",
+    "seconds": 206.68
+   },
+   {
+    "title": "A Nothing Day",
+    "artists": "Benjamin Kheng, Rangga Jones",
+    "seconds": 162.5
+   },
+   {
+    "title": "Not Alone (SG60 Version)",
+    "artists": "Benjamin Kheng, RRILEY, shazza",
+    "seconds": 219.789
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "3GtCKJA4SkOxN65MWjm82R",
+  "name": "Hot Shade",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Dive",
+    "artists": "Hot Shade, Mike Perry, Chris James",
+    "seconds": 164.49
+   },
+   {
+    "title": "Better",
+    "artists": "Hot Shade",
+    "seconds": 183.17
+   },
+   {
+    "title": "Melodies",
+    "artists": "Hot Shade, Nomi Bontegard",
+    "seconds": 160.565
+   },
+   {
+    "title": "Talk About It",
+    "artists": "Mike Perry, Hot Shade",
+    "seconds": 164.536
+   },
+   {
+    "title": "Take It Slowly",
+    "artists": "Mike Perry, Nairobi, Hot Shade, Amanda Reifer",
+    "seconds": 149.125
+   },
+   {
+    "title": "Don't You Worry",
+    "artists": "Hot Shade, TEN TIMES, Sibbyl",
+    "seconds": 172.773
+   },
+   {
+    "title": "Creatures",
+    "artists": "Hot Shade, Nomi Bontegard",
+    "seconds": 166.173
+   },
+   {
+    "title": "By My Side",
+    "artists": "Hot Shade, Mika Zibanejad",
+    "seconds": 166.451
+   },
+   {
+    "title": "Don't Give Up On Me",
+    "artists": "Hot Shade, Cal",
+    "seconds": 198.965
+   },
+   {
+    "title": "Lighthouse",
+    "artists": "Mike Perry, Hot Shade, René Miller",
+    "seconds": 167.662
+   }
+  ]
+ }
+]
