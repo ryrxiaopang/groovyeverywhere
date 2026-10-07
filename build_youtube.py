@@ -101,7 +101,7 @@ EXTRA_QUERIES = {
 # Titles that are almost never an original song with singing. Found by check_youtube_quality.py: about 38% of the first
 # 312 titles had a hint of this kind, and a random sample held a tutorial, a playlist teaser and a cover.
 NOT_A_SONG = re.compile(
-    r"\b(how to|tutorial|playlist|news|(album |music )?review|recap|deep dive|masterclass|top \d+|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
+    r"\b(how to|tutorial|playlist|news|(album |music )?review|recap|deep dive|masterclass|top ?\d+|guess|quiz|tier ?list|my (top|favou?rite)|underrated|hidden gems?|b-?sides? (of|from)|best .{0,25}(songs|bands|albums|b-?sides)|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
     r"instrumental|reaction|trailer|podcast|asmr|interview|nightcore|slowed|sped ?up|bass boosted|mashup|bootleg|"
     r"\d+ ?(hours?|hrs?)|1 ?h(our)?|mix|explained|breakdown|play-?through|drum cover|bass cover)\b"
     r"|\bwhy\b.{0,60}\b(is|are|works?|genius|slaps)\b|\bon (drums|guitar|piano|bass|keys)\b|\bvlog\b|\ube0c\uc774\ub85c\uadf8|\bteaser\b|\bbehind the\b|\blessons?\b|\u6559\u5ba4|\u5e55\u5f8c|\u82b1\u7d6e|\u65e5\u8a18|\u6559\u5b78|\u6559\u5b66|\bmaking (film|of)\b", re.I)
@@ -225,7 +225,7 @@ STYLE_QUERIES = {
 }
 
 
-def pick_ytdlp(genre, query, per, max_views, taken, n_search=60):
+def pick_ytdlp(genre, query, per, max_views, taken, n_search=60, by_relevance=False):
     """Same rules as pick_for_genre (60-600 s, <= max_views, not a non-song title, one per channel, new), but the search
     and the details come from yt-dlp, so the YouTube API quota is not used. Least viewed first."""
     import yt_dlp
@@ -240,7 +240,8 @@ def pick_ytdlp(genre, query, per, max_views, taken, n_search=60):
         if NOT_A_SONG.search(title):
             continue
         cand.append((views, vid, e))
-    cand.sort(key=lambda c: c[0])
+    if not by_relevance:                             # default: least viewed first (hidden gems); else keep YouTube's own order
+        cand.sort(key=lambda c: c[0])
     rows, chans = [], set()
     for views, vid, e in cand:
         ch = e.get("channel_id") or e.get("uploader_id") or e.get("channel") or e.get("uploader")
@@ -290,6 +291,8 @@ def main():
                          "--per then means songs per query")
     ap.add_argument("--ytdlp", action="store_true",
                     help="run the STYLE_QUERIES with yt-dlp (no API key, no quota); --per then means songs per query")
+    ap.add_argument("--relevance", action="store_true",
+                    help="with --ytdlp: take songs in YouTube's relevance order (well-played songs are fine) instead of least viewed first")
     ap.add_argument("--list-genres", action="store_true", help="print the genre searches and exit")
     a = ap.parse_args()
 
@@ -325,7 +328,7 @@ def main():
         if tag in done_q:
             print(f"  {g:11s} skipped  ({label}: {q!r} was already searched)")
             return
-        got = (pick_ytdlp(g, q, a.per, a.max_views, taken) if a.ytdlp
+        got = (pick_ytdlp(g, q, a.per, a.max_views, taken, by_relevance=a.relevance) if a.ytdlp
                else pick_for_genre(g, q, a.per, a.max_views, a.pages, order, a.cc_only, taken))
         new_rows.extend(got)
         added[g] = added.get(g, 0) + len(got)

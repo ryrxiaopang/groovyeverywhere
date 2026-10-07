@@ -113,6 +113,19 @@ Last updated 7 Oct 2026.
   see `voice_dev_report.md`); sealed test NOT spent on it. Features for list B: sound, mood, rhythm, instruments.
 * Sample website UI: `blind_listen_sample.html` (published as an artifact "groovyeverywhere"); not yet wired to `blind_test.py`.
 
+## Scope change (7 Oct 2026): not only hidden gems
+The user decided the pool may contain songs that used to be popular and are less known to younger listeners; the project does
+NOT have to stay strict to hidden gems / obscurity. So: `recommend_song.py` ranks best match first by default (`--rank obscure`
+keeps the old rule), `build_youtube.py --ytdlp --relevance` takes songs in YouTube's order up to 20M views,
+`build_from_spotify.py` adds whole playlists (verified YouTube matches). The BLIND TEST lists still use `pick_hidden_gems`
+(changing them would break comparability with the sheets already made); decide before round 2 whether they should change too.
+Pool quality audits (7 Oct): ~75 non-songs excluded by hand (news, recaps, reviews, listicles, "guess the song" games, karaoke,
+type beats, test uploads, ads); `NOT_A_SONG` is now much stricter. Re-run an audit after every big pool addition: titles with
+top N / best / guess / quiz / review / recap / news / compilation / playlist, and channel names with news / radio / tv.
+Queued after the pool analysis (each waits for the previous): `style_boost.sh` (Japanese soul / piano pop / city pop inside jpop,
+jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist page in `spotify_tracks.json` + Ruel, jupiterkid,
+2hollis). Spotify playlists are read from the public embed pages (first 50-100 tracks only, no login or key needed).
+
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
 2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.

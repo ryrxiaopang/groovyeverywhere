@@ -9,7 +9,7 @@ while pgrep -f "[r]un_tests.py" > /dev/null || pgrep -f "[r]un_voice.py" > /dev/
 done
 echo "$(date) other runs finished: searching with yt-dlp"
 source .venv/bin/activate
-python -u build_youtube.py --ytdlp --per 10 --max-views 400000
+python -u build_youtube.py --ytdlp --relevance --per 10 --max-views 20000000
 code=$?
 if [ $code -ne 0 ]; then echo "$(date) !! build_youtube.py ended with an error (exit code $code); what it found is saved"; fi
 echo "$(date) analysing the pool_youtube.csv songs still to do"

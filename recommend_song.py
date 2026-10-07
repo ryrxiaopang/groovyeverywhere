@@ -14,7 +14,23 @@ import scoring
 from results_index import latest_rows, RES
 
 
-def recommend(key, k=10, features="mood+rhythm+instruments"):
+def pick_best(match, passes, none, skip, artists, k, bar=80.0):
+    """Best matches first (popularity ignored): songs at or above `bar` that pass every rule, one per artist, highest match first.
+    The bar is lowered in steps of 5 (down to 65) until k songs are found; fewer than k is returned rather than padding."""
+    while True:
+        ok = (match >= bar) & passes & ~none & ~skip
+        idx = np.where(ok)[0]
+        idx = idx[np.argsort(-match[idx])]
+        seen, keep = set(), []
+        for i in idx:
+            if artists[i] not in seen:
+                seen.add(artists[i]); keep.append(i)
+        if len(keep) >= k or bar - 5 < 65:
+            return np.array(keep[:k], dtype=int), bar
+        bar -= 5
+
+
+def recommend(key, k=10, features="mood+rhythm+instruments", rank="match"):
     with np.load(os.path.join(RES, f"{key}.npz")) as d:
         q = bt.query_from_analysis(dict(d))
     P = bt.pool()
@@ -28,10 +44,14 @@ def recommend(key, k=10, features="mood+rhythm+instruments"):
     dup = plain >= bt.DUP_COSINE
     none = dup | np.isin(artists, list({artists[i] for i in np.where(dup)[0]}))
     # a recommendation must not be the song's own artist even when the copy is not in the pool: also match by artist name
-    a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=k, artists=artists, skip=skip)
     chosen = ["sound"] + [f for f in features.split("+") if f != "sound"]
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
-    b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=k, artists=artists, skip=skip)
+    if rank == "match":          # best matches first; well-played songs are fine (7 Oct: the project is not only hidden gems)
+        a_idx, a_bar = pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, k)
+        b_idx, b_bar = pick_best(match, passes, none, skip, artists, k)
+    else:                        # "obscure": the original hidden-gem rule, least played good match first
+        a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=k, artists=artists, skip=skip)
+        b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=k, artists=artists, skip=skip)
 
     def rows(idx, name):
         out = []
@@ -61,8 +81,10 @@ if __name__ == "__main__":
     ap.add_argument("key")
     ap.add_argument("--k", type=int, default=10)
     ap.add_argument("--features", default="mood+rhythm+instruments")
+    ap.add_argument("--rank", choices=["match", "obscure"], default="match",
+                    help="match = best matches first, popularity ignored (default); obscure = least played good match first")
     a = ap.parse_args()
-    res = recommend(a.key, a.k, a.features)
+    res = recommend(a.key, a.k, a.features, a.rank)
     print(f"pool {res['pool']} songs; closest plain Sound match {res['best_sound']}")
     show(res, "A", f"Sound only (match bar {res['A_bar']:.0f}%)")
     show(res, "B", f"Sound + {' + '.join(res['features'][1:])} (every feature >= 65%, match bar {res['B_bar']:.0f}%)")
