@@ -101,7 +101,7 @@ EXTRA_QUERIES = {
 # Titles that are almost never an original song with singing. Found by check_youtube_quality.py: about 38% of the first
 # 312 titles had a hint of this kind, and a random sample held a tutorial, a playlist teaser and a cover.
 NOT_A_SONG = re.compile(
-    r"\b(how to|tutorial|playlist|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
+    r"\b(how to|tutorial|playlist|news|(album |music )?review|recap|deep dive|masterclass|top \d+|compilation|megamix|full album|non-?stop|karaoke|cover(ed)?|tribute|type beat|"
     r"instrumental|reaction|trailer|podcast|asmr|interview|nightcore|slowed|sped ?up|bass boosted|mashup|bootleg|"
     r"\d+ ?(hours?|hrs?)|1 ?h(our)?|mix|explained|breakdown|play-?through|drum cover|bass cover)\b"
     r"|\bwhy\b.{0,60}\b(is|are|works?|genius|slaps)\b|\bon (drums|guitar|piano|bass|keys)\b|\bvlog\b|\ube0c\uc774\ub85c\uadf8|\bteaser\b|\bbehind the\b|\blessons?\b|\u6559\u5ba4|\u5e55\u5f8c|\u82b1\u7d6e|\u65e5\u8a18|\u6559\u5b78|\u6559\u5b66|\bmaking (film|of)\b", re.I)

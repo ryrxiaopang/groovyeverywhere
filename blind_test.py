@@ -337,18 +337,31 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
     if os.path.exists(kp):
         with open(kp, encoding="utf-8") as f:
             key_rows = list(csv.DictReader(f))
-    done_caps = {r.get("capture") for r in key_rows}
+    done_caps = {c for r in key_rows for c in (r.get("capture") or "").split("|") if c}   # an item can come from several captures
     safe_of = {r["friend"]: r["safe"] for r in key_rows if r.get("safe")}
-    by_friend = {}
+    # ONE row per song per friend: a song that is recommended for two of a friend's own songs is rated once (their ratings of
+    # the same song twice would be double work for them), and counts for every list it was in (lists = e.g. "AC")
+    merged = {}
     for fn, r in recs:
         if fn in done_caps:
             continue
-        items = {}
+        fr = merged.setdefault(r["friend"], {})
         for L in LISTS:
             for s in r[L]:
-                items.setdefault(s["key"], dict(s, lists=set()))["lists"].add(L)   # a song in two lists is shown once
-        order = list(items.values()); random.Random(fn).shuffle(order)
-        by_friend.setdefault(r["friend"], []).extend(dict(start_song=r["song"], liked=r["feature"], capture=fn, **s) for s in order)
+                it = fr.get(s["key"])
+                if it is None:
+                    it = fr[s["key"]] = dict(s, lists=set(), starts=[], captures=[], liked=r["feature"])
+                it["lists"].add(L)
+                if r["song"] not in it["starts"]:
+                    it["starts"].append(r["song"])
+                if fn not in it["captures"]:
+                    it["captures"].append(fn)
+    by_friend = {}
+    for friend, d in merged.items():
+        order = list(d.values()); random.Random(friend).shuffle(order)
+        for it in order:
+            it["start_song"] = " | ".join(it["starts"]); it["capture"] = "|".join(it["captures"])
+        by_friend[friend] = order
     if not by_friend:
         print("no new captures since the last sheets: nothing written"); return
     new_rows = []
