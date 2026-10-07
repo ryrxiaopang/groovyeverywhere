@@ -229,6 +229,21 @@ STYLE_QUERIES = {
 # Pop punk is left out on purpose (punk is an off-pool genre).
 STYLE_SETS = {
     "japanese": STYLE_QUERIES,
+    # aimed at the friends' blind-test songs (8 Oct): d4vd / Malcolm Todd / Rex Orange County / Peach Tree Rascals (bedroom pop and
+    # indie-pop), Khalid / Fly By Midnight (R&B-pop), Faouzia (powerful-vocal pop), The 1975 / Boys Like Girls (indie / pop-rock band)
+    "taste": {
+        "pop":   ["bedroom pop sad boy original song", "malcolm todd similar songs", "rex orange county similar songs",
+                  "peach tree rascals similar songs", "pop ballad powerful female vocals original song", "faouzia similar songs",
+                  "pop rock band catchy chorus original song", "boys like girls similar songs", "acoustic pop heartbreak original song"],
+        "rnb":   ["khalid similar songs", "soft r&b male vocals original song", "fly by midnight similar songs", "r&b pop chill drive original song",
+                  "alternative r&b moody original song", "smooth r&b falsetto original song", "neo soul bedroom original song",
+                  "d4vd similar songs", "r&b pop hits original song 2020s"],
+        "indie": ["indie pop bedroom guitar original song", "lo-fi bedroom pop vocal original song", "chill indie songs for driving original",
+                  "dreamy indie pop male vocal original song", "indie rock catchy original band song", "the 1975 similar songs",
+                  "synthpop indie band original song", "indie pop summer original song", "mellow indie folk pop original song"],
+        "alternative": ["alt pop 2020s original song", "alternative pop moody female vocals original song", "indie pop rock band 2010s original song",
+                        "alternative rock radio hit 2000s original song", "dream pop vocal original song"],
+    },
     "pop": {
         "pop":   ["indie pop original song vocal", "bedroom pop new song", "pop rock band original song", "soft acoustic pop original song",
                   "pop singer songwriter original song"],
