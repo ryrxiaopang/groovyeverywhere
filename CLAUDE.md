@@ -103,6 +103,16 @@ Last updated 7 Oct 2026.
   `analyze_voice.py` (fake separator is built in via `FAKE_VOICE=1`), adding `voice` to `blind_test.FEATURES`.
   Two sealed-test songs were put through Voice for timing only (no scores looked at).
 
+## Friends' blind test: inputs (7 Oct 2026)
+* `friends_inputs.csv` = what each friend said (Felicia 3 songs, Isaac 3, Weiyang 2, Xing You 3) with `proposed_feature_for_list_B`
+  (my guess from their words; column `confirmed` is for the user to fill: mood / rhythm / instruments / sound, joined by +).
+  `friends_songs.csv` = the 10 unique YouTube videos (official uploads, picked by yt-dlp search), group `friend_song`, NOT in the pool.
+  Analysed 9 of 10 (`analyse_friends_songs.sh`). **peoplepleaser (whotfisarya, QEPr2GOWbJU) fails with YouTube 403 on every yt-dlp client:**
+  needs a mic capture (`capture_server.py`), a retry later, or another song from Felicia.
+* Voice was dropped from version 1 (dry run on dev songs: Sound + Voice gains +2.8 points, 95% range -5.1 to +10.8, bar is +10;
+  see `voice_dev_report.md`); sealed test NOT spent on it. Features for list B: sound, mood, rhythm, instruments.
+* Sample website UI: `blind_listen_sample.html` (published as an artifact "groovyeverywhere"); not yet wired to `blind_test.py`.
+
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
 2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.
