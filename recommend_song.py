@@ -30,7 +30,7 @@ def pick_best(match, passes, none, skip, artists, k, bar=80.0):
         bar -= 5
 
 
-def recommend(key, k=10, features="mood+rhythm+instruments", rank="match"):
+def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=None):
     with np.load(os.path.join(RES, f"{key}.npz")) as d:
         q = bt.query_from_analysis(dict(d))
     P = bt.pool()
@@ -43,6 +43,9 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match"):
     plain = bt.raw_sound(q, P)
     dup = plain >= bt.DUP_COSINE
     none = dup | np.isin(artists, list({artists[i] for i in np.where(dup)[0]}))
+    if only:                                # only songs from these pool groups (e.g. yt_jpop yt_jrnb yt_citypop): the rest is left out
+        none = none | ~np.isin(np.array(P["group"]), list(only))
+        print(f"  only {', '.join(only)}: {int((~none).sum())} candidate songs")
     # a recommendation must not be the song's own artist even when the copy is not in the pool: also match by artist name
     chosen = ["sound"] + [f for f in features.split("+") if f != "sound"]
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
@@ -83,8 +86,9 @@ if __name__ == "__main__":
     ap.add_argument("--features", default="mood+rhythm+instruments")
     ap.add_argument("--rank", choices=["match", "obscure"], default="match",
                     help="match = best matches first, popularity ignored (default); obscure = least played good match first")
+    ap.add_argument("--only", nargs="*", help="only songs from these pool groups, e.g. yt_jpop yt_jrnb yt_citypop")
     a = ap.parse_args()
-    res = recommend(a.key, a.k, a.features, a.rank)
+    res = recommend(a.key, a.k, a.features, a.rank, a.only)
     print(f"pool {res['pool']} songs; closest plain Sound match {res['best_sound']}")
     show(res, "A", f"Sound only (match bar {res['A_bar']:.0f}%)")
     show(res, "B", f"Sound + {' + '.join(res['features'][1:])} (every feature >= 65%, match bar {res['B_bar']:.0f}%)")
