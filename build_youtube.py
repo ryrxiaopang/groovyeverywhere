@@ -214,6 +214,47 @@ def pick_for_genre(genre, query, per, max_views, pages, order, cc_only, taken):
     return rows
 
 
+# Searches by STYLE inside the existing genres, run with yt-dlp (`--ytdlp`): no YouTube API key and no daily quota.
+# Added 7 Oct after a Fujii Kaze (Japanese soul / piano pop) request found few close matches in the pool.
+STYLE_QUERIES = {
+    "jpop":   ["japanese piano pop original song", "j-pop piano ballad original", "japanese soul pop vocal", "j-pop soulful vocal piano live"],
+    "jrnb":   ["japanese neo soul original song", "japanese r&b original new", "japanese gospel soul pop piano", "japanese soul singer songwriter"],
+    "citypop": ["japanese city pop original new song", "japanese jazz pop vocal original", "japanese funk soul pop vocal"],
+    "singer": ["piano singer songwriter soul original", "soulful piano ballad original song"],
+    "rnb":    ["neo soul piano original song", "gospel soul pop piano vocal"],
+}
+
+
+def pick_ytdlp(genre, query, per, max_views, taken, n_search=60):
+    """Same rules as pick_for_genre (60-600 s, <= max_views, not a non-song title, one per channel, new), but the search
+    and the details come from yt-dlp, so the YouTube API quota is not used. Least viewed first."""
+    import yt_dlp
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}) as ydl:
+        info = ydl.extract_info(f"ytsearch{n_search}:{query}", download=False)
+    cand = []
+    for e in info.get("entries", []):
+        vid, dur, views = e.get("id"), e.get("duration") or 0, e.get("view_count")
+        title = e.get("title") or ""
+        if not vid or f"youtube_{vid}" in taken or views is None or views > max_views or not (60 <= dur <= 600):
+            continue
+        if NOT_A_SONG.search(title):
+            continue
+        cand.append((views, vid, e))
+    cand.sort(key=lambda c: c[0])
+    rows, chans = [], set()
+    for views, vid, e in cand:
+        ch = e.get("channel_id") or e.get("uploader_id") or e.get("channel") or e.get("uploader")
+        if ch in chans:
+            continue
+        chans.add(ch); taken.add(f"youtube_{vid}")
+        rows.append(dict(source="youtube", track_id=vid, title=e.get("title"), artist=_clean_artist(e.get("channel") or e.get("uploader")),
+                         duration=e.get("duration"), listens=views, licence="youtube-standard",
+                         listen=f"https://www.youtube.com/watch?v={vid}", site_genre=genre, group=f"yt_{genre}", i_agree=""))
+        if len(rows) >= per:
+            break
+    return rows
+
+
 DONE_Q = os.path.join(HERE, "results", "youtube_queries_done.json")
 
 
@@ -247,6 +288,8 @@ def main():
     ap.add_argument("--variety", action="store_true",
                     help="run the EXTRA_QUERIES (other sub-styles of the same genres) instead of the main search; "
                          "--per then means songs per query")
+    ap.add_argument("--ytdlp", action="store_true",
+                    help="run the STYLE_QUERIES with yt-dlp (no API key, no quota); --per then means songs per query")
     ap.add_argument("--list-genres", action="store_true", help="print the genre searches and exit")
     a = ap.parse_args()
 
@@ -254,7 +297,7 @@ def main():
         for g, q in DEFAULT_GENRES.items():
             print(f"  {g:10s} -> {q}")
         return
-    if not os.environ.get("YOUTUBE_API_KEY"):
+    if not a.ytdlp and not os.environ.get("YOUTUBE_API_KEY"):
         raise SystemExit("Set YOUTUBE_API_KEY first (free at https://console.cloud.google.com -> YouTube Data API v3)")
 
     genres = {g: DEFAULT_GENRES[g] for g in a.genres} if a.genres else dict(DEFAULT_GENRES)
@@ -282,7 +325,8 @@ def main():
         if tag in done_q:
             print(f"  {g:11s} skipped  ({label}: {q!r} was already searched)")
             return
-        got = pick_for_genre(g, q, a.per, a.max_views, a.pages, order, a.cc_only, taken)
+        got = (pick_ytdlp(g, q, a.per, a.max_views, taken) if a.ytdlp
+               else pick_for_genre(g, q, a.per, a.max_views, a.pages, order, a.cc_only, taken))
         new_rows.extend(got)
         added[g] = added.get(g, 0) + len(got)
         save()
@@ -292,7 +336,12 @@ def main():
 
     failed = None
     try:
-        if a.variety:                                # extra searches inside the SAME genres, round by round
+        if a.ytdlp:                                  # style searches with yt-dlp, round by round (no quota)
+            for rnd in range(max(len(v) for v in STYLE_QUERIES.values())):
+                for g, qs in STYLE_QUERIES.items():
+                    if rnd < len(qs):
+                        run_query(g, qs[rnd], "ytdlp", f"round {rnd + 1}, yt-dlp")
+        elif a.variety:                              # extra searches inside the SAME genres, round by round
             for rnd in range(max(len(v) for v in EXTRA_QUERIES.values())):
                 order = ("date", "relevance", "date")[rnd % 3]
                 for g in genres:
