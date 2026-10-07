@@ -62,6 +62,13 @@ def song_vectors(S, model, source, agg):
         k = {"all": len(order), "top5": 5, "top3": 3}[agg]
         sel = order[:k]
         E = s[source][sel]                                                          # (k, 5, 1000)
+        # a window with a broken number (an fp16 overflow on a near-silent stem happened once) is skipped, otherwise one
+        # song would turn every rescaled comparison of that model into NaN
+        ok = np.isfinite(E).all(axis=(1, 2)) if model == "all5" else np.isfinite(E[:, MODELS.index(model)]).all(axis=1)
+        E = E[ok]
+        if len(E) == 0:
+            out.append(np.zeros(5000 if model == "all5" else 1000, np.float32))
+            continue
         if model == "all5":
             parts = [unit(E[:, m]).mean(0) for m in range(len(MODELS))]
             out.append(np.concatenate([p / (np.linalg.norm(p) + 1e-9) for p in parts]))
@@ -159,6 +166,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", default="voice_dev.csv")
     ap.add_argument("--with-sound", action="store_true")
+    ap.add_argument("--force", nargs=4, metavar=("MODEL", "SOURCE", "WINDOWS", "RESCALING"),
+                    help="use these settings instead of the best Voice-alone ones (writes voice_dev_report_forced.md only)")
     a = ap.parse_args()
     t0 = time.time()
     S = load(a.list)
@@ -196,6 +205,10 @@ def main():
       "The gap is how much of the best score is luck of the choice.")
 
     best = configs[int(order[0])]
+    if a.force:
+        m, so, ag, sc = a.force
+        best = next(c for c in configs if (c["model"], c["source"], c["agg"], c["scale"]) == (m, so, ag, sc))
+        P(f"\n**Settings forced by hand: {m} / {so} / {ag} / {sc} (Voice-alone hit@10 {best['hit'].mean() * 100:.1f}%)**")
     V = rescale(song_vectors(S, best["model"], best["source"], best["agg"]), SCALES[best["scale"]])
 
     # ---- the singing gate on the best settings
@@ -228,6 +241,10 @@ def main():
     # ---- dry run of the real test: Sound alone vs Sound + Voice
     if a.with_sound:
         summary["with_sound"] = sound_comparison(S, Q, V, P)
+    if a.force:
+        open(os.path.join(HERE, "voice_dev_report_forced.md"), "w", encoding="utf-8").write("\n".join(out) + "\n")
+        print("\n(forced settings: wrote voice_dev_report_forced.md only; the choice and summary files are untouched)")
+        return
     json.dump(summary, open(os.path.join(HERE, "voice_dev_summary.json"), "w"), indent=1, default=float)
     json.dump(dict(model=best["model"], source=best["source"], windows=best["agg"], rescaling=best["scale"],
                    note="chosen on development songs only; NOT frozen yet (needs voice_freeze.json before the test)",
