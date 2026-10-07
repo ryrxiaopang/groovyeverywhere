@@ -225,6 +225,21 @@ STYLE_QUERIES = {
 }
 
 
+# Western pop / R&B / indie-pop, the music the friends' blind-test songs come from (the pool had only ~6% pop, ~4% soul/R&B).
+# Pop punk is left out on purpose (punk is an off-pool genre).
+STYLE_SETS = {
+    "japanese": STYLE_QUERIES,
+    "pop": {
+        "pop":   ["indie pop original song vocal", "bedroom pop new song", "pop rock band original song", "soft acoustic pop original song",
+                  "pop singer songwriter original song"],
+        "rnb":   ["alternative r&b original song", "bedroom r&b original song", "smooth r&b slow jam original", "indie r&b new song",
+                  "soulful r&b vocal original song"],
+        "indie": ["bedroom indie original song", "indie pop band original song", "dreamy indie guitar vocal song"],
+        "alternative": ["alternative pop original song", "indie rock pop band original song"],
+    },
+}
+
+
 def pick_ytdlp(genre, query, per, max_views, taken, n_search=60, by_relevance=False):
     """Same rules as pick_for_genre (60-600 s, <= max_views, not a non-song title, one per channel, new), but the search
     and the details come from yt-dlp, so the YouTube API quota is not used. Least viewed first."""
@@ -291,6 +306,7 @@ def main():
                          "--per then means songs per query")
     ap.add_argument("--ytdlp", action="store_true",
                     help="run the STYLE_QUERIES with yt-dlp (no API key, no quota); --per then means songs per query")
+    ap.add_argument("--style", default="japanese", choices=sorted(STYLE_SETS), help="with --ytdlp: which STYLE_SETS to search")
     ap.add_argument("--relevance", action="store_true",
                     help="with --ytdlp: take songs in YouTube's relevance order (well-played songs are fine) instead of least viewed first")
     ap.add_argument("--list-genres", action="store_true", help="print the genre searches and exit")
@@ -340,8 +356,9 @@ def main():
     failed = None
     try:
         if a.ytdlp:                                  # style searches with yt-dlp, round by round (no quota)
-            for rnd in range(max(len(v) for v in STYLE_QUERIES.values())):
-                for g, qs in STYLE_QUERIES.items():
+            qset = STYLE_SETS[a.style]
+            for rnd in range(max(len(v) for v in qset.values())):
+                for g, qs in qset.items():
                     if rnd < len(qs):
                         run_query(g, qs[rnd], "ytdlp", f"round {rnd + 1}, yt-dlp")
         elif a.variety:                              # extra searches inside the SAME genres, round by round

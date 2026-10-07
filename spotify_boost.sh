@@ -14,4 +14,6 @@ code=$?
 if [ $code -ne 0 ]; then echo "$(date) !! build_from_spotify.py ended with an error (exit code $code)"; fi
 echo "$(date) analysing the pool_youtube.csv songs still to do"
 python -u run_tests.py --list pool_youtube.csv
+echo "$(date) audio audit: removing anything that is not a song"
+python -u audit_pool_audio.py --apply
 echo "$(date) spotify boost finished (exit code $?)"

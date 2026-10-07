@@ -14,4 +14,6 @@ code=$?
 if [ $code -ne 0 ]; then echo "$(date) !! build_youtube.py ended with an error (exit code $code); what it found is saved"; fi
 echo "$(date) analysing the pool_youtube.csv songs still to do"
 python -u run_tests.py --list pool_youtube.csv
+echo "$(date) audio audit: removing anything that is not a song"
+python -u audit_pool_audio.py --apply
 echo "$(date) style boost finished (exit code $?)"
