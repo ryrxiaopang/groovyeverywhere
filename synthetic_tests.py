@@ -359,6 +359,187 @@ def make_dry_run_files(folder):
     return n
 
 
+def failure_handling_tests():
+    """No network, no GPU: replays the failures of the night of 7 Oct and checks that none of them can lose work again.
+    (a) YouTube answers 429 or crashes half-way through the list build: what was found is saved, a re-run skips the
+        searches that finished.  (b) The Voice runner stops on a missing key / a streak of failed songs, writes only
+        numbers, and leaves no audio behind.  (c) pick_windows is deterministic and never overlaps."""
+    print("\n7. FAILURE HANDLING (list build and Voice runner)")
+    import contextlib, csv, glob, io, json, shutil, sys, tempfile
+    import build_youtube as by
+
+    # ---- (a1) _call: 429 is retried, then treated like a quota stop; a 429 followed by success returns the data
+    class R:
+        def __init__(self, code, body="{}"):
+            self.status_code, self.text, self._b = code, body, body
+        def json(self):
+            return json.loads(self._b)
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                import requests
+                raise requests.HTTPError(f"{self.status_code} error")
+    real_get, real_sleep, real_polite = by.requests.get, by.time.sleep, by._polite
+    os.environ["YOUTUBE_API_KEY"] = "fake-test-key"
+    by.time.sleep = lambda s: None
+    by._polite = lambda *a, **k: None
+    try:
+        calls = {"n": 0}
+        by.requests.get = lambda *a, **k: (calls.__setitem__("n", calls["n"] + 1) or R(429))
+        try:
+            by._call("search", q="x")
+            raise AssertionError("429 forever should stop the run")
+        except by.QuotaUsed:
+            print(f"   429 on every try -> retried {calls['n']} times, then a clean quota stop")
+            assert calls["n"] == 4
+        seq = iter([R(429), R(200, '{"items": [1]}')])
+        by.requests.get = lambda *a, **k: next(seq)
+        assert by._call("search", q="x") == {"items": [1]}
+        print("   429 once, then fine -> the data is returned")
+    finally:
+        by.requests.get, by.time.sleep, by._polite = real_get, real_sleep, real_polite
+
+    # ---- (a2) list build: crash / quota half-way keeps what was found; a re-run skips finished searches
+    with tempfile.TemporaryDirectory() as d:
+        real = dict(HERE=by.HERE, DONE_Q=by.DONE_Q, pick=by.pick_for_genre, pk=by.pool_keys, lr=by.latest_rows,
+                    argv=sys.argv, ex=dict(by.EXTRA_QUERIES), dg=dict(by.DEFAULT_GENRES))
+        by.HERE = d
+        by.DONE_Q = os.path.join(d, "results", "done.json")
+        by.pool_keys = lambda: []
+        by.latest_rows = lambda: {}
+        by.EXTRA_QUERIES.clear()
+        by.EXTRA_QUERIES.update({"kpop": ["q1", "q2"], "rnb": ["q3"]})
+        by.DEFAULT_GENRES.clear()
+        by.DEFAULT_GENRES.update({"kpop": "x", "rnb": "y"})
+        searched, crash_on = [], ["never", None]
+
+        def fake_pick(genre, query, *a):
+            searched.append(query)
+            if query == crash_on[0]:
+                raise crash_on[1]
+            return [dict(source="youtube", track_id=f"{query}-{i}", title="t", artist="a", duration=200, listens=10,
+                         licence="x", listen="u", site_genre=genre, group=f"yt_{genre}", i_agree="") for i in range(2)]
+        by.pick_for_genre = fake_pick
+        try:
+            # round order is q1 (kpop), q3 (rnb), q2 (kpop): a stop on the 3rd search keeps the 4 songs of the first two
+            for what, exc, expect_exit in (("YouTube quota", by.QuotaUsed(), None), ("unexpected crash", ValueError("boom"), 1)):
+                for f in glob.glob(os.path.join(d, "*")) + glob.glob(os.path.join(d, "results", "*")):
+                    if os.path.isfile(f):
+                        os.remove(f)
+                searched.clear()
+                crash_on[:] = ["q2", exc]
+                sys.argv = ["build_youtube.py", "--variety", "--per", "2", "--pages", "1"]
+                code = None
+                with contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        by.main()
+                    except SystemExit as e:
+                        code = e.code
+                saved = list(csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig")))
+                assert code == expect_exit, (what, code)
+                assert len(saved) == 4, f"{what}: the 4 songs found before the stop must be saved, got {len(saved)}"
+                print(f"   {what} on the 3rd search -> the 4 songs found before it are saved (exit code {code})")
+            # re-run after the stop: finished searches are skipped, only the unfinished one is paid for
+            searched.clear()
+            crash_on[:] = ["never", None]
+            with contextlib.redirect_stdout(io.StringIO()):
+                by.main()
+            assert searched == ["q2"], searched
+            print(f"   re-run after the stop -> only {searched} is searched again (finished searches skipped)")
+        finally:
+            by.HERE, by.DONE_Q, by.pick_for_genre, by.pool_keys, by.latest_rows = (
+                real["HERE"], real["DONE_Q"], real["pick"], real["pk"], real["lr"])
+            sys.argv = real["argv"]
+            by.EXTRA_QUERIES.clear()
+            by.EXTRA_QUERIES.update(real["ex"])
+            by.DEFAULT_GENRES.clear()
+            by.DEFAULT_GENRES.update(real["dg"])
+
+    # ---- (b) Voice runner (FAKE_VOICE: no GPU, no models)
+    os.environ["FAKE_VOICE"] = "1"
+    import analyze_voice as av, run_voice as rv, sources
+    assert av.FAKE
+    if shutil.which("ffmpeg") is None:
+        print("   (ffmpeg not found: Voice runner checks skipped)")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        wav = os.path.join(d, "song.wav")
+        sig = (0.3 * np.sin(2 * np.pi * 220 * np.arange(SR * 30) / SR)).astype(np.float32)
+        analyze._es().MonoWriter(filename=wav, sampleRate=SR, format="wav")(sig)
+        vres = os.path.join(d, "voice")
+        os.makedirs(vres)
+        real = dict(VRES=rv.VRES, INDEX=rv.INDEX, HERE=rv.HERE, jt=sources.jamendo_tracks, ta=sources.temp_audio,
+                    argv=sys.argv)
+        rv.VRES, rv.INDEX, rv.HERE = vres, os.path.join(vres, "index.csv"), d
+        ids = list(range(1, 9))
+        with open(os.path.join(d, "l.csv"), "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["jamendo_id"])
+            for i in ids:
+                w.writerow([i])
+        sources.jamendo_tracks = lambda ids_: {int(i): {"source": "jamendo", "id": i, "download_allowed": True,
+                                                         "download_url": "x"} for i in ids_}
+        sys.argv = ["run_voice.py", "--list", "l.csv"]
+        try:
+            os.environ.pop("JAMENDO_CLIENT_ID", None)
+            try:
+                rv.main()
+                raise AssertionError("a missing Jamendo key must stop the run")
+            except SystemExit as e:
+                assert "JAMENDO_CLIENT_ID" in str(e.code)
+                print("   Voice runner without the Jamendo key -> stops at once with a clear message")
+            os.environ["JAMENDO_CLIENT_ID"] = "fake"
+
+            @contextlib.contextmanager
+            def bad(info):
+                raise RuntimeError("network down")
+                yield
+            sources.temp_audio = bad
+            with contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    rv.main()
+                    raise AssertionError("a streak of failures must stop the run")
+                except SystemExit as e:
+                    assert "in a row" in str(e.code)
+            rows = list(csv.DictReader(open(rv.INDEX)))
+            assert len(rows) == rv.MAX_IN_A_ROW, len(rows)
+            print(f"   {rv.MAX_IN_A_ROW} failed songs in a row -> the run stops after {len(rows)} of {len(ids)} songs")
+            # normal run: numbers only, audio folder gone, finished songs skipped on the next run
+            os.remove(rv.INDEX)
+            made = []
+
+            @contextlib.contextmanager
+            def good(info):
+                with tempfile.TemporaryDirectory(prefix="hg_") as td:
+                    p = os.path.join(td, "song.wav")
+                    shutil.copy(wav, p)
+                    made.append(td)
+                    yield p
+            sources.temp_audio = good
+            with contextlib.redirect_stdout(io.StringIO()):
+                rv.main()
+            assert all(not os.path.exists(m) for m in made), "audio folders must be deleted"
+            files = sorted(os.listdir(vres))
+            assert all(f.endswith((".npz", ".csv")) for f in files), files
+            z = np.load(os.path.join(vres, "jamendo_1.npz"))
+            assert z["emb_stem"].shape[1:] == (5, 1000) and z["emb_stem"].dtype == np.float16
+            print(f"   normal run -> {len(files) - 1} .npz files + index only, all {len(made)} audio folders deleted")
+            made.clear()
+            with contextlib.redirect_stdout(io.StringIO()):
+                rv.main()
+            assert not made, "finished songs must be skipped on a re-run"
+            print("   re-run -> finished songs skipped")
+        finally:
+            rv.VRES, rv.INDEX, rv.HERE = real["VRES"], real["INDEX"], real["HERE"]
+            sources.jamendo_tracks, sources.temp_audio, sys.argv = real["jt"], real["ta"], real["argv"]
+
+    # ---- (c) windows: deterministic, non-overlapping, and none for a clip shorter than one window
+    v = np.array([-70] * 20 + [-20] * 10 + [-60] * 20 + [-25] * 10, dtype=np.float32)
+    w1, w2 = av.pick_windows(v, len(v)), av.pick_windows(v, len(v))
+    assert w1 == w2 and all(b - a >= 5 for a, b in zip(w1, w1[1:])), w1
+    assert av.pick_windows(v[:3], 3) == []
+    print(f"   windows: same pick on a re-run, no overlap ({len(w1)} windows), none for a 3 s clip")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -367,3 +548,4 @@ if __name__ == "__main__":
     blind_pairing_test()
     audio_and_safety_tests()
     split_filter_test()
+    failure_handling_tests()

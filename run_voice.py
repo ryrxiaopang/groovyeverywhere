@@ -21,6 +21,7 @@ VRES = os.path.join(HERE, "results", "voice")
 INDEX = os.path.join(VRES, "index.csv")
 FIELDS = ["key", "status", "error", "duration", "n_windows", "t_decode", "t_separate", "t_embed", "t_total"]
 MAX_FAILS = 3
+MAX_IN_A_ROW = 5          # this many failed songs in a row means something systemic is wrong (GPU, disk, network): stop
 
 
 def done_keys(recheck_missing=False):
@@ -48,6 +49,7 @@ def write_row(row):
 
 
 def process(key, ctx):
+    """Analyse one song and record the outcome. Returns the status ('done', 'failed', ...)."""
     row = {"key": key}
     try:
         with ctx as path:
@@ -66,9 +68,10 @@ def process(key, ctx):
         if code in (404, 410):
             row.update(status="missing", error=f"gone ({code})"); print(f"  --  {key}: no longer available ({code})")
         else:
-            row.update(status="failed", error=sources.safe_exc(e)[:200] if hasattr(sources, "safe_exc") else str(e)[:200])
+            row.update(status="failed", error=str(sources.safe_exc(e))[:200])      # safe_exc hides API keys in the text
             print(f"  !!  {key}: {row['error']}"); traceback.print_exc(limit=1)
     write_row(row)
+    return row["status"]
 
 
 def main():
@@ -78,6 +81,12 @@ def main():
     ap.add_argument("--recheck-missing", action="store_true")
     a = ap.parse_args()
     os.makedirs(VRES, exist_ok=True)
+    if not os.environ.get("JAMENDO_CLIENT_ID"):
+        sys.exit("JAMENDO_CLIENT_ID is not set: start this with `bash -ic` (or source env_keys.sh) so the key is loaded.")
+    if not analyze_voice.FAKE:
+        import torch
+        if not torch.cuda.is_available():
+            sys.exit("No GPU visible to PyTorch: on a CPU this would take days. Stopping (see VOICE_PIPELINE.md section 6).")
     n_old = sources.sweep_stale_temp()
     if n_old:
         print(f"removed {n_old} leftover audio folder(s) from an earlier run that was stopped hard")
@@ -94,7 +103,7 @@ def main():
     if a.limit:
         ids = ids[: a.limit]
     print(f"{len(rows)} songs in {a.list}, {len(ids)} still to do")
-    t0, n = time.time(), 0
+    t0, n, in_a_row = time.time(), 0, 0
     meta = {}
     for i in range(0, len(ids), 100):             # look up 100 at a time so a long list starts working at once
         meta.update(sources.jamendo_tracks(ids[i:i + 100]))
@@ -104,8 +113,12 @@ def main():
             if info is None:
                 write_row({"key": key, "status": "missing", "error": "not on Jamendo"})
                 print(f"  --  {key}: no longer on Jamendo"); continue
-            process(key, sources.temp_audio(info))
+            status = process(key, sources.temp_audio(info))
             n += 1
+            in_a_row = in_a_row + 1 if status == "failed" else 0
+            if in_a_row >= MAX_IN_A_ROW:
+                sys.exit(f"!! {in_a_row} songs failed in a row: stopping instead of working through the whole list. "
+                         "Fix the cause (see the errors above), then run the same command again; finished songs are skipped.")
     print(f"done {n} songs in {time.time() - t0:.0f}s")
 
 

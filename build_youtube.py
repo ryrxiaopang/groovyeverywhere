@@ -121,15 +121,21 @@ class QuotaUsed(Exception):
 
 
 def _call(path, **params):
-    _polite()
-    try:
-        r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=30)
-        if r.status_code == 403 and "quota" in r.text.lower():
-            raise QuotaUsed()
-        r.raise_for_status()
-    except requests.RequestException as e:
-        raise sources.safe_exc(e) from None          # the error text would otherwise contain the API key
-    return r.json()
+    for attempt in range(4):
+        _polite(1.0 if path == "search" else 0.2)
+        try:
+            r = requests.get(f"{API}/{path}", params={**params, "key": os.environ["YOUTUBE_API_KEY"]}, timeout=30)
+            if r.status_code == 403 and "quota" in r.text.lower():
+                raise QuotaUsed()
+            if r.status_code == 429:                  # "too many requests": wait and retry; after 3 waits stop like a quota stop
+                if attempt == 3:
+                    raise QuotaUsed()
+                time.sleep(30 * (attempt + 1))
+                continue
+            r.raise_for_status()
+        except requests.RequestException as e:
+            raise sources.safe_exc(e) from None          # the error text would otherwise contain the API key
+        return r.json()
 
 
 _ISO = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
@@ -208,6 +214,27 @@ def pick_for_genre(genre, query, per, max_views, pages, order, cc_only, taken):
     return rows
 
 
+DONE_Q = os.path.join(HERE, "results", "youtube_queries_done.json")
+
+
+def load_done_queries():
+    """Searches that already finished, so a re-run (after a quota stop) continues instead of paying for them again."""
+    import json
+    try:
+        with open(DONE_Q, encoding="utf-8") as f:
+            return set(json.load(f))
+    except (OSError, ValueError):
+        return set()
+
+
+def save_done_queries(done):
+    import json
+    os.makedirs(os.path.dirname(DONE_Q), exist_ok=True)
+    with open(DONE_Q + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(sorted(done), f)
+    os.replace(DONE_Q + ".tmp", DONE_Q)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Add lower-view YouTube songs to the pool, by genre.")
     ap.add_argument("--per", type=int, default=40, help="songs to add per genre (default 40)")
@@ -243,36 +270,55 @@ def main():
     taken |= {f"youtube_{r['track_id']}" for r in existing}
 
     added, new_rows = {}, []
+    done_q = load_done_queries()
+
+    def save():
+        """Write everything found so far (called after EVERY search, so a crash or a stop loses at most one search)."""
+        if new_rows:
+            write_list(out_path, existing + new_rows)        # merges, keeps your i_agree marks, saves a .bak
+
+    def run_query(g, q, order, label):
+        tag = f"{q}|{order}|{a.max_views}"
+        if tag in done_q:
+            print(f"  {g:11s} skipped  ({label}: {q!r} was already searched)")
+            return
+        got = pick_for_genre(g, q, a.per, a.max_views, a.pages, order, a.cc_only, taken)
+        new_rows.extend(got)
+        added[g] = added.get(g, 0) + len(got)
+        save()
+        done_q.add(tag)
+        save_done_queries(done_q)
+        print(f"  {g:11s} +{len(got):3d}  ({label}: {q!r})")
+
+    failed = None
     try:
         if a.variety:                                # extra searches inside the SAME genres, round by round
             for rnd in range(max(len(v) for v in EXTRA_QUERIES.values())):
                 order = ("date", "relevance", "date")[rnd % 3]
                 for g in genres:
                     qs = EXTRA_QUERIES.get(g, [])
-                    if rnd >= len(qs):
-                        continue
-                    got = pick_for_genre(g, qs[rnd], a.per, a.max_views, a.pages, order, a.cc_only, taken)
-                    new_rows += got
-                    added[g] = added.get(g, 0) + len(got)
-                    print(f"  {g:11s} +{len(got):3d}  (round {rnd + 1}, {order}: {qs[rnd]!r})")
+                    if rnd < len(qs):
+                        run_query(g, qs[rnd], order, f"round {rnd + 1}, {order}")
         else:
             for g, q in genres.items():
-                got = pick_for_genre(g, q, a.per, a.max_views, a.pages, a.order, a.cc_only, taken)
-                new_rows += got
-                added[g] = len(got)
-                print(f"  {g:10s} +{len(got):3d}  (searched: {q!r})")
+                run_query(g, q, a.order, "searched")
     except QuotaUsed:
-        print("\n!! YouTube daily quota used up. Saving what was found; run again tomorrow to add more.")
+        print("\n!! YouTube daily quota used up. Everything found so far is saved; run again after it resets "
+              "(midnight Pacific time); finished searches are skipped.")
     except KeyError as e:
         raise SystemExit(f"unknown genre {e}; see: python build_youtube.py --list-genres")
-
+    except Exception as e:                           # any other failure: keep what was found, then say so loudly
+        failed = e
+        print(f"\n!! stopped by an error ({type(e).__name__}: {str(e)[:200]}). Everything found so far is saved.")
+    save()
     if not new_rows:
         print("Nothing new to add (quota, or every match is already in the pool).")
-        return
-    write_list(out_path, existing + new_rows)        # merges, keeps your i_agree marks, saves a .bak
-    total = len(existing) + len(new_rows)
-    print(f"\npool_youtube.csv now has {total} songs (+{len(new_rows)} new). Next:\n"
-          "  nohup python -u run_tests.py --list pool_youtube.csv > pool_youtube.log 2>&1 &")
+    else:
+        total = len(existing) + len(new_rows)
+        print(f"\npool_youtube.csv now has {total} songs (+{len(new_rows)} new). Next:\n"
+              "  nohup python -u run_tests.py --list pool_youtube.csv > pool_youtube.log 2>&1 &")
+    if failed is not None:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

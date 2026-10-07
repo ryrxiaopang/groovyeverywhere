@@ -87,10 +87,19 @@ Last updated 7 Oct 2026.
   **Built 7 Oct:** GPU env `.venv-voice` (Python 3.12, torch 2.11+cu128, demucs, Sony models cloned and patched in `~/ssl-singer-identity`;
   the 'uniformity' model is `unif-align` on Hugging Face). Demucs ~3-5 s per song on the RTX 5070. `analyze_voice.py` (one song,
   in memory) + `run_voice.py --list` (resumable, writes `results/voice/<key>.npz`, run with `.venv-voice`), `select_voice_dev.py`
-  -> `voice_dev.csv` (811 train-split songs: 140 artists + 420 distractors). Overnight 7 Oct: `voice_dev.csv` run queued after the
-  YouTube analysis (`start_voice_dev.sh` in /tmp), then `grow_pool_overnight.sh` (YouTube genres + analysis). NEXT: development
-  analysis script (pick model 1 of 5, stem vs mix, window averaging, rescaling, singing gate; ALL on train songs), write
-  `voice_freeze.json`, top up the test list, run `run_voice.py --list` on it, score once. Still missing: offline deletion test for
+  -> `voice_dev.csv` (811 train-split songs: 140 artists + 420 distractors). 7 Oct: `run_voice.py --list voice_dev.csv` runs in `.venv-voice` (start with `bash -ic` or `source env_keys.sh`: a
+  non-interactive bash has no API keys, which is what stopped the first overnight run). `after_voice.sh` then runs
+  `voice_dev_analysis.py` (Voice alone: model, stem vs mix, window mean, rescaling, singing gate -> `voice_dev_report.md`,
+  `voice_dev_choice.json`), analyses Sound for the dev songs with `run_tests.py --list voice_dev.csv`, and repeats the analysis with
+  `--with-sound` (dry run of the test: Sound alone vs Sound + Voice, paired gain). NEXT: read the report, write `voice_freeze.json`,
+  top up the test list, run `run_voice.py --list` on it, score once (`voice_test.py`, not written yet).
+  **Unattended-run rules (learned the hard way, 7 Oct):** scripts that run unattended must `source env_keys.sh` + `need_keys`; save
+  results after EVERY step (`build_youtube.py` writes `pool_youtube.csv` after each search and remembers finished searches in
+  `results/youtube_queries_done.json`; it stops cleanly on a 429 or the daily quota, which resets at 15:00 UTC+8);
+  `run_voice.py` stops after 5 failed songs in a row; `synthetic_tests.py` section 7 replays these failures offline. Never `pkill -f`
+  a pattern that also appears in your own command line (it kills your shell); use script files, not long `bash -c` strings.
+  `grow_pool_overnight.sh [HH:MM]` = variety search (`build_youtube.py --variety`, extra sub-style queries inside the EXISTING
+  genres only) + analysis, optionally not before HH:MM. Still missing: offline deletion test for
   `analyze_voice.py` (fake separator is built in via `FAKE_VOICE=1`), adding `voice` to `blind_test.FEATURES`.
   Two sealed-test songs were put through Voice for timing only (no scores looked at).
 
