@@ -255,9 +255,40 @@ STYLE_SETS = {
 }
 
 
-def pick_ytdlp(genre, query, per, max_views, taken, n_search=60, by_relevance=False):
+def _auto_queries(seed=8):
+    """~650 searches built from sub-style x mood templates for the long unattended expansion (`--style auto`). Western pop / R&B /
+    indie / alternative (the friends' taste) plus Korean, Mandarin, Cantonese, Taiwanese and Japanese pop / R&B / indie (the
+    owner's taste). Every run executes only searches it has not done before (results/youtube_queries_done.json)."""
+    import random
+    rng = random.Random(seed)
+    moods = ["sad", "love song", "summer", "late night", "breakup", "happy", "driving", "dreamy", "nostalgic", "upbeat", "cozy",
+             "heartbreak", "rainy day", "feel good"]
+    western = {"pop": ["indie pop", "bedroom pop", "pop rock", "acoustic pop", "synth pop", "dream pop", "alt pop", "pop ballad",
+                       "dance pop", "singer songwriter pop"],
+               "rnb": ["alternative r&b", "neo soul", "bedroom r&b", "smooth r&b", "chill r&b", "r&b pop", "soul pop", "slow jam r&b",
+                       "indie r&b", "contemporary r&b"],
+               "indie": ["indie pop", "indie rock", "indie folk", "lo-fi indie", "dreamy indie", "indie electronic", "bedroom indie",
+                         "indie band"],
+               "alternative": ["alt rock", "alt pop", "pop rock band", "indie rock band", "dream pop"]}
+    asian = {"kpop": ["k-pop"], "krnb": ["korean r&b", "k-r&b"], "kindie": ["korean indie"], "kballad": ["korean ballad"],
+             "cpop": ["mandopop"], "mrnb": ["mandarin r&b"], "cantopop": ["cantopop"], "twindie": ["taiwan indie"],
+             "jpop": ["j-pop"], "jrnb": ["japanese r&b", "japanese neo soul"], "citypop": ["city pop"]}
+    out = {}
+    for table, cap in ((western, None), (asian, 14)):
+        for g, bases in table.items():
+            qs = [f"{b} {m} {rng.choice(['original song', 'official audio'])}" for b in bases for m in moods]
+            rng.shuffle(qs)
+            out[g] = qs[:cap] if cap else qs
+    return out
+
+
+STYLE_SETS["auto"] = _auto_queries()
+
+
+def pick_ytdlp(genre, query, per, max_views, taken, n_search=60, by_relevance=False, artist_counts=None, max_per_artist=4):
     """Same rules as pick_for_genre (60-600 s, <= max_views, not a non-song title, one per channel, new), but the search
-    and the details come from yt-dlp, so the YouTube API quota is not used. Least viewed first."""
+    and the details come from yt-dlp, so the YouTube API quota is not used. Least viewed first. `artist_counts` (a Counter shared
+    over the whole run) keeps any one channel from filling the pool: at most `max_per_artist` songs per channel in total."""
     import yt_dlp
     with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}) as ydl:
         info = ydl.extract_info(f"ytsearch{n_search}:{query}", download=False)
@@ -277,6 +308,11 @@ def pick_ytdlp(genre, query, per, max_views, taken, n_search=60, by_relevance=Fa
         ch = e.get("channel_id") or e.get("uploader_id") or e.get("channel") or e.get("uploader")
         if ch in chans:
             continue
+        who = _clean_artist(e.get("channel") or e.get("uploader")).lower()
+        if artist_counts is not None and artist_counts.get(who, 0) >= max_per_artist:
+            continue
+        if artist_counts is not None:
+            artist_counts[who] = artist_counts.get(who, 0) + 1
         chans.add(ch); taken.add(f"youtube_{vid}")
         rows.append(dict(source="youtube", track_id=vid, title=e.get("title"), artist=_clean_artist(e.get("channel") or e.get("uploader")),
                          duration=e.get("duration"), listens=views, licence="youtube-standard",
@@ -324,6 +360,8 @@ def main():
     ap.add_argument("--style", default="japanese", choices=sorted(STYLE_SETS), help="with --ytdlp: which STYLE_SETS to search")
     ap.add_argument("--relevance", action="store_true",
                     help="with --ytdlp: take songs in YouTube's relevance order (well-played songs are fine) instead of least viewed first")
+    ap.add_argument("--max-queries", type=int, default=0,
+                    help="stop after this many NEW searches (finished ones are skipped); a long job runs the build in slices")
     ap.add_argument("--list-genres", action="store_true", help="print the genre searches and exit")
     a = ap.parse_args()
 
@@ -348,6 +386,12 @@ def main():
 
     added, new_rows = {}, []
     done_q = load_done_queries()
+    from collections import Counter
+    artist_counts = Counter((r.get("artist") or "").lower() for r in existing)     # songs per channel already in the list
+    executed = [0]
+
+    class Enough(Exception):
+        pass
 
     def save():
         """Write everything found so far (called after EVERY search, so a crash or a stop loses at most one search)."""
@@ -357,9 +401,13 @@ def main():
     def run_query(g, q, order, label):
         tag = f"{q}|{order}|{a.max_views}"
         if tag in done_q:
-            print(f"  {g:11s} skipped  ({label}: {q!r} was already searched)")
+            if not a.ytdlp:
+                print(f"  {g:11s} skipped  ({label}: {q!r} was already searched)")
             return
-        got = (pick_ytdlp(g, q, a.per, a.max_views, taken, by_relevance=a.relevance) if a.ytdlp
+        if a.max_queries and executed[0] >= a.max_queries:
+            raise Enough()
+        executed[0] += 1
+        got = (pick_ytdlp(g, q, a.per, a.max_views, taken, by_relevance=a.relevance, artist_counts=artist_counts) if a.ytdlp
                else pick_for_genre(g, q, a.per, a.max_views, a.pages, order, a.cc_only, taken))
         new_rows.extend(got)
         added[g] = added.get(g, 0) + len(got)
@@ -386,6 +434,8 @@ def main():
         else:
             for g, q in genres.items():
                 run_query(g, q, a.order, "searched")
+    except Enough:
+        print(f"\n(stopped after {executed[0]} new searches, as asked by --max-queries)")
     except QuotaUsed:
         print("\n!! YouTube daily quota used up. Everything found so far is saved; run again after it resets "
               "(midnight Pacific time); finished searches are skipped.")
