@@ -540,6 +540,23 @@ def failure_handling_tests():
     print(f"   windows: same pick on a re-run, no overlap ({len(w1)} windows), none for a 3 s clip")
 
 
+def near_copy_test():
+    """A re-upload / cover / slowed version of the starting song, and other songs by its artist, must never be recommended back,
+    even when the Sound match sits just under the 0.97 same-recording cut-off; a DIFFERENT song with the same title must stay."""
+    print("\n8. NEAR-COPIES OF THE STARTING SONG")
+    import blind_test as bt
+    P = dict(key=list("abcdefg"),
+             title=["Earrings (Lyrics)", "earrings - slowed", "Some Other Song", "Earrings", "Brand New Day", "Earrings", "Malcolm Todd - Chest"],
+             artist_name=["lyric channel", "slow channel", "x", "Another Band", "Malcolm Todd", "Cover Kid", "y"])
+    plain = np.array([0.96, 0.95, 0.99, 0.60, 0.70, 0.88, 0.40])
+    m = bt.near_copy_mask(P, plain, "Earrings", "Malcolm Todd")
+    #   a lyric re-upload (title + close sound), a slowed copy, a different song, a different song called Earrings that sounds
+    #   unlike it, another song BY the artist (artist name), a cover (title + close sound), the artist's name in the title
+    expect = [True, True, False, False, True, True, True]
+    assert list(m) == expect, list(m)
+    print("   re-upload, slowed copy, cover and the artist's other songs are dropped; a different song with the same title stays")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -549,3 +566,4 @@ if __name__ == "__main__":
     audio_and_safety_tests()
     split_filter_test()
     failure_handling_tests()
+    near_copy_test()

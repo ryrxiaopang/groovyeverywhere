@@ -43,6 +43,9 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=
     plain = bt.raw_sound(q, P)
     dup = plain >= bt.DUP_COSINE
     none = dup | np.isin(artists, list({artists[i] for i in np.where(dup)[0]}))
+    from results_index import read_meta
+    meta = read_meta(key) or {}                  # the song's own title / artist: its re-uploads, covers and artist are not recommended
+    none = none | bt.near_copy_mask(P, plain, meta.get("title") or "", meta.get("artist") or "")
     if only:                                # only songs from these pool groups (e.g. yt_jpop yt_jrnb yt_citypop): the rest is left out
         none = none | ~np.isin(np.array(P["group"]), list(only))
         print(f"  only {', '.join(only)}: {int((~none).sum())} candidate songs")

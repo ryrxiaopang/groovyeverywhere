@@ -256,7 +256,42 @@ def fma_favourites(keys):
     return out
 
 
-def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False):
+def _toks(s):
+    import re, unicodedata
+    s = "".join(c for c in unicodedata.normalize("NFKD", s or "") if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^\w]+", " ", s.replace("_", " ")).split()
+
+
+def _bare_title(t):
+    import re
+    return re.sub(r"[\(\[].*?[\)\]]|\bfeat\.?.*$|\bwith\b.*$", "", t or "", flags=re.I).strip() or (t or "")
+
+
+NEAR_COPY_SOUND = 0.80      # plain Sound cosine above which a song carrying the starting song's title counts as a copy of it
+
+
+def near_copy_mask(P, plain, start_title="", start_artist=""):
+    """Pool songs that are probably the starting song itself under another upload (re-upload, cover, slowed / sped-up / lyric / 8D
+    version, remix) or other songs by the starting song's artist, found by NAME as well as by sound:
+      * the pool title contains every word of the starting title AND it sounds close (plain Sound >= NEAR_COPY_SOUND), or
+      * the artist's name is in the pool song's title or channel (that artist is never recommended back).
+    Added 8 Oct: a larger pool put 0.96-0.97 copies of friends' songs just under the 0.97 same-recording cut-off."""
+    n = len(P["key"])
+    mask = np.zeros(n, bool)
+    tt, at = _toks(_bare_title(start_title)), _toks(start_artist)
+    for i in range(n):
+        ct = _toks(P["title"][i])
+        if tt and set(tt) <= set(ct) and plain[i] >= NEAR_COPY_SOUND:
+            mask[i] = True
+            continue
+        if at and len(" ".join(at)) >= 3:
+            hay = set(ct) | set(_toks(P["artist_name"][i]))
+            if sum(w in hay for w in at) >= max(1, int(0.8 * len(at) + 0.5)):
+                mask[i] = True
+    return mask
+
+
+def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False, start_title="", start_artist=""):
     """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
     genre group of the closest Sound match. Each list: K songs, least popular good matches first, 1 per artist.
     Quality guard: A and B never pick a song from the least-played `skip_least`% of its own site (0 = off), so the
@@ -276,6 +311,7 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     dup = plain >= DUP_COSINE
     dup_artists = {artists[i] for i in np.where(dup)[0]}
     none = dup | np.isin(artists, list(dup_artists))
+    none = none | near_copy_mask(P, plain, start_title, start_artist)
     a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists,
                                               skip=skip)
     chosen = ["sound"] + [f for f in feature.split("+") if f != "sound"]    # e.g. "mood+rhythm"

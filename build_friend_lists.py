@@ -36,7 +36,7 @@ def main():
             print(f"  -- {label}: not analysed yet, skipped"); continue
         with np.load(p) as d:
             q = bt.query_from_analysis(dict(d))
-        lists = bt.make_lists(q, feature, seed=a.seed)
+        lists = bt.make_lists(q, feature, seed=a.seed, start_title=r["song"], start_artist=r["artist"])
         sizes = {k: len(lists[k]) for k in "ABC"}
         fn = bt.save_capture(r["friend"], f"{r['song']} - {r['artist']}", feature, q, lists, signal="full song, YouTube")
         flag = []
