@@ -19,10 +19,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--friend", action="append", help="only this friend (repeatable); a capture already made is never overwritten, so "
+                    "use this when adding someone new")
     a = ap.parse_args()
     if not a.final:
         bt.BLIND = os.path.join(bt.RES, "blind_preview")
     rows = list(csv.DictReader(open(os.path.join(HERE, "friends_inputs.csv"), encoding="utf-8-sig")))
+    if a.friend:
+        rows = [r for r in rows if r["friend"] in a.friend]
     print(f"{len(rows)} friend answers -> {'results/blind (FINAL)' if a.final else 'results/blind_preview (preview)'}")
     bt.pool()
     made = 0

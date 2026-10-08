@@ -1,0 +1,651 @@
+[
+ {
+  "kind": "artist",
+  "id": "5YPCpDIPOY4WqY9Bqdw4Uc",
+  "name": "Jimmy Brown",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Let Me Know",
+    "artists": "Jimmy Brown",
+    "seconds": 188.666
+   },
+   {
+    "title": "your love",
+    "artists": "brb., Jimmy Brown",
+    "seconds": 155.923
+   },
+   {
+    "title": "SKINTIGHT",
+    "artists": "Ethan Low, Jimmy Brown",
+    "seconds": 156.285
+   },
+   {
+    "title": "Irene",
+    "artists": "Jimmy Brown",
+    "seconds": 199.672
+   },
+   {
+    "title": "i got you",
+    "artists": "Jimmy Brown",
+    "seconds": 132.727
+   },
+   {
+    "title": "2 Things",
+    "artists": "Jimmy Brown",
+    "seconds": 227.368
+   },
+   {
+    "title": "kiss my lips",
+    "artists": "Jimmy Brown",
+    "seconds": 195.692
+   },
+   {
+    "title": "Reminiscing",
+    "artists": "Jimmy Brown",
+    "seconds": 192.201
+   },
+   {
+    "title": "Adore You",
+    "artists": "Jimmy Brown",
+    "seconds": 183.156
+   },
+   {
+    "title": "LOST",
+    "artists": "Jimmy Brown",
+    "seconds": 256.665
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "6AEdu26JUdoNP01gO8sM0N",
+  "name": "Harms",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Mustang (Feat. YUMIN)",
+    "artists": "Harms, YUMIN",
+    "seconds": 188.138
+   },
+   {
+    "title": "Golden",
+    "artists": "HNATA, Justin Adijanto, Harms",
+    "seconds": 227.666
+   },
+   {
+    "title": "Dishonest (feat. Nathania, Kim Seung Min)",
+    "artists": "Harms, Nathania, Kim Seungmin",
+    "seconds": 282.98
+   },
+   {
+    "title": "LDR",
+    "artists": "Harms, FLANNEL ALBERT",
+    "seconds": 236.178
+   },
+   {
+    "title": "Tell Me (feat. Moodie)",
+    "artists": "Harms, moodie",
+    "seconds": 213.669
+   },
+   {
+    "title": "Not The One",
+    "artists": "Harms",
+    "seconds": 209.973
+   },
+   {
+    "title": "Want You (Feat. FR:EDEN)",
+    "artists": "Harms, FR:EDEN",
+    "seconds": 154.218
+   },
+   {
+    "title": "Torn Apart",
+    "artists": "Harms, Genido",
+    "seconds": 187.794
+   },
+   {
+    "title": "Why Can't I",
+    "artists": "Harms",
+    "seconds": 137.721
+   },
+   {
+    "title": "Slowly (Prod. Liquor Well)",
+    "artists": "Harms",
+    "seconds": 185.0
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "6Dp6OYo93kad6QAcXezQRq",
+  "name": "Jword",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Fine wine (feat. Orion Song)",
+    "artists": "HAAN, Jword, Orion Song",
+    "seconds": 167.0
+   },
+   {
+    "title": "24hrs",
+    "artists": "Jimmy Brown, Jword",
+    "seconds": 157.09
+   },
+   {
+    "title": "Unlimited Hours",
+    "artists": "Jword, Jimmy Brown",
+    "seconds": 180.688
+   },
+   {
+    "title": "Notice",
+    "artists": "Jword, Jimmy Brown",
+    "seconds": 194.088
+   },
+   {
+    "title": "MY BOO",
+    "artists": "MIO, Jword",
+    "seconds": 137.777
+   },
+   {
+    "title": "Come My Way",
+    "artists": "Jimmy Brown, Jword",
+    "seconds": 172.258
+   },
+   {
+    "title": "Level",
+    "artists": "Jword, BIG Naughty",
+    "seconds": 195.36
+   },
+   {
+    "title": "Let Go",
+    "artists": "Jimmy Brown, Jword",
+    "seconds": 192.0
+   },
+   {
+    "title": "I Need U I Want U",
+    "artists": "Milky Day, Jword",
+    "seconds": 227.242
+   },
+   {
+    "title": "Nights",
+    "artists": "Jimmy Brown, Jword",
+    "seconds": 156.734
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "7zrkFhYAp6dBxsydmJkouN",
+  "name": "lullaboy",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "shortcut to heaven",
+    "artists": "lullaboy",
+    "seconds": 184.343
+   },
+   {
+    "title": "someone like u",
+    "artists": "lullaboy",
+    "seconds": 232.0
+   },
+   {
+    "title": "life with u",
+    "artists": "lullaboy",
+    "seconds": 205.275
+   },
+   {
+    "title": "van gogh",
+    "artists": "lullaboy",
+    "seconds": 173.54
+   },
+   {
+    "title": "nervous",
+    "artists": "lullaboy",
+    "seconds": 214.875
+   },
+   {
+    "title": "me without you",
+    "artists": "lullaboy",
+    "seconds": 193.5
+   },
+   {
+    "title": "r&r",
+    "artists": "lullaboy",
+    "seconds": 187.75
+   },
+   {
+    "title": "solo",
+    "artists": "JUNNY, lullaboy",
+    "seconds": 183.36
+   },
+   {
+    "title": "time with myself",
+    "artists": "lullaboy, Benjamin Kheng",
+    "seconds": 184.588
+   },
+   {
+    "title": "the boy",
+    "artists": "lullaboy",
+    "seconds": 216.53
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "330A2O2MYF4bWFjwM5PJ4z",
+  "name": "Rangga Jones",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Infatuated",
+    "artists": "Rangga Jones",
+    "seconds": 226.714
+   },
+   {
+    "title": "Call Me",
+    "artists": "Rangga Jones",
+    "seconds": 172.5
+   },
+   {
+    "title": "The One",
+    "artists": "Rangga Jones, BLVCKHEART",
+    "seconds": 192.0
+   },
+   {
+    "title": "Favourite Things",
+    "artists": "Rangga Jones",
+    "seconds": 173.333
+   },
+   {
+    "title": "Other Half",
+    "artists": "Rangga Jones",
+    "seconds": 215.647
+   },
+   {
+    "title": "End of The Day",
+    "artists": "Rangga Jones, ZIONN",
+    "seconds": 157.714
+   },
+   {
+    "title": "Bad Days",
+    "artists": "Rangga Jones",
+    "seconds": 169.0
+   },
+   {
+    "title": "i confess",
+    "artists": "Rangga Jones",
+    "seconds": 193.246
+   },
+   {
+    "title": "confidence in me",
+    "artists": "Rangga Jones",
+    "seconds": 162.151
+   },
+   {
+    "title": "One of a Kind",
+    "artists": "me-mai, Rangga Jones, SIRUP",
+    "seconds": 173.217
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "6J1LfT9S8BD5i2xqk87x6Z",
+  "name": "Lemon City",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "Hold me Kiss me Love me",
+    "artists": "Lemon City",
+    "seconds": 165.12
+   },
+   {
+    "title": "it's you",
+    "artists": "Lemon City, colin",
+    "seconds": 182.25
+   },
+   {
+    "title": "What If I Told You",
+    "artists": "Lemon City",
+    "seconds": 184.76
+   },
+   {
+    "title": "Love is",
+    "artists": "Lemon City",
+    "seconds": 147.173
+   },
+   {
+    "title": "I’m gonna love you",
+    "artists": "Lemon City",
+    "seconds": 177.746
+   },
+   {
+    "title": "You are",
+    "artists": "Lemon City, colin",
+    "seconds": 205.379
+   },
+   {
+    "title": "Don’t wanna be your friend",
+    "artists": "Lemon City",
+    "seconds": 176.24
+   },
+   {
+    "title": "No more dancing in the moonlight",
+    "artists": "Lemon City, Luke",
+    "seconds": 177.831
+   },
+   {
+    "title": "need you",
+    "artists": "Lemon City",
+    "seconds": 200.026
+   },
+   {
+    "title": "Love You More",
+    "artists": "Lemon City",
+    "seconds": 182.173
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "33crDRqANd3NQHJagZkQ7O",
+  "name": "slchld",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "she likes spring, I prefer winter",
+    "artists": "slchld",
+    "seconds": 207.445
+   },
+   {
+    "title": "you won't be there for me",
+    "artists": "slchld",
+    "seconds": 182.645
+   },
+   {
+    "title": "Good Care",
+    "artists": "HYBS, slchld, asiatic.wav",
+    "seconds": 194.55
+   },
+   {
+    "title": "maybe we need a break",
+    "artists": "slchld",
+    "seconds": 184.833
+   },
+   {
+    "title": "camellia",
+    "artists": "slchld",
+    "seconds": 151.211
+   },
+   {
+    "title": "huge mood",
+    "artists": "slchld",
+    "seconds": 182.012
+   },
+   {
+    "title": "lone summer",
+    "artists": "slchld",
+    "seconds": 181.949
+   },
+   {
+    "title": "two faced",
+    "artists": "slchld",
+    "seconds": 182.043
+   },
+   {
+    "title": "say what's on your mind",
+    "artists": "slchld",
+    "seconds": 173.766
+   },
+   {
+    "title": "my stargirl",
+    "artists": "slchld",
+    "seconds": 183.5
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "7FIqXqYZHMomTAcTXF4UHu",
+  "name": "Milky Day",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "You'll Be Alright",
+    "artists": "Milky Day, frad, Hayne",
+    "seconds": 199.016
+   },
+   {
+    "title": "Let Me",
+    "artists": "Milky Day, Denise Julia",
+    "seconds": 185.002
+   },
+   {
+    "title": "Youuu",
+    "artists": "Milky Day, Gareth.T",
+    "seconds": 166.015
+   },
+   {
+    "title": "Take It Slow",
+    "artists": "Milky Day",
+    "seconds": 167.978
+   },
+   {
+    "title": "Mine",
+    "artists": "Milky Day, Ash Haze",
+    "seconds": 171.093
+   },
+   {
+    "title": "fool",
+    "artists": "frad, Hayne, Milky Day",
+    "seconds": 130.333
+   },
+   {
+    "title": "Feelin' Blue",
+    "artists": "Milky Day, frad, Hayne",
+    "seconds": 170.73
+   },
+   {
+    "title": "How You Been",
+    "artists": "Milky Day, Elijah Lee",
+    "seconds": 157.44
+   },
+   {
+    "title": "Listen to the Rain",
+    "artists": "Milky Day, ZUHAIR",
+    "seconds": 196.33
+   },
+   {
+    "title": "Kiss Me Slowly",
+    "artists": "Milky Day",
+    "seconds": 153.215
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "5dWndFGuVl632aMTovMrdO",
+  "name": "Ash Randers",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "fall into you",
+    "artists": "Ash Randers",
+    "seconds": 167.538
+   },
+   {
+    "title": "eileen",
+    "artists": "Ash Randers",
+    "seconds": 168.23
+   },
+   {
+    "title": "i hate that it's you",
+    "artists": "Ash Randers",
+    "seconds": 167.926
+   },
+   {
+    "title": "this is how you fall in love",
+    "artists": "Ash Randers",
+    "seconds": 219.374
+   },
+   {
+    "title": "[dontwakemeup]",
+    "artists": "Ash Randers",
+    "seconds": 201.968
+   },
+   {
+    "title": "[rearviewmirror]",
+    "artists": "Ash Randers",
+    "seconds": 161.311
+   },
+   {
+    "title": "it isn't fair",
+    "artists": "Ash Randers",
+    "seconds": 191.027
+   },
+   {
+    "title": "[canwepretend]",
+    "artists": "Ash Randers",
+    "seconds": 203.345
+   },
+   {
+    "title": "you betrayed me",
+    "artists": "Ash Randers",
+    "seconds": 195.807
+   },
+   {
+    "title": "hero",
+    "artists": "Ash Randers",
+    "seconds": 200.67
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "0kX41bvrBQtgqSEXbmTzMN",
+  "name": "eaJ",
+  "genre": "pop",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "feel myself",
+    "artists": "eaJ",
+    "seconds": 137.053
+   },
+   {
+    "title": "when the rain stops",
+    "artists": "eaJ",
+    "seconds": 201.533
+   },
+   {
+    "title": "blinded",
+    "artists": "eaJ",
+    "seconds": 166.946
+   },
+   {
+    "title": "VISIONS",
+    "artists": "eaJ, Safari Riot, VALORANT",
+    "seconds": 225.142
+   },
+   {
+    "title": "everything, everywhere (feat. eaJ)",
+    "artists": "vaultboy, eaJ",
+    "seconds": 190.108
+   },
+   {
+    "title": "Ever After (feat. eaJ)",
+    "artists": "MICO, eaJ",
+    "seconds": 166.544
+   },
+   {
+    "title": "Car Crash",
+    "artists": "eaJ",
+    "seconds": 186.453
+   },
+   {
+    "title": "pacman",
+    "artists": "eaJ",
+    "seconds": 93.52
+   },
+   {
+    "title": "Secrets (feat. eaJ)",
+    "artists": "BINI, eaJ",
+    "seconds": 204.65
+   },
+   {
+    "title": "put it on me",
+    "artists": "eaJ",
+    "seconds": 131.061
+   }
+  ]
+ },
+ {
+  "kind": "artist",
+  "id": "1IbdIX1U1e04JRrrh9HQSc",
+  "name": "kanegi.",
+  "genre": "rnb",
+  "more": 8,
+  "tracks": [
+   {
+    "title": "velvet hour",
+    "artists": "kanegi.",
+    "seconds": 187.239
+   },
+   {
+    "title": "city boy",
+    "artists": "kanegi.",
+    "seconds": 166.519
+   },
+   {
+    "title": "same moon, different city",
+    "artists": "kanegi.",
+    "seconds": 151.439
+   },
+   {
+    "title": "sip of your name",
+    "artists": "kanegi.",
+    "seconds": 204.839
+   },
+   {
+    "title": "strangers with history",
+    "artists": "kanegi.",
+    "seconds": 203.359
+   },
+   {
+    "title": "probably",
+    "artists": "kanegi.",
+    "seconds": 215.439
+   },
+   {
+    "title": "honestly, maybe",
+    "artists": "kanegi.",
+    "seconds": 199.799
+   },
+   {
+    "title": "if you'll have me",
+    "artists": "kanegi.",
+    "seconds": 249.799
+   },
+   {
+    "title": "saving grace",
+    "artists": "kanegi.",
+    "seconds": 181.959
+   },
+   {
+    "title": "closer to you",
+    "artists": "kanegi.",
+    "seconds": 178.999
+   }
+  ]
+ }
+]
