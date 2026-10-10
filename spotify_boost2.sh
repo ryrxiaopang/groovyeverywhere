@@ -4,7 +4,7 @@
 #   nohup bash spotify_boost2.sh > spotify_boost2.log 2>&1 &
 cd ~/groovyeverywhere || exit 1
 source ./env_keys.sh
-while pgrep -f "[r]un_tests.py" > /dev/null || pgrep -f "[r]un_voice.py" > /dev/null || pgrep -f "[p]op_boost" > /dev/null || pgrep -f "[s]potify_boost" > /dev/null; do
+while pgrep -f "[r]un_tests.py" > /dev/null || pgrep -f "[r]un_voice.py" > /dev/null || pgrep -f "[p]op_boost" > /dev/null || pgrep -f "[s]potify_boost\.sh" > /dev/null; do
     sleep 30
 done
 echo "$(date) matching the artists' songs on YouTube"
