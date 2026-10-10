@@ -163,6 +163,7 @@ WEAK_COSINE = 0.45   # PROVISIONAL: below this the capture is probably mostly ro
 
 
 def make_lists(q, feature, seed=0):
+    from results_index import best_link
     """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
     genre group of the closest Sound match. Each list: K songs, least popular good matches first, 1 per artist."""
     P = pool()
@@ -187,7 +188,8 @@ def make_lists(q, feature, seed=0):
     c_idx = rng.sample(same, min(K, len(same)))
     out = {}
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
-        out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
+        out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i],
+                          link=best_link(P["key"][i], P["link"][i]),    # a link that opens (check_links.py)
                           sound_pct=round(float(pct["sound"][i]), 1),
                           feature_pct=round(float(np.mean([pct[f][i] for f in chosen])), 1),
                           obscurity=round(float(P["obscurity"][i]), 1))
@@ -217,6 +219,7 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
     """Shuffled, unlabelled listening sheets. Only NEW captures go into new sheets: a sheet already made is never
     rewritten (a friend may be filling it in). A friend recorded again later gets a second sheet (_2, _3, ...).
     The answer key (results/blind/key.csv) only grows; it records which capture each item came from."""
+    from results_index import best_link
     recs = []
     for p in sorted(glob.glob(os.path.join(BLIND, "*.json"))):
         with open(p, encoding="utf-8") as f:
@@ -261,7 +264,7 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
             w.writerow(["item", "your_song", "listen_here", "title", "artist", "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
             for i, s in enumerate(items, 1):
                 item = f"{safe}-{n}-{i:02d}"
-                w.writerow([item, s["start_song"], s["link"], s["title"], s["artist"], "", "", ""])
+                w.writerow([item, s["start_song"], best_link(s["key"], s["link"]), s["title"], s["artist"], "", "", ""])
                 new_rows.append(dict(item=item, friend=friend, safe=safe, sheet=name, capture=s["capture"],
                                      start_song=s["start_song"], liked=s["liked"], key=s["key"],
                                      lists="".join(sorted(s["lists"]))))

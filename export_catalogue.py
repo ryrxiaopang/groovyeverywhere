@@ -51,7 +51,7 @@ def main():
                     lists[f"{src}_{tid}"] = {**r, "source": src, "track_id": tid}
     from results_index import latest_rows
     idx = latest_rows(RES)
-    from results_index import read_meta
+    from results_index import read_meta, best_link
     meta = {}
     for p in glob.glob(os.path.join(RES, "meta", "*.json")):
         k = os.path.basename(p)[:-5]
@@ -76,6 +76,7 @@ def main():
             release_date=M.get("release_date", ""),
             licence=M.get("licence") or I.get("licence") or L.get("licence") or "",
             link=M.get("page") or I.get("page") or L.get("listen") or "",
+            listen_link=best_link(k, M.get("page") or I.get("page") or L.get("listen") or ""),
             popularity=num(M.get("listens") if M.get("listens") not in (None, "") else (I.get("listens") or L.get("listens"))),
             used_for=role_of(I.get("group") or L.get("group")),
             test_group=I.get("group") or L.get("group") or "",
@@ -106,7 +107,7 @@ def main():
         for rank, i in enumerate(order, 1):
             grp[i]["popularity_rank"] = rank
             grp[i]["obscurity_pct"] = round(100.0 * np.mean(vals > vals[i]), 1)   # share of songs MORE popular
-    cols = ["song_key", "source", "track_id", "title", "artist", "album", "duration_s", "release_date", "licence", "link",
+    cols = ["song_key", "source", "track_id", "title", "artist", "album", "duration_s", "release_date", "licence", "link", "listen_link",
             "popularity", "popularity_rank", "obscurity_pct", "used_for", "test_group", "status", "mtg_split",
             "mtg_artist_id", "mtg_album_id", "human_genre_tags", "human_mood_tags", "human_instrument_tags",
             "site_genre", "site_mood", "site_bpm", "model_happiness_1to9", "model_energy_1to9", "model_bpm",

@@ -112,3 +112,22 @@ def genre_of(group):
         if g.startswith(p):
             g = g[len(p):]; break
     return GENRE_NAME.get(g, g or "?")
+
+
+_links = {"mtime": None, "rows": {}}
+
+
+def best_link(key, default=""):
+    """A link that opens, from results/links.csv (made by check_links.py): the song's own page if it works,
+    otherwise Apple Music / Spotify / its YouTube video / a YouTube search. Falls back to `default`."""
+    p = os.path.join(RES, "links.csv")
+    try:
+        m = os.path.getmtime(p)
+    except OSError:
+        return default
+    if _links["mtime"] != m:
+        import csv as _csv
+        with open(p, encoding="utf-8") as f:
+            _links["rows"] = {r["song_key"]: r.get("best_link") or "" for r in _csv.DictReader(f)}
+        _links["mtime"] = m
+    return _links["rows"].get(key) or default
