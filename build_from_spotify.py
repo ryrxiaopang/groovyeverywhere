@@ -80,7 +80,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="only the first N tracks of each source (testing)")
     ap.add_argument("--sources", default=SOURCES, help="JSON file of sources (default spotify_tracks.json). An entry may carry "
-                    "'genre' (an existing pool genre) and, for kind=artist, 'more': N extra songs from the artist's own channel")
+                    "'genre' (an existing pool genre) and, for kind=artist, 'more': N extra songs from the artist's own channel "
+                    "(default 25 from spotify_artists.py; their Spotify top 10 are always tried too)")
     ap.add_argument("--no-named", action="store_true", help="skip the built-in NAMED artists (ruel, jupiterkid, 2hollis)")
     a = ap.parse_args()
     cache = json.load(open(CACHE, encoding="utf-8")) if os.path.exists(CACHE) else {}
@@ -125,7 +126,13 @@ def main():
         """The artist's most-viewed songs from their OWN channel (channel name contains the artist's name)."""
         ck = f"named|{name.lower()}|{n}"
         if ck not in cache:
-            ents = flat_search(ydl, name, 40)
+            # a bigger ask needs a deeper search: ~4 results per wanted song (40-100), from two queries merged (10 Oct: more songs per artist)
+            depth = max(40, min(100, 4 * n))
+            ents, ids = [], set()
+            for q in (name, f"{name} official audio"):
+                for e in flat_search(ydl, q, depth):
+                    if e.get("id") not in ids:
+                        ids.add(e.get("id")); ents.append(e)
             nm = norm(name)
             own = [e for e in ents if nm and all(w in " ".join(norm(e.get("channel") or e.get("uploader"))) for w in nm)
                    and not NOT_A_SONG.search(e.get("title") or "") and 90 <= (e.get("duration") or 0) <= 480]
