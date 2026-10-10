@@ -64,6 +64,7 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=
         for i in idx:
             bp = pair_pct[best_pair[i]] if name == "B" else pct
             out.append(dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
+                            ai=bt.ai_note(P["ai"][i]) if "ai" in P else "",
                             sound=round(float(bp["sound"][i])), mood=round(float(bp.get("mood", pct["mood"])[i])),
                             rhythm=round(float(bp.get("rhythm", pct["rhythm"])[i])),
                             instruments=round(float(bp.get("instruments", pct["instruments"])[i])),
@@ -79,7 +80,7 @@ def show(res, name, label):
     print(f"{'#':>2} {'match':>5} {'sound':>5} {'mood':>5} {'beat':>5} {'inst':>5}  {'plays':14s} {'title':44s} artist / link")
     for i, r in enumerate(res[name], 1):
         print(f"{i:>2} {r['match']:>4}% {r['sound']:>4}% {r['mood']:>4}% {r['rhythm']:>4}% {r['instruments']:>4}%  "
-              f"{r['popularity']:14s} {r['title'][:44]:44s} {r['artist'][:24]} | {r['link']}")
+              f"{r['popularity']:14s} {r['title'][:44]:44s} {r['artist'][:24]} | {r['link']}" + (f"   [{r['ai']}]" if r.get("ai") else ""))
 
 
 if __name__ == "__main__":

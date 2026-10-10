@@ -39,3 +39,5 @@ while [ "$(date +%s)" -lt "$END" ]; do
     python -u audit_pool_audio.py --apply
 done
 echo "$(date) expansion loop finished after $round rounds: pool_youtube grew from $start_rows to $(rows) songs"
+
+bash quality_pass.sh

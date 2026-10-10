@@ -10,7 +10,7 @@ How it is used (see README, "Blind listening test"):
   3. Each friend listens (30-60 s per song is enough) and fills: would_add (y/n), heard_before (y/n), rating (1-5).
   4. python blind_test.py --score blind_sheets/*.csv  -> results per list, with a 95% range.
 """
-import argparse, csv, glob, json, os, random, time
+import argparse, collections, csv, glob, json, os, random, re, time
 import numpy as np
 import scoring
 from results_index import latest_rows, RES
@@ -60,6 +60,7 @@ def pool():
     if P is None:
         P = _pool_from_files()
         P["from"] = "files"
+        P = apply_quality(P)
     print(f"  pool: {len(P['key'])} songs (from the {P['from']})")
     _attach_parts(P)
     import match
@@ -68,6 +69,55 @@ def pool():
     P["parts_z"] = scoring.scale_sound(P["parts"], P["scale"])
     _pool = _finish(P)
     return _pool
+
+
+def apply_quality(P):
+    """Keep only songs a person can really open (results/pool_links.csv from check_links.py), give each the best verified link
+    (a YouTube alternative from results/link_alternatives.csv when the original page is gone), and apply the AI-music policy
+    (results/ai_tags.csv from tag_ai.py; env HG_AI_POLICY = show / hide-low (default) / hide). P['ai'] holds each song's AI status
+    ('confirmed', 'likely' or 'none'). Without those files nothing is filtered."""
+    import tag_ai
+    n = len(P["key"])
+    links, alts = {}, {}
+    lp, ap = os.path.join(RES, "pool_links.csv"), os.path.join(RES, "link_alternatives.csv")
+    if os.path.exists(lp):
+        links = {r["key"]: r for r in csv.DictReader(open(lp, encoding="utf-8-sig"))}
+    if os.path.exists(ap):
+        alts = {r["key"]: r["youtube_link"] for r in csv.DictReader(open(ap, encoding="utf-8-sig")) if r.get("youtube_link")}
+    tags = tag_ai.load_tags()
+    policy = os.environ.get("HG_AI_POLICY", "hide-low")
+    keep, best, ai = np.ones(n, bool), list(P["link"]), [""] * n
+    no_link = n_ai = 0
+    for i, k in enumerate(P["key"]):
+        L = links.get(k)
+        if L is not None:
+            if L["status"] == "ok":
+                best[i] = L["link"] or best[i]
+            elif k in alts:
+                best[i] = alts[k]
+            else:
+                keep[i] = False; no_link += 1
+                continue
+        elif k in alts:
+            best[i] = alts[k]
+        st, _, views = tags.get(k, ("none", "", 0.0))
+        ai[i] = st
+        if not tag_ai.ai_policy(st, views, policy):
+            keep[i] = False; n_ai += 1
+    P["link"], P["ai"] = best, ai
+    for key_, v in list(P.items()):
+        if isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] == n:
+            P[key_] = v[keep]
+        elif isinstance(v, list) and len(v) == n:
+            P[key_] = [x for x, m in zip(v, keep) if m]
+    if no_link or n_ai:
+        print(f"  quality filter: {no_link} songs left out (no working link anywhere), {n_ai} AI-generated songs left out "
+              f"(policy {policy}); {int(keep.sum())} kept")
+    return P
+
+
+def ai_note(status):
+    return {"confirmed": "AI-generated (confirmed)", "likely": "likely AI-generated"}.get(status or "", "")
 
 
 def parts3(a, whole):
@@ -330,6 +380,7 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     out = {}
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
         out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
+                          note=ai_note(P["ai"][i]) if "ai" in P else "",
                           sound_pct=round(float((pair_pct[best_pair[i]] if name == "B" else pct)["sound"][i]), 1),
                           feature_pct=round(float(np.mean([(pair_pct[best_pair[i]] if name == "B" else pct)[f][i]
                                                            for f in chosen])), 1),
@@ -361,6 +412,8 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
     """Shuffled, unlabelled listening sheets. Only NEW captures go into new sheets: a sheet already made is never
     rewritten (a friend may be filling it in). A friend recorded again later gets a second sheet (_2, _3, ...).
     The answer key (results/blind/key.csv) only grows; it records which capture each item came from."""
+    import tag_ai
+    _tags = tag_ai.load_tags()
     recs = []
     for p in sorted(glob.glob(os.path.join(BLIND, "*.json"))):
         with open(p, encoding="utf-8") as f:
@@ -415,10 +468,11 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
         name = f"sheet_{safe}{'' if n == 1 else f'_{n}'}.csv"
         with open(os.path.join(out_dir, name), "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["item", "your_song", "listen_here", "title", "artist", "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
+            w.writerow(["item", "your_song", "listen_here", "title", "artist", "note", "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
             for i, s in enumerate(items, 1):
                 item = f"{safe}-{n}-{i:02d}"
-                w.writerow([item, s["start_song"], s["link"], s["title"], s["artist"], "", "", ""])
+                note = ai_note(_tags.get(s["key"], ("none",))[0])        # 'likely AI-generated' / 'AI-generated (confirmed)' / ''
+                w.writerow([item, s["start_song"], s["link"], s["title"], s["artist"], note, "", "", ""])
                 new_rows.append(dict(item=item, friend=friend, safe=safe, sheet=name, capture=s["capture"],
                                      start_song=s["start_song"], liked=s["liked"], key=s["key"],
                                      lists="".join(sorted(s["lists"]))))
@@ -441,9 +495,14 @@ def _boot(vals, n=2000, seed=0):
 def score(paths):
     with open(os.path.join(BLIND, "key.csv"), encoding="utf-8") as f:
         key = {r["item"]: r for r in csv.DictReader(f)}
-    yes = lambda s: str(s).strip().lower() in ("y", "yes", "1", "true")
-    res = {L: {"add": [], "heard": [], "rating": []} for L in LISTS}
-    by_feature = {}
+    # friends write things like "n (link don't work)", "y", "n (ts is ai generated)" and ratings like 1.5: read the FIRST letter of the
+    # yes/no and any number; a row whose link did not work is not a verdict on the song and is left out (counted below)
+    yes = lambda s: str(s).strip().lower()[:1] == "y"
+    broken = lambda s: bool(re.search(r"link|don.?t work|doesn.?t work|broken|can.?t (open|play)|not (working|available)", str(s), re.I))
+    num = lambda s: (lambda m: float(m.group(0)) if m else None)(re.search(r"\d+(\.\d+)?", str(s)))
+    import tag_ai
+    tags = tag_ai.load_tags()                     # key -> (status, reasons, views); AI status of each recommended song
+    rows, n_broken, n_ai = [], 0, collections.Counter()
     for p in paths:
         with open(p, encoding="utf-8-sig") as f:
             for r in csv.DictReader(f):
@@ -451,27 +510,53 @@ def score(paths):
                 add = r.get("would_add (y/n)", ""); heard = r.get("heard_before (y/n)", ""); rt = r.get("rating (1-5)", "")
                 if not k or (not add and not rt):
                     continue
-                for L in k["lists"]:
-                    if add: res[L]["add"].append(1.0 if yes(add) else 0.0)
-                    if heard: res[L]["heard"].append(1.0 if yes(heard) else 0.0)
-                    if rt.strip().isdigit(): res[L]["rating"].append(float(rt))
-                    if add:
-                        by_feature.setdefault((k["liked"], L), []).append(1.0 if yes(add) else 0.0)
+                if broken(add) or broken(heard) or broken(rt):
+                    n_broken += 1
+                    continue
+                said_ai = bool(re.search(r"\bai\b|ai[- ]generated", f"{add} {heard}", re.I))
+                if said_ai:
+                    for L in k["lists"]:
+                        n_ai[L] += 1
+                rows.append(dict(lists=k["lists"], liked=k["liked"], add=(1.0 if yes(add) else 0.0) if add else None,
+                                 heard=(1.0 if yes(heard) else 0.0) if heard else None,
+                                 rating=num(rt) if num(rt) is not None and 1 <= num(rt) <= 5 else None,
+                                 ai=tags.get(k["key"], ("none",))[0], said_ai=said_ai))
+    if n_broken:
+        print(f"({n_broken} rows were left out because the friend said the link did not work)")
+    if n_ai:
+        print("rows where the friend said the song sounds AI-generated, by list: " + ", ".join(f"{L}: {n_ai[L]}" for L in LISTS))
     names = {"A": "Sound only", "B": "Sound + chosen feature", "C": "Random, same genre"}
-    print(f"{'list':24s} {'would add':>22s} {'rating':>18s} {'heard before':>13s}")
-    for L in LISTS:
-        a, rt, h = res[L]["add"], res[L]["rating"], res[L]["heard"]
-        if not a:
-            continue
-        lo, hi = _boot(a); rlo, rhi = _boot(rt) if rt else (np.nan, np.nan)
-        print(f"{names[L]:24s} {100*np.mean(a):5.0f}% ({100*lo:3.0f}-{100*hi:3.0f}%)  "
-              + (f"{np.mean(rt):4.2f} ({rlo:.2f}-{rhi:.2f})" if rt else "        -         ")
-              + (f"  {100*np.mean(h):6.0f}%" if h else ""))
-    print("\nwould add, by what the friend liked about their song:")
+
+    def report(sel, title):
+        res = {L: {"add": [], "heard": [], "rating": []} for L in LISTS}
+        by_feature = {}
+        for r in sel:
+            for L in r["lists"]:
+                if r["add"] is not None: res[L]["add"].append(r["add"]); by_feature.setdefault((r["liked"], L), []).append(r["add"])
+                if r["heard"] is not None: res[L]["heard"].append(r["heard"])
+                if r["rating"] is not None: res[L]["rating"].append(r["rating"])
+        print(f"\n=== {title}  ({len(sel)} rated rows)")
+        print(f"{'list':24s} {'would add':>22s} {'rating':>18s} {'heard before':>13s}   n")
+        for L in LISTS:
+            a, rt, h = res[L]["add"], res[L]["rating"], res[L]["heard"]
+            if not a:
+                continue
+            lo, hi = _boot(a); rlo, rhi = _boot(rt) if rt else (np.nan, np.nan)
+            print(f"{names[L]:24s} {100*np.mean(a):5.0f}% ({100*lo:3.0f}-{100*hi:3.0f}%)  "
+                  + (f"{np.mean(rt):4.2f} ({rlo:.2f}-{rhi:.2f})" if rt else "        -         ")
+                  + (f"  {100*np.mean(h):6.0f}%" if h else "          ") + f"  {len(a)}")
+        return by_feature
+
+    report(rows, "ALL songs")
+    ai_share = {L: (sum(1 for r in rows if L in r["lists"] and r["ai"] != "none"), sum(1 for r in rows if L in r["lists"])) for L in LISTS}
+    print("\nshare of the rated songs that the tagger marks AI-generated: " + ", ".join(f"{names[L]} {a}/{n}" for L, (a, n) in ai_share.items()))
+    by_feature = report([r for r in rows if r["ai"] == "none" and not r["said_ai"]], "WITHOUT songs tagged AI or called AI by the friend (the matching on its own)")
+    print("\nwould add, by what the friend liked about their song (songs not tagged AI):")
     for (liked, L), v in sorted(by_feature.items()):
         print(f"  {liked:12s} {names[L]:24s} {100*np.mean(v):4.0f}%  (n={len(v)})")
     print("\nRead it like this: A and B should beat C clearly (the matching works). B beating A means the chosen")
-    print("feature adds something. Overlapping ranges = no clear difference with this many ratings.")
+    print("feature adds something. Overlapping ranges = no clear difference with this many ratings. Compare the two tables:")
+    print("if A and B only look bad in the first, the AI-generated uploads (not the matching) are dragging them down.")
 
 
 if __name__ == "__main__":

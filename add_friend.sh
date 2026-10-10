@@ -17,5 +17,6 @@ echo "$(date) building $FRIEND's lists (final)"
 python -u build_friend_lists.py --final --friend "$FRIEND"
 python blind_test.py --sheets
 python -u add_listen_links.py
+python -u refresh_sheets.py          # working https links (YouTube where the page is gone) + the AI note, same item ids
 echo "$(date) done: blind_sheets/"
 ls -la blind_sheets

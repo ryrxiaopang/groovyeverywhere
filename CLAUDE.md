@@ -126,6 +126,24 @@ Queued after the pool analysis (each waits for the previous): `style_boost.sh` (
 jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist page in `spotify_tracks.json` + Ruel, jupiterkid,
 2hollis). Spotify playlists are read from the public embed pages (first 50-100 tracks only, no login or key needed).
 
+## Links and AI music (10 Oct 2026, from the friends' first feedback)
+* Friends reported that the FMA links in the sheets did not open. All were plain `http://` links (the pages work over `https://`);
+  one page was truly gone. `check_links.py` now checks every pool song (FMA page + its mp3, Jamendo API, Audius API, YouTube oEmbed) ->
+  `results/pool_links.csv`; `find_youtube_alternatives.py` finds a verified YouTube version for dead ones -> `results/link_alternatives.csv`.
+  Of 8,964 pool songs 451 had no working page; 154 got a YouTube alternative; 297 have NO working link and are left out of
+  recommendations (`blind_test.apply_quality`). `quality_pass.sh` repeats all of this (and the AI tags) after new songs are added.
+* `tag_ai.py` -> `results/ai_tags.csv`: confirmed (the text says Suno / AI-generated ...) or likely (3+ soft signs), read through the
+  YouTube Data API (yt-dlp was blocked as a bot after a few hundred songs). 312 confirmed, 805 likely of 4,463 YouTube songs. It was
+  tuned on Isaac's 5 AI songs, so expect false alarms on small real artists. Policy `HG_AI_POLICY` = show / hide-low (default: AI songs
+  under 10,000 views are dropped) / hide. Recommendations and sheets carry a note ('likely AI-generated', 'AI-generated (confirmed)').
+* `refresh_sheets.py` puts working links and the AI note into the existing sheets (item ids unchanged); `--rerate FILLED.csv` builds a
+  mini sheet of the rows a friend could not open. `blind_test.py --score` now reads "n (link don't work)" and 1.5-style ratings, leaves
+  broken-link rows out, and prints the result with and without AI-tagged songs.
+* **Round 1 is confounded:** in the sheets sent, 58% of the "Sound only" songs and 44% of "Sound + feature" songs are AI-tagged, against
+  8% of the random list (the hidden-gem rule picks the least-played songs, which are mostly AI uploads). Isaac (16 ratings): would add
+  Sound only 0%, Sound + feature 0%, random 75%; 5 of his 7 Sound-only songs were AI-tagged. Round 2 should use best-match-first,
+  the AI policy and verified links.
+
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
 2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.

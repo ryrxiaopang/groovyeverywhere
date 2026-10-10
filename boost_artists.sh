@@ -12,3 +12,5 @@ python -u run_tests.py --list pool_youtube.csv
 echo "$(date) audio audit: removing anything that is not a song"
 python -u audit_pool_audio.py --apply
 echo "$(date) artists boost finished"
+
+bash quality_pass.sh

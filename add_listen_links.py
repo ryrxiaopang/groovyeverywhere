@@ -82,7 +82,7 @@ def main():
             r2 = dict(r)
             r2["listen_here"], r2["also_on"] = link, also
             out.append(r2)
-        cols = ["item", "your_song", "listen_here", "also_on", "title", "artist",
+        cols = ["item", "your_song", "listen_here", "also_on", "title", "artist", "note",
                 "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"]
         with open(sheet, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
