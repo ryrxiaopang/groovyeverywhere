@@ -87,6 +87,9 @@ def apply_quality(P):
     tags = tag_ai.load_tags()
     policy = os.environ.get("HG_AI_POLICY", "hide-low")
     keep, best, ai = np.ones(n, bool), list(P["link"]), [""] * n
+    if not links:                                          # no pool_links.csv here: use the other link checker's results/links.csv if it exists
+        from results_index import best_link
+        best = [best_link(k, l) for k, l in zip(P["key"], P["link"])]
     no_link = n_ai = 0
     for i, k in enumerate(P["key"]):
         L = links.get(k)
@@ -379,7 +382,8 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     c_idx = rng.sample(same, min(K, len(same)))
     out = {}
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
-        out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
+        out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i],
+                          link=P["link"][i],                    # already a link that opens (apply_quality: check_pool_links.py / check_links.py)
                           note=ai_note(P["ai"][i]) if "ai" in P else "",
                           sound_pct=round(float((pair_pct[best_pair[i]] if name == "B" else pct)["sound"][i]), 1),
                           feature_pct=round(float(np.mean([(pair_pct[best_pair[i]] if name == "B" else pct)[f][i]
@@ -413,6 +417,7 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
     rewritten (a friend may be filling it in). A friend recorded again later gets a second sheet (_2, _3, ...).
     The answer key (results/blind/key.csv) only grows; it records which capture each item came from."""
     import tag_ai
+    from results_index import best_link
     _tags = tag_ai.load_tags()
     recs = []
     for p in sorted(glob.glob(os.path.join(BLIND, "*.json"))):
@@ -472,7 +477,7 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
             for i, s in enumerate(items, 1):
                 item = f"{safe}-{n}-{i:02d}"
                 note = ai_note(_tags.get(s["key"], ("none",))[0])        # 'likely AI-generated' / 'AI-generated (confirmed)' / ''
-                w.writerow([item, s["start_song"], s["link"], s["title"], s["artist"], note, "", "", ""])
+                w.writerow([item, s["start_song"], best_link(s["key"], s["link"]), s["title"], s["artist"], note, "", "", ""])
                 new_rows.append(dict(item=item, friend=friend, safe=safe, sheet=name, capture=s["capture"],
                                      start_song=s["start_song"], liked=s["liked"], key=s["key"],
                                      lists="".join(sorted(s["lists"]))))

@@ -237,6 +237,14 @@ In the app, a plain "Search on YouTube" link needs no key at all.
 4. End of day: `python carry.py --pack /mnt/c/Users/<you>/Downloads`, bring the small zip home, and on the desktop
    `python carry.py --unpack <zip>` (merges, never overwrites).
 
+## Do the song links work? (`check_links.py`)
+
+`python check_links.py` checks every pool song's own link once (Jamendo/Audius via their APIs, YouTube via oEmbed,
+old FMA pages by opening them and looking for the song title) and, where it's broken, picks the best working
+alternative: Apple Music / Spotify (from check_platforms.py), the song's YouTube video, or a YouTube search for
+"artist title". Results in results/links.csv; blind-test sheets and catalogue.csv use the working link
+automatically. `python check_links.py --fix-sheets` writes corrected copies of sheets already handed out.
+
 ## Where the data lives, and backups
 
 - **PostgreSQL is the store the app uses.** Every analysis run now copies its new songs into the database by
