@@ -557,6 +557,52 @@ def near_copy_test():
     print("   re-upload, slowed copy, cover and the artist's other songs are dropped; a different song with the same title stays")
 
 
+def round2_test():
+    """Round 2 settings (10 Oct 2026): only YouTube songs are recommended, lists are best-match-first, and the AI note stays off
+    the friends' sheets unless HG_AI_NOTE=1."""
+    print("\n9. ROUND 2 SETTINGS: YouTube-only pool, best match first, no AI note")
+    import blind_test as bt, csv, importlib, os, tempfile
+    # (a) site filter: FMA / Jamendo / Audius songs are left out, YouTube songs stay, whichever store the numbers came from
+    keys = ["youtube_a", "fma_1", "jamendo_2", "audius_3", "youtube_b"]
+    P = dict(key=list(keys), source=[k.split("_")[0] for k in keys], link=["l"] * 5, listens=np.arange(5.0), whole=np.zeros((5, 2)))
+    out = bt.apply_quality(P)
+    assert bt.POOL_SOURCES == ("youtube",), bt.POOL_SOURCES
+    assert out["key"] == ["youtube_a", "youtube_b"] and out["whole"].shape == (2, 2) and out["listens"].tolist() == [0.0, 4.0], out["key"]
+    # (b) best match first: highest match wins even when it is the most played song; one per artist; same-song / skipped songs never picked
+    match = np.array([95., 90., 88., 85., 99., 70.])
+    obscurity = np.array([0., 100., 50., 80., 10., 90.])           # song 0 is the most played one
+    artists = np.array(["a", "b", "c", "c", "d", "e"])
+    none = np.array([False] * 4 + [True, False])                   # song 4 is a copy of the starting song
+    skip = np.array([False, False, False, False, False, False]); skip[1] = True
+    idx, bar = scoring.pick_best(match, np.ones(6, bool), none, skip, artists, 3)
+    assert list(idx) == [0, 2, 5] and bar == 70.0, (list(idx), bar)
+    #   0 = best match although it is the MOST played; 1 skipped (quality guard); 3 same artist as 2; 4 copy of the starting song;
+    #   the bar fell from 80 to 70 to find 3 songs, so 5 (match 70) joins at the end
+    idx2, _ = scoring.pick_hidden_gems(match, np.ones(6, bool), obscurity, none, k=3, artists=artists, skip=skip)
+    assert idx2[0] != idx[0] and idx2[0] == 5, idx2                # the old rule starts with the least played (5), the best match comes last
+    # (c) the AI note: empty for the friend unless HG_AI_NOTE=1; the researcher's ai_note() always works
+    assert bt.AI_NOTE_FOR_FRIENDS is False and bt.friend_note("likely") == "" and bt.friend_note("confirmed") == ""
+    assert bt.ai_note("likely") == "likely AI-generated"
+    old = os.environ.get("HG_AI_NOTE")
+    os.environ["HG_AI_NOTE"] = "1"
+    try:
+        on = importlib.reload(bt)
+        assert on.friend_note("confirmed") == "AI-generated (confirmed)" and on.friend_note("none") == ""
+    finally:
+        if old is None:
+            os.environ.pop("HG_AI_NOTE", None)
+        else:
+            os.environ["HG_AI_NOTE"] = old
+        importlib.reload(bt)
+    # (d) a sheet has no 'note' column when the note is off, and refresh_sheets drops an old one
+    import refresh_sheets as rs
+    assert "note" not in rs.COLS and "also_on" in rs.COLS
+    r = rs.fix_row({"item": "x-1-01", "listen_here": "http://a", "also_on": "", "note": "likely AI-generated"},
+                   {"x-1-01": "youtube_a"}, {}, {}, {"youtube_a": ("likely", "", 5.0)})
+    assert r["note"] == "", r
+    print("   FMA / Jamendo / Audius left out; best match first (not least played); the AI note is off for friends and a sheet has no note column")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -567,3 +613,4 @@ if __name__ == "__main__":
     split_filter_test()
     failure_handling_tests()
     near_copy_test()
+    round2_test()

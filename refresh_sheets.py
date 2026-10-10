@@ -5,7 +5,7 @@
 
 For each item (via results/blind/key.csv -> song key): listen_here = the best verified link (an https page, or a YouTube version when the
 original page is gone); also_on = the original page when different (and for FMA the direct mp3, which plays in any browser);
-note = 'likely AI-generated' / 'AI-generated (confirmed)' / ''. A song with no working link anywhere is marked 'LINK DEAD' so it
+note = 'likely AI-generated' / 'AI-generated (confirmed)' / '' (only with HG_AI_NOTE=1; otherwise there is no note column). A song with no working link anywhere is marked 'LINK DEAD' so it
 is not rated.
 """
 import argparse, csv, glob, os, re, sys
@@ -14,9 +14,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from results_index import RES
 import tag_ai
-from blind_test import ai_note
+from blind_test import friend_note, AI_NOTE_FOR_FRIENDS
 
-COLS = ["item", "your_song", "listen_here", "also_on", "title", "artist", "note", "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"]
+# the AI note column only exists when HG_AI_NOTE=1 (round 2 leaves it out: it could steer the ratings); an old 'note' column is dropped
+COLS = (["item", "your_song", "listen_here", "also_on", "title", "artist"] + (["note"] if AI_NOTE_FOR_FRIENDS else [])
+        + ["would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
 
 
 def load():
@@ -51,7 +53,7 @@ def fix_row(r, key, links, alts, tags):
     if "youtube.com" in (r.get("listen_here") or "") and L is not None and L["status"] == "ok" and L["source"] != "youtube":
         primary, also = r["listen_here"], L["link"]
     r["listen_here"], r["also_on"] = primary, also
-    r["note"] = ai_note(tags.get(k, ("none",))[0])
+    r["note"] = friend_note(tags.get(k, ("none",))[0])
     return r
 
 
@@ -82,10 +84,10 @@ def main():
             continue
         rows = [fix_row(r, key, links, alts, tags) for r in csv.DictReader(open(p, encoding="utf-8-sig"))]
         dead = sum(1 for r in rows if r["listen_here"].startswith("LINK DEAD"))
-        ai = sum(1 for r in rows if r["note"])
+        ai = sum(1 for r in rows if tags.get(key.get(r["item"], ""), ("none",))[0] != "none")
         with open(p, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=COLS, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
-        print(f"{os.path.basename(p)}: {len(rows)} songs, {ai} noted as AI, {dead} with no working link")
+        print(f"{os.path.basename(p)}: {len(rows)} songs, {ai} tagged AI (not shown to the friend unless HG_AI_NOTE=1), {dead} with no working link")
 
 
 if __name__ == "__main__":

@@ -301,3 +301,20 @@ def pick_hidden_gems(match, passes, obscurity, same_artist_or_dup, k=10,
             break
         bar -= step
     return idx[:k], bar
+
+
+def pick_best(match, passes, none, skip, artists, k, bar=80.0):
+    """Best matches first (popularity ignored): songs at or above `bar` that pass every rule, one per artist, highest match first.
+    The bar is lowered in steps of 5 (down to 65) until k songs are found; fewer than k is returned rather than padding.
+    `none` = same song / copies / same artist (never picked); `skip` = the quality guard from least_played()."""
+    while True:
+        ok = (match >= bar) & passes & ~none & ~skip
+        idx = np.where(ok)[0]
+        idx = idx[np.argsort(-match[idx])]
+        seen, keep = set(), []
+        for i in idx:
+            if artists[i] not in seen:
+                seen.add(artists[i]); keep.append(i)
+        if len(keep) >= k or bar - 5 < 65:
+            return np.array(keep[:k], dtype=int), bar
+        bar -= 5

@@ -5,7 +5,7 @@ stores only numbers, and recommends "hidden gems": good matches that few people 
 story and the mentor's three questions; `TODO.md` the task list; `VOICE_PIPELINE.md` the design for the Voice feature.
 The project's own written report is a claude.ai doc, "groovyeverywhere: Evidence Report"
 (https://claude.ai/artifact/GpjFC3gVZ6sMvqBKNY15dJ; read it only with the docs connector / Artifact tool, never WebFetch).
-Last updated 7 Oct 2026.
+Last updated 10 Oct 2026.
 
 ## Rules that must never be broken
 1. **No audio is ever kept.** Every download goes through `sources.temp_audio()` (a `TemporaryDirectory`); only numbers are
@@ -143,6 +143,25 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   8% of the random list (the hidden-gem rule picks the least-played songs, which are mostly AI uploads). Isaac (16 ratings): would add
   Sound only 0%, Sound + feature 0%, random 75%; 5 of his 7 Sound-only songs were AI-tagged. Round 2 should use best-match-first,
   the AI policy and verified links.
+
+## Round 2 settings (10 Oct 2026, after the second feedback: Javen and Felicia)
+* **Why:** across Javen's and Felicia's sheets YouTube songs got "would add" 11 of 31 (35%, mean rating 2.8); FMA + Jamendo got 0 of 8 (mean 1.5).
+  The friends' own songs are mostly Spotify-popular artists, and the FMA picks were often lo-fi live-radio recordings. Only 8 ratings, so a hint.
+* **YouTube-only pool:** `blind_test.POOL_SOURCES` (env `HG_POOL_SOURCES`, default `youtube`; `all` = every site) is applied inside
+  `blind_test.apply_quality`, which now runs whichever store the numbers came from (before, the PostgreSQL path skipped it). FMA / Jamendo / Audius
+  songs (and the 154 YouTube alternatives of dead FMA pages) stay analysed and stored, they are just never recommended. `pool_keys()`, the
+  analysis and the sealed test are unchanged. NOT changed: the Sound rescaling (`results/sound_scale.npz`) was fitted on the old all-site pool;
+  refitting it on the YouTube pool is a separate decision (it would change the numbers), say so before doing it.
+* **Best match first for the blind test:** `blind_test.make_lists(rank=...)` / env `HG_RANK`, default `match` (uses `scoring.pick_best`, shared with
+  `recommend_song.py`; the least-played-10% guard and one-song-per-artist still apply). `HG_RANK=obscure` is the round-1 rule. The capture JSON stores
+  `rank`. List C (random same genre) is unchanged.
+* **No AI note for friends:** `HG_AI_NOTE` (default off). `sheets()` and `refresh_sheets.py` write no `note` column unless `HG_AI_NOTE=1`
+  (refresh drops an old one). The AI *policy* (`HG_AI_POLICY`, hide-low) and `tag_ai.py` are unchanged, and `blind_test.py --score` still reports with and
+  without AI-tagged songs, so the tags are used for scoring even though friends do not see them. `recommend_song.py` still shows the tag to the researcher.
+* **Running round 2 for a friend already in round 1:** `python build_friend_lists.py --final --friend NAME` makes NEW captures (old ones are never
+  overwritten), `python blind_test.py --sheets` writes `sheet_NAME_2.csv`, then `python refresh_sheets.py`. Open: nothing stops a round-2 list repeating a
+  round-1 song for the same friend (best-match-first will often pick the same top songs); decide whether to exclude songs already rated.
+* Offline check: `synthetic_tests.py` section 9 (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

@@ -14,20 +14,7 @@ import scoring
 from results_index import latest_rows, RES
 
 
-def pick_best(match, passes, none, skip, artists, k, bar=80.0):
-    """Best matches first (popularity ignored): songs at or above `bar` that pass every rule, one per artist, highest match first.
-    The bar is lowered in steps of 5 (down to 65) until k songs are found; fewer than k is returned rather than padding."""
-    while True:
-        ok = (match >= bar) & passes & ~none & ~skip
-        idx = np.where(ok)[0]
-        idx = idx[np.argsort(-match[idx])]
-        seen, keep = set(), []
-        for i in idx:
-            if artists[i] not in seen:
-                seen.add(artists[i]); keep.append(i)
-        if len(keep) >= k or bar - 5 < 65:
-            return np.array(keep[:k], dtype=int), bar
-        bar -= 5
+pick_best = scoring.pick_best      # moved to scoring.py so blind_test.make_lists can use it too
 
 
 def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=None):

@@ -26,6 +26,13 @@ def valid_feature(feature):
     return bool(parts) and all(f in FEATURES for f in parts)
 LISTS = ("A", "B", "C")          # A = Sound only, B = Sound + chosen feature, C = random from the same genre
 K = 3                            # songs per list
+
+# ---- Round 2 settings (10 Oct 2026). Each can be changed with an environment variable, nothing else needs editing.
+# Round 1 used every site, least-played-first lists and an AI note on the sheets; the friends' answers showed that
+# FMA / Jamendo songs got 0 "would add" in 8 ratings (YouTube: 35% in 31), and that least-played-first picked mostly AI uploads.
+POOL_SOURCES = tuple(x for x in os.environ.get("HG_POOL_SOURCES", "youtube").replace(",", " ").split() if x)   # "all" = every site
+RANK = os.environ.get("HG_RANK", "match")                  # match = best match first (round 2), obscure = least played first (round 1)
+AI_NOTE_FOR_FRIENDS = os.environ.get("HG_AI_NOTE", "0") == "1"   # off in round 2: the note could steer the ratings
 _pool = None
 
 
@@ -60,8 +67,8 @@ def pool():
     if P is None:
         P = _pool_from_files()
         P["from"] = "files"
-        P = apply_quality(P)
-    print(f"  pool: {len(P['key'])} songs (from the {P['from']})")
+    P = apply_quality(P)                                    # links, AI policy and the site filter, whichever store the numbers came from
+    print(f"  pool: {len(P['key'])} songs (from the {P['from']}; sites: {', '.join(POOL_SOURCES) or 'all'})")
     _attach_parts(P)
     import match
     P["scale"] = match.sound_scale()                       # Sound is compared after rescaling (scoring.fit_sound_scale)
@@ -72,7 +79,7 @@ def pool():
 
 
 def apply_quality(P):
-    """Keep only songs a person can really open (results/pool_links.csv from check_pool_links.py), give each the best verified link
+    """Keep only songs from the sites in HG_POOL_SOURCES (default: youtube), that a person can really open (results/pool_links.csv from check_pool_links.py), give each the best verified link
     (a YouTube alternative from results/link_alternatives.csv when the original page is gone), and apply the AI-music policy
     (results/ai_tags.csv from tag_ai.py; env HG_AI_POLICY = show / hide-low (default) / hide). P['ai'] holds each song's AI status
     ('confirmed', 'likely' or 'none'). Without those files nothing is filtered."""
@@ -87,11 +94,18 @@ def apply_quality(P):
     tags = tag_ai.load_tags()
     policy = os.environ.get("HG_AI_POLICY", "hide-low")
     keep, best, ai = np.ones(n, bool), list(P["link"]), [""] * n
+    wrong_site = 0
+    if POOL_SOURCES and "all" not in POOL_SOURCES:        # round 2: only the sites in HG_POOL_SOURCES (default youtube) are recommended
+        for i, src_ in enumerate(P["source"]):
+            if src_ not in POOL_SOURCES:
+                keep[i] = False; wrong_site += 1
     if not links:                                          # no pool_links.csv here: use the other link checker's results/links.csv if it exists
         from results_index import best_link
         best = [best_link(k, l) for k, l in zip(P["key"], P["link"])]
     no_link = n_ai = 0
     for i, k in enumerate(P["key"]):
+        if not keep[i]:                                   # another site: no link or AI check needed
+            continue
         L = links.get(k)
         if L is not None:
             if L["status"] == "ok":
@@ -113,14 +127,19 @@ def apply_quality(P):
             P[key_] = v[keep]
         elif isinstance(v, list) and len(v) == n:
             P[key_] = [x for x, m in zip(v, keep) if m]
-    if no_link or n_ai:
-        print(f"  quality filter: {no_link} songs left out (no working link anywhere), {n_ai} AI-generated songs left out "
-              f"(policy {policy}); {int(keep.sum())} kept")
+    if no_link or n_ai or wrong_site:
+        print(f"  quality filter: {wrong_site} songs left out (not from {', '.join(POOL_SOURCES)}), {no_link} songs left out "
+              f"(no working link anywhere), {n_ai} AI-generated songs left out (policy {policy}); {int(keep.sum())} kept")
     return P
 
 
 def ai_note(status):
     return {"confirmed": "AI-generated (confirmed)", "likely": "likely AI-generated"}.get(status or "", "")
+
+
+def friend_note(status):
+    """The note a FRIEND sees on a sheet: empty unless HG_AI_NOTE=1 (it could steer their ratings). ai_note() is for the researcher."""
+    return ai_note(status) if AI_NOTE_FOR_FRIENDS else ""
 
 
 def parts3(a, whole):
@@ -344,12 +363,15 @@ def near_copy_mask(P, plain, start_title="", start_artist=""):
     return mask
 
 
-def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False, start_title="", start_artist=""):
+def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False, start_title="", start_artist="",
+               rank=None):
     """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
-    genre group of the closest Sound match. Each list: K songs, least popular good matches first, 1 per artist.
+    genre group of the closest Sound match. Each list: K songs, 1 per artist; rank "match" (round 2, default via HG_RANK) = best
+    match first, popularity ignored; rank "obscure" (round 1) = least popular good matches first.
     Quality guard: A and B never pick a song from the least-played `skip_least`% of its own site (0 = off), so the
     very least-played, often roughest, uploads do not win automatically. use_favourites keeps FMA songs that someone
     favourited even when few played them (needs fma/tracks.csv). C is the random control and is not filtered."""
+    rank = rank or RANK
     P = pool()
     skip = scoring.least_played(P["listens"], P["source"], skip_least,
                                 favourites=fma_favourites(P["key"]) if use_favourites else None)
@@ -365,13 +387,17 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     dup_artists = {artists[i] for i in np.where(dup)[0]}
     none = dup | np.isin(artists, list(dup_artists))
     none = none | near_copy_mask(P, plain, start_title, start_artist)
-    a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists,
-                                              skip=skip)
     chosen = ["sound"] + [f for f in feature.split("+") if f != "sound"]    # e.g. "mood+rhythm"
     # the best stretch of each pool song is chosen AFTER combining the features (scoring.combine), so a song whose
     # Sound matches in part 1 but whose Mood matches in part 3 is not scored as if both matched the same stretch
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
-    b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=K, artists=artists, skip=skip)
+    if rank == "match":
+        a_idx, a_bar = scoring.pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, K)
+        b_idx, b_bar = scoring.pick_best(match, passes, none, skip, artists, K)
+    else:
+        a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists,
+                                                  skip=skip)
+        b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=K, artists=artists, skip=skip)
     from results_index import genre_of
     best = int(np.argmax(np.where(none, -np.inf, sims["sound"])))
     best_plain = float(np.max(np.where(none, -np.inf, plain)))
@@ -384,13 +410,14 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
         out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i],
                           link=P["link"][i],                    # already a link that opens (apply_quality: check_pool_links.py / check_links.py)
-                          note=ai_note(P["ai"][i]) if "ai" in P else "",
+                          note=friend_note(P["ai"][i]) if "ai" in P else "",
                           sound_pct=round(float((pair_pct[best_pair[i]] if name == "B" else pct)["sound"][i]), 1),
                           feature_pct=round(float(np.mean([(pair_pct[best_pair[i]] if name == "B" else pct)[f][i]
                                                            for f in chosen])), 1),
                           obscurity=round(float(P["obscurity"][i]), 1))
                      for i in idx]
         out[name + "_bar"] = bar
+    out["rank"] = rank
     out["genre_group"] = top_group
     out["best_sound_cosine"] = round(best_plain, 3)         # how strong the closest real match is (plain cosine)
     out["weak_capture"] = bool(best_plain < WEAK_COSINE)
@@ -473,11 +500,13 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
         name = f"sheet_{safe}{'' if n == 1 else f'_{n}'}.csv"
         with open(os.path.join(out_dir, name), "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["item", "your_song", "listen_here", "title", "artist", "note", "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
+            w.writerow(["item", "your_song", "listen_here", "title", "artist"] + (["note"] if AI_NOTE_FOR_FRIENDS else [])
+                       + ["would_add (y/n)", "heard_before (y/n)", "rating (1-5)"])
             for i, s in enumerate(items, 1):
                 item = f"{safe}-{n}-{i:02d}"
-                note = ai_note(_tags.get(s["key"], ("none",))[0])        # 'likely AI-generated' / 'AI-generated (confirmed)' / ''
-                w.writerow([item, s["start_song"], best_link(s["key"], s["link"]), s["title"], s["artist"], note, "", "", ""])
+                note = friend_note(_tags.get(s["key"], ("none",))[0])    # '' unless HG_AI_NOTE=1, then 'likely AI-generated' / 'AI-generated (confirmed)'
+                w.writerow([item, s["start_song"], best_link(s["key"], s["link"]), s["title"], s["artist"]]
+                           + ([note] if AI_NOTE_FOR_FRIENDS else []) + ["", "", ""])
                 new_rows.append(dict(item=item, friend=friend, safe=safe, sheet=name, capture=s["capture"],
                                      start_song=s["start_song"], liked=s["liked"], key=s["key"],
                                      lists="".join(sorted(s["lists"]))))
