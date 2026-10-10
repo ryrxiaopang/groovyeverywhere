@@ -5,7 +5,7 @@
 Each entry gets the artist's top tracks (up to 10), a pool genre (`@genre` after the id or link, e.g. .../artist/ID@indierock;
 otherwise --genre, default pop; edit the JSON to change it) and `more`: how many extra songs to take from the artist's own YouTube
 channel (default 25, was 8 before 10 Oct: the same artist's other songs in the same genre give the matching more to choose from;
-a recommendation list still takes at most one song per artist). Genres: any key of results_index.GENRE_NAME, e.g. indie, indiepop,
+a list takes up to ceil(k/4) songs per artist, see scoring.max_per_artist). Genres: any key of results_index.GENRE_NAME, e.g. indie, indiepop,
 indierock, altrock, alternative, pop, rnb, singer, indiefolk, electro, electronic, hiphop, rock. Then:  python build_from_spotify.py --sources FILE --no-named
 """
 import argparse, json, re, urllib.request

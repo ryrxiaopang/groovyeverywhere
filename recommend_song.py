@@ -5,7 +5,7 @@
 
 The starting song must already be analysed (results/<key>.npz). Same rules as the blind test lists
 (blind_test.make_lists): the song itself, copies of it and other songs by the same artist are never recommended,
-the least-played 10% of each site are skipped, one song per artist, least popular good match first.
+the least-played 10% of each site are skipped, up to ceil(k/4) songs per artist (HG_MAX_PER_ARTIST), best match first.
 """
 import argparse, csv, os
 import numpy as np
@@ -39,12 +39,14 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=
     # a recommendation must not be the song's own artist even when the copy is not in the pool: also match by artist name
     chosen = ["sound"] + [f for f in features.split("+") if f != "sound"]
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
+    cap = scoring.max_per_artist(k)          # songs by one artist allowed in a list of k: 3 of 9-10 (HG_MAX_PER_ARTIST overrides)
     if rank == "match":          # best matches first; well-played songs are fine (7 Oct: the project is not only hidden gems)
-        a_idx, a_bar = pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, k)
-        b_idx, b_bar = pick_best(match, passes, none, skip, artists, k)
+        a_idx, a_bar = pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, k, max_per_artist=cap)
+        b_idx, b_bar = pick_best(match, passes, none, skip, artists, k, max_per_artist=cap)
     else:                        # "obscure": the original hidden-gem rule, least played good match first
-        a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=k, artists=artists, skip=skip)
-        b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=k, artists=artists, skip=skip)
+        a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=k, artists=artists, skip=skip,
+                                                max_per_artist=cap)
+        b_idx, b_bar = scoring.pick_hidden_gems(match, passes, P["obscurity"], none, k=k, artists=artists, skip=skip, max_per_artist=cap)
 
     def rows(idx, name):
         out = []

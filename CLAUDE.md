@@ -162,6 +162,9 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   overwritten), `python blind_test.py --sheets` writes `sheet_NAME_2.csv`, then `python refresh_sheets.py`. Open: nothing stops a round-2 list repeating a
   round-1 song for the same friend (best-match-first will often pick the same top songs); decide whether to exclude songs already rated.
 * `python pool_summary.py` prints the pool by site / genre / sub-style / language (best guess) / AI tag; `--all-sites` shows what round 2 leaves out.
+* **Several songs per artist in a list (10 Oct):** `scoring.max_per_artist(k)` = ceil(k/4) (env `HG_MAX_PER_ARTIST` overrides): 1 of 3, 3 of 9 or 10. The blind test
+  has K = 3 so it still gets one per artist (a friend does not rate one artist three times); `recommend_song.py` (k = 10) allows 3. How many
+  recommendations to give is still undecided; the cap follows it. `spotify_artists.py --more` now defaults to 25 own-channel songs per artist (was 8).
 * Offline check: `synthetic_tests.py` section 9 (needs no Essentia; the earlier sections do).
 
 ## Open work, in order

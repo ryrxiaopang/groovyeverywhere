@@ -392,8 +392,9 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     # Sound matches in part 1 but whose Mood matches in part 3 is not scored as if both matched the same stretch
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
     if rank == "match":
-        a_idx, a_bar = scoring.pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, K)
-        b_idx, b_bar = scoring.pick_best(match, passes, none, skip, artists, K)
+        cap = scoring.max_per_artist(K)                      # 1 for K = 3; grows with the list (HG_MAX_PER_ARTIST overrides)
+        a_idx, a_bar = scoring.pick_best(pct["sound"], np.ones(n, bool), none, skip, artists, K, max_per_artist=cap)
+        b_idx, b_bar = scoring.pick_best(match, passes, none, skip, artists, K, max_per_artist=cap)
     else:
         a_idx, a_bar = scoring.pick_hidden_gems(pct["sound"], np.ones(n, bool), P["obscurity"], none, k=K, artists=artists,
                                                   skip=skip)

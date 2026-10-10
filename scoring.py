@@ -14,6 +14,7 @@ Rules implemented here (all from the plan):
   * A raw-similarity cutoff per feature stops "best of a bad bunch" results.
 """
 from __future__ import annotations
+import os
 import numpy as np
 
 MAX_RHYTHM_CONFIDENCE = 5.32  # RhythmExtractor2013 multifeature confidence range is 0..5.32
@@ -303,18 +304,25 @@ def pick_hidden_gems(match, passes, obscurity, same_artist_or_dup, k=10,
     return idx[:k], bar
 
 
-def pick_best(match, passes, none, skip, artists, k, bar=80.0):
-    """Best matches first (popularity ignored): songs at or above `bar` that pass every rule, one per artist, highest match first.
+def max_per_artist(k):
+    """How many of a k-song list may be by the same artist: env HG_MAX_PER_ARTIST (a whole number), else 'auto' = ceil(k / 4), so a list
+    of 3 keeps one per artist, 9 or 10 allow 3, 20 allow 5 (10 Oct: the number of recommendations is not fixed yet; the cap follows it)."""
+    v = os.environ.get("HG_MAX_PER_ARTIST", "auto").strip().lower()
+    return max(1, int(v)) if v.isdigit() else max(1, -(-int(k) // 4))
+
+
+def pick_best(match, passes, none, skip, artists, k, bar=80.0, max_per_artist=1):
+    """Best matches first (popularity ignored): songs at or above `bar` that pass every rule, at most `max_per_artist` per artist, highest match first.
     The bar is lowered in steps of 5 (down to 65) until k songs are found; fewer than k is returned rather than padding.
     `none` = same song / copies / same artist (never picked); `skip` = the quality guard from least_played()."""
     while True:
         ok = (match >= bar) & passes & ~none & ~skip
         idx = np.where(ok)[0]
         idx = idx[np.argsort(-match[idx])]
-        seen, keep = set(), []
+        seen, keep = {}, []
         for i in idx:
-            if artists[i] not in seen:
-                seen.add(artists[i]); keep.append(i)
+            if seen.get(artists[i], 0) < max_per_artist:
+                keep.append(i); seen[artists[i]] = seen.get(artists[i], 0) + 1
         if len(keep) >= k or bar - 5 < 65:
             return np.array(keep[:k], dtype=int), bar
         bar -= 5

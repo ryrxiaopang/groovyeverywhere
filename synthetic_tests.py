@@ -578,6 +578,11 @@ def round2_test():
     assert list(idx) == [0, 2, 5] and bar == 70.0, (list(idx), bar)
     #   0 = best match although it is the MOST played; 1 skipped (quality guard); 3 same artist as 2; 4 copy of the starting song;
     #   the bar fell from 80 to 70 to find 3 songs, so 5 (match 70) joins at the end
+    #   the per-artist cap follows the list size: 1 of 3, 3 of 9 or 10 (10 Oct), HG_MAX_PER_ARTIST overrides
+    assert [scoring.max_per_artist(k) for k in (3, 4, 5, 9, 10, 20)] == [1, 1, 2, 3, 3, 5]
+    art3 = np.array(["a"] * 4 + ["b"] * 2)
+    top3, _ = scoring.pick_best(np.array([99., 98, 97, 96, 95, 94]), np.ones(6, bool), np.zeros(6, bool), np.zeros(6, bool), art3, 5, max_per_artist=3)
+    assert list(top3) == [0, 1, 2, 4, 5], list(top3)               # at most 3 by artist "a" (song 3 is the 4th), the rest from "b"
     idx2, _ = scoring.pick_hidden_gems(match, np.ones(6, bool), obscurity, none, k=3, artists=artists, skip=skip)
     assert idx2[0] != idx[0] and idx2[0] == 5, idx2                # the old rule starts with the least played (5), the best match comes last
     # (c) the AI note: empty for the friend unless HG_AI_NOTE=1; the researcher's ai_note() always works
