@@ -165,7 +165,12 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **Several songs per artist in a list (10 Oct):** `scoring.max_per_artist(k)` = ceil(k/4) (env `HG_MAX_PER_ARTIST` overrides): 1 of 3, 3 of 9 or 10. The blind test
   has K = 3 so it still gets one per artist (a friend does not rate one artist three times); `recommend_song.py` (k = 10) allows 3. How many
   recommendations to give is still undecided; the cap follows it. `spotify_artists.py --more` now defaults to 25 own-channel songs per artist (was 8).
-* Offline check: `synthetic_tests.py` section 9 (needs no Essentia; the earlier sections do).
+* **Artist discovery through Deezer (10 Oct):** `deezer_discover.py` (public API, no key) starts from the friends' artists and the artists in
+  `spotify_artists*.json`, walks Deezer's related artists (depth 2), keeps those with 5,000-1,500,000 Deezer fans, 2+ albums, a mapped genre (majority
+  of the top tracks' album genres; 'Asian Music' split by writing) and not already in the pool, caps each genre (`DEFAULT_QUOTA`), and writes a sources
+  file for `boost_artists.sh` + `results/deezer_selected.csv`. Use `--dry-run` first; `deezer_skip.txt` vetoes names. Deezer cannot be reached from
+  the cloud sandbox, so it was only tested with canned answers (section 10): the first real run may need small fixes (check the printed counts).
+* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

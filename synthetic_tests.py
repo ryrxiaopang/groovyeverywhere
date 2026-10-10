@@ -608,6 +608,67 @@ def round2_test():
     print("   FMA / Jamendo / Audius left out; best match first (not least played); the AI note is off for friends and a sheet has no note column")
 
 
+def deezer_discover_test():
+    """deezer_discover.py with a canned Deezer (no network): crawl depth, votes, and every filter."""
+    print("\n10. DEEZER ARTIST DISCOVERY (canned answers)")
+    import deezer_discover as dd
+    _get, _save = dd.Deezer.get, dd.Deezer.save
+    try:
+
+        # fake Deezer: seed "The 1975" (id 1) -> related 2..9 ; 2 -> related 10
+        ARTISTS = {  # id: (name, fans, albums, deezer genre id of its albums, top titles)
+            2: ("Indie Band", 120000, 4, 85, ["a", "b", "c"]),            # Alternative -> alternative
+            3: ("Tiny Uploader", 800, 5, 85, ["a", "b", "c"]),            # too few fans
+            4: ("Superstar", 9000000, 9, 132, ["a", "b", "c"]),           # too many fans
+            5: ("Metal Guys", 90000, 3, 464, ["a", "b", "c"]),            # Metal: not mapped
+            6: ("Folk Singer", 50000, 3, 466, ["a", "b", "c"]),           # Folk -> indiefolk
+            7: ("Already In Pool", 70000, 3, 85, ["a", "b", "c"]),
+            8: ("One Album", 70000, 1, 85, ["a", "b", "c"]),              # too few albums
+            9: ("한국 밴드", 60000, 3, 16, ["노래", "b", "c"]),             # Asian Music + Hangul -> kpop
+            10: ("Deep Rock", 40000, 2, 152, ["a", "b", "c"]),            # Rock, found at depth 2
+            11: ("Latin Asian", 40000, 2, 16, ["a", "b", "c"]),           # Asian Music, Latin script -> skipped
+            12: ("Rock Two", 41000, 2, 152, ["a", "b", "c"]),
+        }
+        GENRES = {85: "Alternative", 132: "Pop", 464: "Metal", 466: "Folk", 16: "Asian Music", 152: "Rock"}
+        RELATED = {1: [2, 3, 4, 5, 6, 7, 8, 9, 11], 2: [10, 12, 6], 6: [10]}
+        calls = []
+        def fake_get(self, path, **p):
+            calls.append(path)
+            if path == "/search/artist":
+                return {"data": [{"id": 1, "name": "The 1975"}]} if p["q"].lower() == "the 1975" else {"data": [{"id": 99, "name": "Other"}]}
+            if path == "/genre":
+                return {"data": [{"id": k, "name": v} for k, v in GENRES.items()]}
+            if path.endswith("/related"):
+                aid = int(path.split("/")[2])
+                return {"data": [{"id": i, "name": ARTISTS[i][0], "nb_fan": ARTISTS[i][1], "nb_album": ARTISTS[i][2]} for i in RELATED.get(aid, [])]}
+            if path.endswith("/top"):
+                aid = int(path.split("/")[2])
+                return {"data": [{"title": t, "title_short": t, "duration": 200, "album": {"id": aid * 100}} for t in ARTISTS[aid][4]]}
+            if path.startswith("/album/"):
+                aid = int(path.split("/")[2]) // 100
+                return {"genres": {"data": [{"id": ARTISTS[aid][3]}]}}
+            return {}
+        dd.Deezer.get = fake_get
+        dd.Deezer.save = lambda self: None
+        dz = dd.Deezer(cache_path="/nonexistent/x.json")
+        cand = dd.crawl(dz, ["The 1975", "Nobody Known"], 2)
+        assert 10 in cand and cand[10]["depth"] == 2 and cand[6]["votes"] == 2, cand[6]   # 6 is pointed at by seed and by 2
+        class A: target = 10; min_fans = 5000; max_fans = 1500000; min_albums = 2; quota = ["rock=1"]
+        taken = {dd.norm("Already In Pool")}
+        picked, why, used = dd.choose(dz, cand, A, taken, set())
+        names = [c["name"] for c in picked]
+        print(names, why, used)
+        assert names[0] == "Folk Singer"                     # most votes first
+        assert set(names) == {"Folk Singer", "Indie Band", "한국 밴드", "Deep Rock"}, names   # Rock Two cut by the rock=1 quota
+        assert [c["genre"] for c in picked if c["name"] == "한국 밴드"] == ["kpop"] and used["indiefolk"] == 1 and used["rock"] == 1
+        assert why == {"fans": 2, "albums": 1, "in pool / skipped": 1, "genre": 2, "quota": 1}, why
+        src = dd.to_source(picked[0], 20)
+        assert src["kind"] == "artist" and src["more"] == 20 and len(src["tracks"]) == 3 and src["tracks"][0]["seconds"] == 200.0
+        print("   fans / albums / genre / pool / quota filters, depth-2 crawl and vote order behave; Asian Music is split by writing")
+    finally:
+        dd.Deezer.get, dd.Deezer.save = _get, _save
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -619,3 +680,4 @@ if __name__ == "__main__":
     failure_handling_tests()
     near_copy_test()
     round2_test()
+    deezer_discover_test()
