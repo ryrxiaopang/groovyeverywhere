@@ -161,6 +161,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **Running round 2 for a friend already in round 1:** `python build_friend_lists.py --final --friend NAME` makes NEW captures (old ones are never
   overwritten), `python blind_test.py --sheets` writes `sheet_NAME_2.csv`, then `python refresh_sheets.py`. Open: nothing stops a round-2 list repeating a
   round-1 song for the same friend (best-match-first will often pick the same top songs); decide whether to exclude songs already rated.
+* `python pool_summary.py` prints the pool by site / genre / sub-style / language (best guess) / AI tag; `--all-sites` shows what round 2 leaves out.
 * Offline check: `synthetic_tests.py` section 9 (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
