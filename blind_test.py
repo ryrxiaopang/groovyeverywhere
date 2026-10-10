@@ -72,7 +72,7 @@ def pool():
 
 
 def apply_quality(P):
-    """Keep only songs a person can really open (results/pool_links.csv from check_links.py), give each the best verified link
+    """Keep only songs a person can really open (results/pool_links.csv from check_pool_links.py), give each the best verified link
     (a YouTube alternative from results/link_alternatives.csv when the original page is gone), and apply the AI-music policy
     (results/ai_tags.csv from tag_ai.py; env HG_AI_POLICY = show / hide-low (default) / hide). P['ai'] holds each song's AI status
     ('confirmed', 'likely' or 'none'). Without those files nothing is filtered."""

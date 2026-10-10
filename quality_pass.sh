@@ -5,7 +5,7 @@
 cd ~/groovyeverywhere || exit 1
 source ./env_keys.sh
 source .venv/bin/activate
-python -u check_links.py
+python -u check_pool_links.py
 python -u find_youtube_alternatives.py
 python -u tag_ai.py
 echo "$(date) quality pass done"

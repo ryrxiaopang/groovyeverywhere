@@ -128,7 +128,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 
 ## Links and AI music (10 Oct 2026, from the friends' first feedback)
 * Friends reported that the FMA links in the sheets did not open. All were plain `http://` links (the pages work over `https://`);
-  one page was truly gone. `check_links.py` now checks every pool song (FMA page + its mp3, Jamendo API, Audius API, YouTube oEmbed) ->
+  one page was truly gone. `check_pool_links.py` now checks every pool song (FMA page + its mp3, Jamendo API, Audius API, YouTube oEmbed) ->
   `results/pool_links.csv`; `find_youtube_alternatives.py` finds a verified YouTube version for dead ones -> `results/link_alternatives.csv`.
   Of 8,964 pool songs 451 had no working page; 154 got a YouTube alternative; 297 have NO working link and are left out of
   recommendations (`blind_test.apply_quality`). `quality_pass.sh` repeats all of this (and the AI tags) after new songs are added.

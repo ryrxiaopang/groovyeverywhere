@@ -1,7 +1,7 @@
 """Check that every song in the pool has a link a person can really open and listen to  ->  results/pool_links.csv
 
-  python check_links.py              # check every pool song (about 10 minutes), write results/pool_links.csv
-  python check_links.py --retry      # only re-check the songs that failed last time
+  python check_pool_links.py              # check every pool song (about 10 minutes), write results/pool_links.csv
+  python check_pool_links.py --retry      # only re-check the songs that failed last time
 
 Per source (checked the way that source can really be checked):
   * FMA      the page over HTTPS (the old http:// links failed for friends on their phones), the page must name the track, and the
