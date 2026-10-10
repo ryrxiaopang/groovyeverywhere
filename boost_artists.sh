@@ -4,7 +4,9 @@
 cd ~/groovyeverywhere || exit 1
 SRC="${1:?usage: boost_artists.sh SOURCES.json}"
 source ./env_keys.sh
-while pgrep -f "[r]un_tests.py" > /dev/null || pgrep -f "[b]oost3\.sh" > /dev/null; do sleep 20; done
+# wait for any running analysis, boost3.sh, or an OLDER boost_artists.sh (lower process number: a queue, so two waiting jobs never wait on each other)
+while pgrep -f "[r]un_tests.py" > /dev/null || pgrep -f "[b]oost3\.sh" > /dev/null \
+      || [ -n "$(pgrep -f '[b]oost_artists\.sh' | awk -v me=$$ '$1 < me')" ]; do sleep 20; done
 source .venv/bin/activate
 python -u build_from_spotify.py --sources "$SRC" --no-named
 echo "$(date) analysing the pool_youtube.csv songs still to do"
