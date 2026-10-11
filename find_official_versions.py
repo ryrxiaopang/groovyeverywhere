@@ -165,17 +165,48 @@ def deezer_original(query, get=None):
 GENERIC = {"official", "mv", "music", "video", "audio", "lyrics", "lyric", "live", "feat", "ft", "the", "a", "and"}
 
 
-def length_ok(old, new, official):
-    """Fan videos are often cut or padded, so a match from the artist's own channel may differ a lot (0.5x to 2x); any other match only a little."""
+def length_ok(old, new, official, cover=False):
+    """Fan videos are often cut or padded, so a match from the artist's own channel may differ a lot (0.5x to 2x); any other match only a little.
+    A COVER is never the same length as the original, so for covers any length from 0.4x to 2.5x is accepted (the proposal is never pre-approved)."""
     if not old or not new:
         return True
+    if cover:
+        return 0.4 <= new / old <= 2.5
     if official:
         return 0.5 <= new / old <= 2.0
     return abs(new - old) <= max(15.0, 0.12 * old)
 
 
-def why_rejected(e, song, artist, dur):
-    """None when search result e really is this song by this artist, else the reason it is not (so --explain can show it)."""
+def bracket_alts(title):
+    """Names inside brackets that may be the song's other-language title: 'Bo Li (玻璃)' -> ['玻璃']. Genre tags, lyric / feat. notes and very short bits are left out."""
+    out = []
+    for m in re.findall(r"[\(\[\{\u3010\u300a\u300c\u300e\uff08]([^\)\]\}\u3011\u300b\u300d\u300f\uff09]{1,30})[\)\]\}\u3011\u300b\u300d\u300f\uff09]", title or ""):
+        m = m.strip()
+        if not m or FAN_LYRIC.search(m) or _NOISE.search(m) or re.search(r"\bfeat\b|\bft\b|pinyin|vietsub|engsub", m, re.I):
+            continue
+        if re.search(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]", m) or len(re.sub(r"\W", "", m)) >= 4:
+            out.append(m)
+    return out
+
+
+def channel_in_title(channel, title):
+    """True when the channel's name is in the title, whatever the word order: 'Kay Tse 謝安琪' in '謝安琪 Kay Tse 囍帖街 ...'."""
+    if channel_matches(channel, title):
+        return True
+    import build_from_spotify as bs
+    ct = [w for w in bs.norm(channel) if w not in GENERIC and w not in ("topic", "official", "music", "records", "vevo", "channel")]
+    tt = set(bs.norm(title))
+    return bool(ct) and sum(len(w) for w in ct) >= 3 and all(w in tt for w in ct)
+
+
+def _in(w, tokens):
+    """A word is among the tokens, or (3+ letters) inside one of them: 'awr' in '陆杰awr', where a name is glued to Chinese characters."""
+    return w in tokens or (len(w) >= 3 and any(w in tok for tok in tokens))
+
+
+def why_rejected(e, song, artist, dur, alts=(), cover=False):
+    """None when search result e really is this song by this artist, else the reason it is not (so --explain can show it).
+    alts = other-language names of the song taken from the old title's brackets; cover = the old video is a cover (so its length proves nothing)."""
     import build_from_spotify as bs
     from build_youtube import NOT_A_SONG
     title, ch = e.get("title") or "", e.get("channel") or e.get("uploader") or ""
@@ -190,15 +221,17 @@ def why_rejected(e, song, artist, dur):
     t, first = bs.norm(bs.clean_title(song)), bs.norm(artist.split(",")[0])
     if not t or not first:
         return "no song or artist to compare"
-    if sum(w in ct for w in t) < max(1, int(0.8 * len(t) + 0.5)):
+    def has(words):
+        return bool(words) and sum(w in ct for w in words) >= max(1, int(0.8 * len(words) + 0.5))
+    if not has(t) and not any(has(bs.norm(a)) for a in alts):
         return "title does not match the song"
-    if sum(w in (ct + cc) for w in first) < max(1, int(0.7 * len(first) + 0.5)):
+    if sum(_in(w, ct + cc) for w in first) < max(1, int(0.7 * len(first) + 0.5)):
         return "artist is not in the channel or title"
     d = e.get("duration") or 0
     if not 60 <= d <= 600:
         return f"length {int(d)} s is outside 60-600 s"
     official = channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0]
-    if dur and not length_ok(dur, d, official):
+    if dur and not length_ok(dur, d, official, cover):
         return f"length {int(d)} s against the old {int(dur)} s"
     return None
 
@@ -221,7 +254,7 @@ def fallback_by_channel(c, search, dur, explain=None):
             why = f"it is itself a {kind_of(t, ch)}"
         elif ALTERED.search(t) and not ALTERED.search(c["title"]):
             why = "live / session / translation / dated recording"
-        elif not channel_matches(ch, c["title"]):
+        elif not channel_in_title(ch, c["title"]):
             why = "the channel name is not in the old title"
         elif not shared:
             why = "no song words in common"
@@ -257,10 +290,11 @@ def find_official(c, search, deezer=None, explain=None):
         dur = float(c["duration"] or 0)
     except ValueError:
         dur = 0.0
+    alts = bracket_alts(c["title"])
     for artist, song in pairs:
         cands = []
         for e in search(f"{artist} {bs.clean_title(song)}", 8):
-            why = "the old video itself" if e.get("id") == old_id else why_rejected(e, song, artist, dur)
+            why = "the old video itself" if e.get("id") == old_id else why_rejected(e, song, artist, dur, alts, c["kind"] == "cover")
             if explain is not None:
                 explain.append((f"{artist} / {song}", e, why))
             if why is None:
@@ -338,12 +372,17 @@ def main():
 
     def search(q, n):
         k = f"{n}|{q}"
-        if k not in cache:
+        if not cache.get(k):                                  # an EMPTY answer is a failed / throttled search, not a result: it is asked again next time
             time.sleep(0.6)
-            cache[k] = [{x: e.get(x) for x in ("id", "title", "channel", "uploader", "duration", "view_count", "is_live")} for e in flat_search(ydl, q, n)]
+            got = [{x: e.get(x) for x in ("id", "title", "channel", "uploader", "duration", "view_count", "is_live")} for e in flat_search(ydl, q, n)]
+            if not got:
+                empty.append(q)
+                return []
+            cache[k] = got
             json.dump(cache, open(CACHE, "w", encoding="utf-8"))
         return cache[k]
 
+    empty = []
     todo = cands[:a.limit] if a.limit else cands
     found, none, lost = [], 0, []
     for i, c in enumerate(todo, 1):
@@ -359,6 +398,8 @@ def main():
     off = sum(1 for _, g in found if g["official"])
     print(f"\n{len(found)} proposals ({off} from the artist's own or a Topic channel, {len(found) - off} from other channels); {none} with no verified original.")
     print(f"The {none} without a verified original are listed in {UNRESOLVED} with the guesses searched.")
+    if empty:
+        print(f"!! {len(empty)} searches came back EMPTY (YouTube throttling or a network problem; they are not cached). Run the same command again later. First: {empty[0][:50]}")
     top = collections.Counter(c["channel"] for c in lost if c["channel"]).most_common(10)
     if top and top[0][1] > 1:
         print("channels with the most unresolved songs (often AI-made originals with no official video: candidates for ai_block.txt):\n  "
@@ -370,7 +411,7 @@ def main():
         for q, e, why in log:
             print(f"     [{q[:34]}] {str(e.get('title'))[:46]:46s} | {str(e.get('channel') or e.get('uploader'))[:16]:16s} | {int(e.get('duration') or 0)} s -> {why or 'ACCEPTED'}")
         if not log:
-            print("     (no search was made: no artist or song could be read from the title)")
+            print("     (no search results: either no artist or song could be read from the title, or the search came back empty and will be repeated next run)")
     print(f"Review {PROPOSALS}: put y in `approve` for rows you accept (rows from the artist's own channel are pre-approved for fan lyric videos), then\n"
           f"  python replace_songs.py --proposals results/official_proposals.csv")
 

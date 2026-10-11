@@ -1076,6 +1076,16 @@ def official_versions_test():
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
     assert len(rs.pairs_from_proposals(path)[0]) == 2                                                                      # approving the cover adds it
+    # (h) fixes from the 12 Oct --explain blocks: word order of a channel name, the song's other-language name in brackets, a cover's length
+    assert fo.channel_in_title("Kay Tse \u8b1d\u5b89\u742a", "\u8b1d\u5b89\u742a Kay Tse \u56cd\u5e16\u8857 Wedding Invitation Street") and not fo.channel_in_title("Movie World", "\u5d50 \u4f60\u7684\u8ecc\u8de1")
+    assert fo.bracket_alts("awr - Bo Li (\u73bb\u7483) (R&B) Lyrics (feat. X)") == ["\u73bb\u7483"], fo.bracket_alts("awr - Bo Li (\u73bb\u7483) (R&B) Lyrics (feat. X)")
+    e = dict(title="\u73bb\u7483 (R&B\u6c1b\u56f4\u7248)", channel="\u9646\u6770awr - Topic", duration=202)
+    assert fo.why_rejected(e, "Bo Li", "awr", 202) == "title does not match the song"
+    assert fo.why_rejected(e, "Bo Li", "awr", 202, alts=["\u73bb\u7483"]) is None
+    e2 = dict(title="\u8521\u7434 Tsai Chin\u300a\u60c5\u4eba\u7684\u773c\u6dda\u300bOfficial Audio", channel="\u95ca\u601d\u97f3\u6a02 CROS MUSIC", duration=388)
+    assert "length" in fo.why_rejected(e2, "\u60c5\u4eba\u7684\u773c\u6dda", "\u8521\u7434", 228)
+    assert fo.why_rejected(e2, "\u60c5\u4eba\u7684\u773c\u6dda", "\u8521\u7434", 228, cover=True) is None
+    assert fo.length_ok(100, 200, False, cover=True) and not fo.length_ok(100, 200, False) and not fo.length_ok(100, 300, False, cover=True) and not fo.length_ok(100, 20, False, cover=True)
     print("   covers and fan lyric videos are spotted, the original artist's own upload is chosen over re-uploads, covers, wrong lengths and the old video, nothing is approved for a cover unless you do it")
 
 
