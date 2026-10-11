@@ -38,7 +38,7 @@ OFFICIAL = re.compile(r"official", re.I)
 LYRIC_CHANNEL = re.compile(r"lyrics?|lyric|letras|lirik|가사", re.I)
 # a recording that is NOT the studio original (live, session, translation, dated fan recording): never proposed as the replacement
 ALTERED = re.compile(r"\b(session|sessions|concert|tour|performance|fancam|traducci\w*|tradu[c\u00e7][a\u00e3]o|espa[n\u00f1]ol|subtitulad\w*|legendado|vietsub|engsub|"
-                     r"live|unplugged|remix|sped|slowed|8d|nightcore|reaction)\b|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\b\d{6}\b", re.I)
+                     r"live|unplugged|remix|sped|slowed|8d|nightcore|reaction)\b|\u73fe\u5834|\u73b0\u573a|\u6f14\u5531\u6703|\u6f14\u5531\u4f1a|\ub77c\uc774\ube0c|\u30e9\u30a4\u30d6|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\b\d{6}\b", re.I)
 CHANNELLIKE = re.compile(r"\b(music|records?|radio|tv|lyrics?|vibes?|sounds?|studio|network|official|topic|channel|collective|nation)\b", re.I)
 
 
@@ -82,7 +82,15 @@ def channel_matches(channel, *names):
     c = _sq(channel)
     if len(c) < 3:
         return False
-    return any(len(n) >= 3 and (n in c or c in n) for n in (_sq(x) for x in names))
+    from tag_ai import norm_name
+    cw = sorted(norm_name(channel).split())
+    for x in names:
+        n = _sq(x)
+        if len(n) >= 3 and (n in c or c in n):
+            return True
+        if len(cw) > 1 and sorted(norm_name(x).split()) == cw:          # "Utada Hikaru" = "Hikaru Utada"
+            return True
+    return False
 
 
 def candidate_pairs(title, pool_artist, channel):
@@ -308,7 +316,7 @@ def find_official(c, search, deezer=None, explain=None):
             # "Song - Artist" titles are common: the uploader may be named after either part, so the artist's own channel is recognised under both readings
             def rank(e):
                 ch = e.get("channel") or e.get("uploader") or ""
-                return (bool(channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0]), e.get("view_count") or 0)
+                return (bool(channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0]), bool(OFFICIAL.search(e.get("title") or "")), e.get("view_count") or 0)
             cands.sort(key=rank, reverse=True)
             best = cands[0]
             if not channel_matches(best.get("channel") or best.get("uploader") or "", artist) and rank(best)[0]:

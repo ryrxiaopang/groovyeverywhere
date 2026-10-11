@@ -1085,6 +1085,8 @@ def official_versions_test():
     e2 = dict(title="\u8521\u7434 Tsai Chin\u300a\u60c5\u4eba\u7684\u773c\u6dda\u300bOfficial Audio", channel="\u95ca\u601d\u97f3\u6a02 CROS MUSIC", duration=388)
     assert "length" in fo.why_rejected(e2, "\u60c5\u4eba\u7684\u773c\u6dda", "\u8521\u7434", 228)
     assert fo.why_rejected(e2, "\u60c5\u4eba\u7684\u773c\u6dda", "\u8521\u7434", 228, cover=True) is None
+    assert fo.channel_matches("Hikaru Utada", "Utada Hikaru") and not fo.channel_matches("Hikaru Tanaka", "Utada Hikaru")
+    assert fo.ALTERED.search("\u8521\u7434 \u60c5\u4eba\u7684\u773c\u6dda HD\u73fe\u5834") and not fo.ALTERED.search("\u8521\u7434 Tsai Chin\u300a\u60c5\u4eba\u7684\u773c\u6dda\u300bOfficial Audio")
     assert fo.length_ok(100, 200, False, cover=True) and not fo.length_ok(100, 200, False) and not fo.length_ok(100, 300, False, cover=True) and not fo.length_ok(100, 20, False, cover=True)
     print("   covers and fan lyric videos are spotted, the original artist's own upload is chosen over re-uploads, covers, wrong lengths and the old video, nothing is approved for a cover unless you do it")
 
