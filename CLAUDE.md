@@ -212,6 +212,10 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **Finder fixes from the first 50-song batch (11 Oct):** of 18 proposals only ~5 were right. Causes fixed in `find_official_versions.py`: (1) a visualizer / lyric video on the ARTIST'S OWN channel (VEVO, own name) is the
   original, not a candidate (`is_candidate`, `channel_matches`; own-channel covers stay candidates); (2) a replacement whose title is live / session / translation / dated fan recording is never proposed (`ALTERED`);
   (3) "Vietsub | Song - Artist | Lyrics Video" titles are cleaned (`clean_name`) and the title's own "A - B" beats the pool's artist field; the artist's channel is recognised under both readings of "A - B".
+* **Finder fixes from the 40 unresolved of the second batch (11 Oct):** (1) length rule `length_ok`: a match from the artist's own channel may be 0.5x-2x the old video's length (fan uploads are cut or padded), any other match only max(15 s, 12%);
+  (2) titles "Song by Artist", junk words (Pinyin, Translation, 歌词 ...) and hashtags are cleaned; (3) `fallback_by_channel`: a title with no artist is searched as is and accepted only from a channel whose NAME is in the old
+  title (never pre-approved); (4) `--explain N` prints, for the first N unresolved songs, every search result and the reason it was rejected; the run also lists the channels with the most unresolved songs (often AI-made originals
+  with no official video: candidates for `ai_block.txt`).
 * Offline check: `synthetic_tests.py` section 9, section 19 (AI removal), section 18 (official versions), section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order

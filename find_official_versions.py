@@ -53,12 +53,13 @@ def kind_of(title, channel=""):
 
 
 _BRACKETS = re.compile(r"[\(\[\{【《「『（][^\)\]\}】》」』）]*[\)\]\}】》」』）]")
-_NOISE = re.compile(r"\blyrics?( video)?\b|\bvisuali[sz]er\b|\bofficial\b|\bm/?v\b|\baudio\b|\bcover\b|\bfull\b|\bvietsub\b|\bengsub\b|//.*$|⚜.*$", re.I)
+_NOISE = re.compile(r"\blyrics?( video)?\b|\bvisuali[sz]er\b|\bofficial\b|\bm/?v\b|\baudio\b|\bcover\b|\bfull\b|\bvietsub\b|\bengsub\b|\bmusic video\b|\bpinyin\b|\btranslation\b|\btranslated\b|\bromani[sz]ation\b|\beng(lish)? ?subs?\b|歌词版|歌詞版|歌词|歌詞|動態歌詞|动态歌词|/\s*english\b|//.*$|⚜.*$", re.I)
 
 
 def clean_name(t):
     t = _BRACKETS.sub(" ", t or "")
     t = _NOISE.sub(" ", t)
+    t = re.sub(r"(^|\s)#.*$", " ", t)                    # hashtags are nearly always at the end ("... #Esme Rose"): cut from the first one
     t = re.sub(r"[\u201c\u201d\"'`\u2018\u2019\U0001F300-\U0001FAFF\u2600-\u27BF]+", " ", t)
     parts = [re.sub(r"\s+", " ", x).strip(" -\u2013\u2014|:.") for x in t.split("|")]
     parts = [x for x in parts if x]
@@ -91,6 +92,10 @@ def candidate_pairs(title, pool_artist, channel):
     m = re.match(r"^\s*(.+?)\s+[-–—]\s+(.+?)\s*$", t)
     if m:
         pairs.append((m.group(1).strip(), m.group(2).strip()))
+    if not pairs:
+        mb = re.match(r"^\s*(.+?)\s+by\s+(.+?)\s*$", t, re.I)                 # "Song by Artist"
+        if mb:
+            pairs.append((mb.group(2).strip(" .*"), mb.group(1).strip(" *")))
     pa = (pool_artist or "").strip()
     if not pairs and t and pa and pa.lower() != (channel or "").strip().lower() and not CHANNELLIKE.search(pa):   # the title's own "A - B" beats the pool's artist field
         pairs.append((pa, t))
@@ -157,8 +162,89 @@ def deezer_original(query, get=None):
     return None
 
 
-def find_official(c, search, deezer=None):
-    """Best replacement for candidate c, or None. search(query, n) -> list of yt-dlp style entries (id, title, channel, duration, view_count)."""
+GENERIC = {"official", "mv", "music", "video", "audio", "lyrics", "lyric", "live", "feat", "ft", "the", "a", "and"}
+
+
+def length_ok(old, new, official):
+    """Fan videos are often cut or padded, so a match from the artist's own channel may differ a lot (0.5x to 2x); any other match only a little."""
+    if not old or not new:
+        return True
+    if official:
+        return 0.5 <= new / old <= 2.0
+    return abs(new - old) <= max(15.0, 0.12 * old)
+
+
+def why_rejected(e, song, artist, dur):
+    """None when search result e really is this song by this artist, else the reason it is not (so --explain can show it)."""
+    import build_from_spotify as bs
+    from build_youtube import NOT_A_SONG
+    title, ch = e.get("title") or "", e.get("channel") or e.get("uploader") or ""
+    if NOT_A_SONG.search(title) or e.get("is_live"):
+        return "not a song / live stream"
+    k = kind_of(title, ch)
+    if k:
+        return f"it is itself a {k}"
+    if ALTERED.search(title) and not ALTERED.search(song):
+        return "live / session / translation / dated recording"
+    ct, cc = bs.norm(title), bs.norm(ch)
+    t, first = bs.norm(bs.clean_title(song)), bs.norm(artist.split(",")[0])
+    if not t or not first:
+        return "no song or artist to compare"
+    if sum(w in ct for w in t) < max(1, int(0.8 * len(t) + 0.5)):
+        return "title does not match the song"
+    if sum(w in (ct + cc) for w in first) < max(1, int(0.7 * len(first) + 0.5)):
+        return "artist is not in the channel or title"
+    d = e.get("duration") or 0
+    if not 60 <= d <= 600:
+        return f"length {int(d)} s is outside 60-600 s"
+    official = channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0]
+    if dur and not length_ok(dur, d, official):
+        return f"length {int(d)} s against the old {int(dur)} s"
+    return None
+
+
+def fallback_by_channel(c, search, dur, explain=None):
+    """A title with no artist in it ('謝安琪 Kay Tse 囍帖街 ...'): search the cleaned title and accept only a video from a channel whose NAME is in the
+    old title (so the artist's own channel), sharing song words with it. Never pre-approved."""
+    import build_from_spotify as bs
+    q = clean_name(c["title"])[:60].strip()
+    if len(bs.norm(q)) < 2:
+        return None
+    old_tokens, old_id = set(bs.norm(c["title"])), c["key"].split("_", 1)[1]
+    good = []
+    for e in search(q, 8):
+        ch, t, d = e.get("channel") or e.get("uploader") or "", e.get("title") or "", e.get("duration") or 0
+        shared = (set(bs.norm(t)) & old_tokens) - set(bs.norm(ch)) - GENERIC
+        if e.get("id") == old_id:
+            why = "the old video itself"
+        elif kind_of(t, ch):
+            why = f"it is itself a {kind_of(t, ch)}"
+        elif ALTERED.search(t) and not ALTERED.search(c["title"]):
+            why = "live / session / translation / dated recording"
+        elif not channel_matches(ch, c["title"]):
+            why = "the channel name is not in the old title"
+        elif not shared:
+            why = "no song words in common"
+        elif not 60 <= d <= 600:
+            why = f"length {int(d)} s is outside 60-600 s"
+        elif dur and not length_ok(dur, d, True):
+            why = f"length {int(d)} s against the old {int(dur)} s"
+        else:
+            why = None
+        if explain is not None:
+            explain.append((q, e, why))
+        if why is None:
+            good.append(e)
+    if not good:
+        return None
+    best = max(good, key=lambda e: e.get("view_count") or 0)
+    return dict(artist=best.get("channel") or best.get("uploader") or "", song=q, entry=best, official=True, fallback=True,
+                note="no artist in the title: matched because the channel's name is in the old title; check it")
+
+
+def find_official(c, search, deezer=None, explain=None):
+    """Best replacement for candidate c, or None. search(query, n) -> list of yt-dlp style entries (id, title, channel, duration, view_count).
+    explain (a list) collects (query, result, reason it was rejected or None) for every result looked at."""
     import build_from_spotify as bs
     pairs = candidate_pairs(c["title"], c["pool_artist"], c["channel"])
     note = ""
@@ -174,23 +260,23 @@ def find_official(c, search, deezer=None):
     for artist, song in pairs:
         cands = []
         for e in search(f"{artist} {bs.clean_title(song)}", 8):
-            if e.get("id") == old_id or kind_of(e.get("title"), e.get("channel") or e.get("uploader")):
-                continue                                              # not the old video, not another cover / fan lyric video
-            if ALTERED.search(e.get("title") or "") and not ALTERED.search(song):
-                continue                                              # a live clip, session, translation or dated fan recording is not the original
-            if bs.verify(e, song, artist, dur):
+            why = "the old video itself" if e.get("id") == old_id else why_rejected(e, song, artist, dur)
+            if explain is not None:
+                explain.append((f"{artist} / {song}", e, why))
+            if why is None:
                 cands.append(e)
         if cands:
             # "Song - Artist" titles are common: the uploader may be named after either part, so the artist's own channel is recognised under both readings
             def rank(e):
                 ch = e.get("channel") or e.get("uploader") or ""
-                return (channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0], e.get("view_count") or 0)
+                return (bool(channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0]), e.get("view_count") or 0)
             cands.sort(key=rank, reverse=True)
             best = cands[0]
-            swapped = not channel_matches(best.get("channel") or best.get("uploader") or "", artist) and rank(best)[0]
-            if swapped:
+            if not channel_matches(best.get("channel") or best.get("uploader") or "", artist) and rank(best)[0]:
                 note = (note + "; " if note else "") + "title looked like 'Song - Artist': check the artist"
-            return dict(artist=artist, song=song, entry=best, official=bool(rank(best)[0]), note=note)
+            return dict(artist=artist, song=song, entry=best, official=rank(best)[0], fallback=False, note=note)
+    if not pairs:
+        return fallback_by_channel(c, search, dur, explain)
     return None
 
 
@@ -214,7 +300,7 @@ def write_proposals(path, cands, found):
         w = csv.writer(f); w.writerow(cols)
         for c, g in found:
             e = g["entry"]
-            pre = "y" if (g["official"] and c["kind"] == "fan lyric video") else ""
+            pre = "y" if (g["official"] and c["kind"] == "fan lyric video" and not g.get("fallback")) else ""
             w.writerow([pre, c["kind"], c["key"], c["title"], c["channel"], c["views"], c["link"], g["artist"], g["song"],
                         f"https://www.youtube.com/watch?v={e['id']}", e.get("title"), e.get("channel") or e.get("uploader"),
                         e.get("view_count") or "", int(e.get("duration") or 0), c["duration"], "yes" if g["official"] else "no", g["note"]])
@@ -224,6 +310,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--search", action="store_true", help="look for the official version of every candidate on YouTube")
     ap.add_argument("--limit", type=int, default=0, help="only the first N candidates (a first small batch)")
+    ap.add_argument("--explain", type=int, default=0, metavar="N", help="after the search, show why every search result was rejected for the first N unresolved songs")
     ap.add_argument("--deezer", action="store_true", help="for covers with no artist in the title, ask Deezer who the original artist is")
     a = ap.parse_args()
     stats = {}
@@ -258,13 +345,13 @@ def main():
         return cache[k]
 
     todo = cands[:a.limit] if a.limit else cands
-    found, none = [], 0
+    found, none, lost = [], 0, []
     for i, c in enumerate(todo, 1):
         g = find_official(c, search, deezer_original if a.deezer else None)
         if g:
             found.append((c, g))
         else:
-            none += 1
+            none += 1; lost.append(c)
         if i % 25 == 0:
             print(f"  {i} / {len(todo)} searched, {len(found)} proposals", flush=True)
     write_proposals(PROPOSALS, todo, found)
@@ -272,6 +359,18 @@ def main():
     off = sum(1 for _, g in found if g["official"])
     print(f"\n{len(found)} proposals ({off} from the artist's own or a Topic channel, {len(found) - off} from other channels); {none} with no verified original.")
     print(f"The {none} without a verified original are listed in {UNRESOLVED} with the guesses searched.")
+    top = collections.Counter(c["channel"] for c in lost if c["channel"]).most_common(10)
+    if top and top[0][1] > 1:
+        print("channels with the most unresolved songs (often AI-made originals with no official video: candidates for ai_block.txt):\n  "
+              + "\n  ".join(f"{n:3d}  {ch}" for ch, n in top if n > 1))
+    for c in lost[:a.explain]:
+        log = []
+        find_official(c, search, deezer_original if a.deezer else None, explain=log)
+        print(f"\n-- {c['title'][:70]} | {c['channel'][:20]} | {c['duration']} s")
+        for q, e, why in log:
+            print(f"     [{q[:34]}] {str(e.get('title'))[:46]:46s} | {str(e.get('channel') or e.get('uploader'))[:16]:16s} | {int(e.get('duration') or 0)} s -> {why or 'ACCEPTED'}")
+        if not log:
+            print("     (no search was made: no artist or song could be read from the title)")
     print(f"Review {PROPOSALS}: put y in `approve` for rows you accept (rows from the artist's own channel are pre-approved for fan lyric videos), then\n"
           f"  python replace_songs.py --proposals results/official_proposals.csv")
 

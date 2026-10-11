@@ -1033,6 +1033,30 @@ def official_versions_test():
             dict(id="ELIZAOFFICI", title="Eliza Rose & Interplanetary Criminal - B.O.T.A. (Baddest Of Them All) [Official Video]", channel="Eliza Rose", duration=227, view_count=54_745_994)]
     g4 = fo.find_official(eliza, lambda q, n: ent4)
     assert g4["entry"]["id"] == "ELIZAOFFICI" and g4["official"], g4
+    # the 40 unresolved of 11 Oct: a cut-down fan upload must still find the official one; "Song by Artist"; junk words; titles with no artist at all
+    zyko = dict(old, key="youtube_ZYKOZYKO111", title="Ordinary \u2013 Alex Warren (Lyrics) | Warm Vocal Performance", channel="ZYKO MUSIC", pool_artist="ZYKO MUSIC", duration="151")
+    off = dict(id="ALEXOFFIC11", title="Alex Warren - Ordinary (Official Video)", channel="Alex Warren", duration=186, view_count=90_000_000)
+    other = dict(id="OTHERFAN111", title="Alex Warren - Ordinary", channel="Some Fan", duration=186, view_count=5)
+    g5 = fo.find_official(zyko, lambda q, n: [other, off])
+    assert g5["entry"]["id"] == "ALEXOFFIC11" and g5["official"], g5                                         # 151 s vs 186 s: fine from the artist's own channel
+    assert fo.find_official(zyko, lambda q, n: [other]) is None                                              # but not from an unrelated channel
+    assert fo.length_ok(151, 186, True) and not fo.length_ok(151, 186, False) and fo.length_ok(200, 210, False) and not fo.length_ok(200, 700, True)
+    assert fo.candidate_pairs("Pirate Radio* by Jean Dawson Lyric Music Video", "Derek T", "Derek T") == [("Jean Dawson", "Pirate Radio")]
+    assert fo.candidate_pairs("F**k Being A Princess (lyrics) by Esme Rose. #Esme Rose", "Rise and Shine", "Rise and Shine")[0][0] == "Esme Rose"
+    assert fo.candidate_pairs("awr (\u9646\u6770) - Bo Li (\u73bb\u7483) (R&B) Lyrics \u6b4c\u8bcd Pinyin/English Translation", "M - Lyrics", "M - Lyrics") == [("awr", "Bo Li")]
+    kay = dict(old, key="youtube_KAYKAYKAY11", title="\u8b1d\u5b89\u742a Kay Tse \u56cd\u5e16\u8857 Wedding Invitation Street [\u7cb5\u62fc | Jyutping | HK Cantonese Song", channel="Lyrics Chan",
+               pool_artist="Lyrics Chan", duration="210")
+    assert fo.candidate_pairs(kay["title"], kay["pool_artist"], kay["channel"]) == []
+    ent5 = [dict(id="KAYOTHER111", title="\u56cd\u5e16\u8857", channel="Other Singer", duration=212, view_count=9),
+            dict(id="KAYOFFICIAL", title="\u56cd\u5e16\u8857", channel="\u8b1d\u5b89\u742a Kay Tse Official", duration=213, view_count=1_000_000)]
+    log = []
+    g6 = fo.find_official(kay, lambda q, n: ent5, explain=log)
+    assert g6["entry"]["id"] == "KAYOFFICIAL" and g6["fallback"] and "check it" in g6["note"], g6                 # found through the channel name in the old title
+    assert [w for _, e, w in log if e["id"] == "KAYOTHER111"] == ["the channel name is not in the old title"] and [w for _, e, w in log if e["id"] == "KAYOFFICIAL"] == [None]
+    log2 = []
+    fo.find_official(old, lambda q, n: [dict(id="X", title="Faouzia - UNETHICAL (Official Video)", channel="Faouzia", duration=420, view_count=1)], explain=log2)
+    assert log2[0][2] == "length 420 s against the old 200 s" or "length" in log2[0][2], log2
+    fo.write_proposals(os.path.join(tempfile.mkdtemp(), "q.csv"), [kay], [(kay, g6)])                              # a fallback match is never pre-approved
     # (d) the review file and replace_songs: only approve = y rows are used; fan lyric videos from an official channel come pre-approved, covers do not
     d = tempfile.mkdtemp(); path = os.path.join(d, "p.csv")
     fo.write_proposals(path, [old, cov], [(old, g), (cov, g2)])
