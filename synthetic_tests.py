@@ -850,6 +850,14 @@ def pool_duplicates_test():
     assert pdp.keep_rank("Hold On (Official Audio)", 1) > pdp.keep_rank("Hold On", 999) > pdp.keep_rank("Hold On (Lyrics)", 10 ** 9)
     assert pdp.keep_rank("LEE HI - M/V", 1) > pdp.keep_rank("LEE HI - Lyrics", 5) and pdp.keep_rank("Song - Visualizer", 5) < pdp.keep_rank("Song", 1)
     assert pdp.title_share("Hold On (Official Audio)", "Artist - Hold On") == 1.0 and pdp.title_share("x", "") == 0.0
+    # the artist's own channel beats a curator channel with more views (11 Oct: "Malcolm Todd - Earrings" kept from "Minimal Sounds")
+    w2 = np.stack([base, base + 0.01 * rng.normal(size=64), base + 0.01 * rng.normal(size=64)])
+    P2 = dict(key=["youtube_x0", "youtube_x1", "youtube_x2"], whole=w2, listens=np.array([900000.0, 1200.0, 50000.0]),
+              title=["Malcolm Todd - Earrings", "Malcolm Todd - Earrings", "Earrings (Lyric Video)"],
+              artist=["minimal sounds", "malcolm todd", "lyrics co"], artist_name=["Minimal Sounds", "Malcolm Todd", "Lyrics Co"])
+    _, cl2 = pdp.analyse(P2)
+    assert len(cl2) == 1 and cl2[0]["keep"] == 1 and sorted(cl2[0]["drop"]) == [0, 2], cl2
+    assert pdp.own_channel("Aioz - Topic", ["Aioz - 放你走吧"]) and not pdp.own_channel("Minimal Sounds", ["Malcolm Todd - Earrings"]) and not pdp.own_channel("X", ["Song"])
     # marking: only the dropped copies get i_agree = n, the keeper and the sound-alike do not; a log line is written; a .bak copy exists
     d = tempfile.mkdtemp()
     with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:

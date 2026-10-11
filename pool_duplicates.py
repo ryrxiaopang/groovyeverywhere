@@ -12,7 +12,7 @@ A pair is
     their words (brackets and "feat." parts removed first), and
   * a "check by ear" pair when the sound is that close but the titles differ (a different song on the same record, or a retitled upload). These are
     listed but never marked.
-Copies are grouped (A = B, B = C makes one group of three). Copy kept: an official-looking title ("Official Audio", "M/V") first, a plain title next, a lyric /
+Copies are grouped (A = B, B = C makes one group of three). Copy kept: an official-looking title ("Official Audio", "M/V") and/or an upload on the artist's own channel first, a plain title next, a lyric /
 visualiser / subtitled re-upload last; the most-viewed copy breaks ties.
 
 --apply changes the pool, and the Sound scale is refitted whenever the pool changes. Do not apply it between sending a round's sheets and scoring
@@ -38,6 +38,23 @@ def keep_rank(title, views):
     """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, then views."""
     t = title or ""
     return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0), views)
+
+
+def _left_names(titles):
+    """The 'Artist' part of every 'Artist - Song' title (brackets removed), as written."""
+    out = []
+    for t in titles:
+        m = re.match(r"^\s*(.+?)\s+[-\u2013\u2014]\s+.+$", re.sub(r"[\(\[\{][^\)\]\}]*[\)\]\}]", " ", t or ""))
+        if m:
+            out.append(m.group(1).strip())
+    return out
+
+
+def own_channel(channel, titles):
+    """True when the uploader looks like the artist itself ('Malcolm Todd', 'Aioz - Topic', 'JVKEVEVO'): its name matches the 'Artist' part of a title in the group."""
+    from find_official_versions import channel_matches
+    names = _left_names(titles)
+    return bool(names) and channel_matches(channel, *names)
 
 
 def title_share(a, b):
@@ -86,7 +103,12 @@ def analyse(P):
                     groups[find(x)].append(x)
     clusters = []
     for members in groups.values():
-        keep = max(members, key=lambda i: (keep_rank(P["title"][i], views[i]), P["key"][i]))
+        titles = [P["title"][i] for i in members]
+        # an upload on the artist's own channel counts like an official title (+1), so a curator / lyric channel does not win on views alone
+        def rank(i):
+            (score, v) = keep_rank(P["title"][i], views[i])
+            return (score + (1 if own_channel(P["artist_name"][i], titles) else 0), v), P["key"][i]
+        keep = max(members, key=rank)
         clusters.append(dict(keep=keep, drop=[i for i in members if i != keep], members=sorted(members)))
     clusters.sort(key=lambda c: -len(c["members"]))
     return pairs, clusters
