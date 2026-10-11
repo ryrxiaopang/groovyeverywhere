@@ -189,6 +189,29 @@ def load_tags():
     return {r["key"]: (r["status"], r["reasons"], float(r["views"] or 0)) for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
 
 
+def norm_name(s):
+    """Channel / artist name for comparing: accents folded, lower case, punctuation gone ('clouds.rap' = 'Clouds Rap', 'kanegi.' = 'kanegi')."""
+    import unicodedata
+    s = "".join(c for c in unicodedata.normalize("NFKD", s or "") if not unicodedata.combining(c)).lower()
+    return " ".join(re.sub(r"[^\w]+", " ", s.replace("_", " ")).split())
+
+
+def load_name_list(name, here=HERE):
+    """Set of normalised names from a text file in the project folder (one per line, # starts a comment); empty if the file is missing."""
+    p = os.path.join(here, name)
+    if not os.path.exists(p):
+        return set()
+    with open(p, encoding="utf-8-sig") as f:
+        return {norm_name(l.split("#")[0]) for l in f if l.split("#")[0].strip()} - {""}
+
+
+def load_channels(res=RES):
+    """key -> channel name, from results/ai_tags.csv ({} if tag_ai.py has not been run)."""
+    if not os.path.exists(OUT):
+        return {}
+    return {r["key"]: r.get("channel") or "" for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
+
+
 def ai_policy(status, views, policy):
     """True when the song should be KEPT under the policy ('show', 'hide-low' or 'hide')."""
     if status == "none" or policy == "show":

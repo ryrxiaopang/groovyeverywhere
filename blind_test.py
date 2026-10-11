@@ -84,8 +84,9 @@ def pool():
 def apply_quality(P):
     """Keep only songs from the sites in HG_POOL_SOURCES (default: youtube), that a person can really open (results/pool_links.csv from check_pool_links.py), give each the best verified link
     (a YouTube alternative from results/link_alternatives.csv when the original page is gone), and apply the AI-music policy
-    (results/ai_tags.csv from tag_ai.py; env HG_AI_POLICY = show / hide-low (default) / hide). P['ai'] holds each song's AI status
-    ('confirmed', 'likely' or 'none'). Without those files nothing is filtered."""
+    (results/ai_tags.csv from tag_ai.py; env HG_AI_POLICY = hide (default since 11 Oct: every AI-tagged song goes) / hide-low / show), then ai_block.txt
+    (every song of a channel the user flagged as AI) and ai_keep.txt (artists or channels that always stay, whatever the tags say). P['ai'] holds each
+    song's AI status ('confirmed', 'likely' or 'none'). Without those files nothing is filtered."""
     import tag_ai
     n = len(P["key"])
     links, alts = {}, {}
@@ -95,7 +96,9 @@ def apply_quality(P):
     if os.path.exists(ap):
         alts = {r["key"]: r["youtube_link"] for r in csv.DictReader(open(ap, encoding="utf-8-sig")) if r.get("youtube_link")}
     tags = tag_ai.load_tags()
-    policy = os.environ.get("HG_AI_POLICY", "hide-low")
+    policy = os.environ.get("HG_AI_POLICY", "hide")        # 11 Oct: every AI-tagged song leaves the pool (before: hide-low kept those with 10,000+ views)
+    channels, keep_names, block_names = tag_ai.load_channels(), tag_ai.load_name_list("ai_keep.txt"), tag_ai.load_name_list("ai_block.txt")
+    artist_names = P.get("artist_name") or [""] * n
     keep, best, ai = np.ones(n, bool), list(P["link"]), [""] * n
     wrong_site = 0
     if POOL_SOURCES and "all" not in POOL_SOURCES:        # round 2: only the sites in HG_POOL_SOURCES (default youtube) are recommended
@@ -105,7 +108,7 @@ def apply_quality(P):
     if not links:                                          # no pool_links.csv here: use the other link checker's results/links.csv if it exists
         from results_index import best_link
         best = [best_link(k, l) for k, l in zip(P["key"], P["link"])]
-    no_link = n_ai = 0
+    no_link = n_ai = n_block = n_kept = 0
     for i, k in enumerate(P["key"]):
         if not keep[i]:                                   # another site: no link or AI check needed
             continue
@@ -122,7 +125,13 @@ def apply_quality(P):
             best[i] = alts[k]
         st, _, views = tags.get(k, ("none", "", 0.0))
         ai[i] = st
-        if not tag_ai.ai_policy(st, views, policy):
+        chan = tag_ai.norm_name(channels.get(k, ""))
+        if keep_names & {chan, tag_ai.norm_name(artist_names[i])} - {""}:   # ai_keep.txt: an artist or channel the user chose to keep always stays
+            n_kept += int(st != "none" or chan in block_names)
+            continue
+        if chan and chan in block_names:                                     # ai_block.txt: a channel the user flagged as AI: all its songs go
+            keep[i] = False; n_block += 1
+        elif not tag_ai.ai_policy(st, views, policy):
             keep[i] = False; n_ai += 1
     P["link"], P["ai"] = best, ai
     for key_, v in list(P.items()):
@@ -130,9 +139,10 @@ def apply_quality(P):
             P[key_] = v[keep]
         elif isinstance(v, list) and len(v) == n:
             P[key_] = [x for x, m in zip(v, keep) if m]
-    if no_link or n_ai or wrong_site:
+    if no_link or n_ai or wrong_site or n_block:
         print(f"  quality filter: {wrong_site} songs left out (not from {', '.join(POOL_SOURCES)}), {no_link} songs left out "
-              f"(no working link anywhere), {n_ai} AI-generated songs left out (policy {policy}); {int(keep.sum())} kept")
+              f"(no working link anywhere), {n_ai} AI-generated songs left out (policy {policy}), {n_block} left out because their channel is in ai_block.txt"
+              + (f", {n_kept} AI-looking songs kept because the artist is in ai_keep.txt" if n_kept else "") + f"; {int(keep.sum())} kept")
     return P
 
 

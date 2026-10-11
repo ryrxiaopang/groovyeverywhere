@@ -1,0 +1,4 @@
+# Artists or channels that must NEVER be removed as AI music, whatever the tagger says (one per line; punctuation and case do not matter).
+# Checked against the song's channel and its artist name. This list wins over the tags and over ai_block.txt.
+kanegi
+clouds.rap

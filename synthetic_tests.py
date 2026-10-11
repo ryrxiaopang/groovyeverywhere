@@ -1025,6 +1025,63 @@ def official_versions_test():
     print("   covers and fan lyric videos are spotted, the original artist's own upload is chosen over re-uploads, covers, wrong lengths and the old video, nothing is approved for a cover unless you do it")
 
 
+def ai_removal_test():
+    """Every AI-tagged song leaves the pool; ai_block.txt takes whole channels; ai_keep.txt wins over both; ai_channels.py previews and writes the block list."""
+    print("\n19. REMOVING AI SONGS: TAGS, BLOCKED CHANNELS, KEPT ARTISTS")
+    import blind_test as bt, tag_ai, ai_channels as ac, tempfile, os, io, contextlib, csv
+    keys = [f"youtube_{c}" for c in "abcdefgh"]
+    chan = dict(zip(keys, ["Real Band", "Suno Radio", "Suno Radio", "Suno Radio", "kanegi.", "kanegi.", "Clouds.Rap", "Other"]))
+    tags = dict(zip(keys, [("none", "", 500.0), ("confirmed", "", 90000.0), ("likely", "", 20.0), ("none", "", 40.0), ("likely", "", 10.0), ("none", "", 5.0),
+                           ("confirmed", "", 3.0), ("likely", "", 50000.0)]))
+    def make_P():
+        return dict(key=list(keys), source=["youtube"] * 8, link=["l"] * 8, listens=np.arange(8.0), artist_name=[chan[k] for k in keys])
+    saved = (tag_ai.load_tags, tag_ai.load_channels, tag_ai.load_name_list, os.environ.get("HG_AI_POLICY"))
+    try:
+        tag_ai.load_tags, tag_ai.load_channels = (lambda: tags), (lambda res=None: chan)
+        lists = {"ai_keep.txt": {"kanegi", "clouds rap"}, "ai_block.txt": {"suno radio"}}
+        tag_ai.load_name_list = lambda name, here=None: lists[name]
+        os.environ.pop("HG_AI_POLICY", None)
+        P = bt.apply_quality(make_P())
+        # default policy hide: tagged songs go (b, c, h), the blocked channel's UNTAGGED song d goes too, the kept artists stay (e, f, g) although tagged, a and untagged others stay
+        assert P["key"] == ["youtube_a", "youtube_e", "youtube_f", "youtube_g"], P["key"]
+        os.environ["HG_AI_POLICY"] = "hide-low"                                                     # the old policy: tagged songs with 10,000+ views stay, the block list still applies
+        P2 = bt.apply_quality(make_P())
+        assert P2["key"] == ["youtube_a", "youtube_e", "youtube_f", "youtube_g", "youtube_h"], P2["key"]   # b, c, d are on the blocked channel (gone even under hide-low); h has 50,000 views and stays
+        lists["ai_block.txt"] = set()
+        os.environ["HG_AI_POLICY"] = "hide-low"
+        assert "youtube_h" in bt.apply_quality(make_P())["key"]                                       # no block list: a 50,000-view tagged song stays under hide-low
+    finally:
+        tag_ai.load_tags, tag_ai.load_channels, tag_ai.load_name_list = saved[:3]
+        if saved[3] is None:
+            os.environ.pop("HG_AI_POLICY", None)
+        else:
+            os.environ["HG_AI_POLICY"] = saved[3]
+    # the channel tool
+    d = tempfile.mkdtemp(); sheet = os.path.join(d, "sheet.csv")
+    with open(sheet, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["item", "title", "channel", ac.ANSWER_COL])
+        for ch_, a in (("Suno Radio", "y"), ("Suno Radio", "y"), ("kanegi.", "y"), ("Real Band", "n"), ("Mixed Channel", "y"), ("Mixed Channel", "n"), ("Quiet", "u"), ("", "y")):
+            w.writerow(["i", "t", ch_, a])
+    flags = ac.flagged_channels(sheet)
+    assert flags["suno radio"] == dict(name="Suno Radio", y=2, n=0, unsure=0) and flags["mixed channel"]["y"] == 1 and flags["mixed channel"]["n"] == 1 and "" not in flags
+    rows = [dict(key=k, site="youtube", title=f"t{k}") for k in keys]
+    pool = ac.by_channel(rows, chan, tags)
+    assert pool["suno radio"]["tagged"] == 2 and pool["suno radio"]["untagged"] == 1 and pool["suno radio"]["untagged_keys"] == ["youtube_d"]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        blocked = ac.preview(flags, pool, {"kanegi"}, {k: (f"title {k}", False) for k in keys})
+    out = buf.getvalue()
+    assert blocked == ["suno radio", "mixed channel"] or blocked == ["mixed channel", "suno radio"], blocked        # kanegi. is kept: not blocked
+    assert "KEPT (ai_keep.txt)" in out and "you also answered n" in out and "1 more songs" in out.replace("would remove 1 more", "1 more songs"), out
+    blockfile = os.path.join(d, "ai_block.txt"); open(blockfile, "w").write("# header\nSuno Radio\n")
+    assert ac.write_block(["suno radio", "New Channel"], blockfile) == 1 and open(blockfile).read().count("Suno Radio") == 1
+    assert ac.write_block(["new channel"], blockfile) == 0
+    assert tag_ai.norm_name("Clouds.Rap") == tag_ai.norm_name("clouds rap") == "clouds rap" and tag_ai.norm_name("kanegi.") == "kanegi"
+    shown = ac.suggest(pool, {"kanegi"}, min_songs=3, min_share=0.5)
+    assert shown == [("Suno Radio", 3, 2, 1)], shown
+    print("   all tagged AI songs leave by default; a blocked channel loses every song, tagged or not; kept artists stay; the tool previews, warns about mixed answers and writes the list")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1045,3 +1102,4 @@ if __name__ == "__main__":
     ai_tag_check_test()
     replace_songs_test()
     official_versions_test()
+    ai_removal_test()

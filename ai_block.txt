@@ -1,0 +1,3 @@
+# Channels flagged as AI music: EVERY song from them leaves the recommendation pool (one channel name per line; punctuation and case do not matter).
+# Made from your answers in ai_check_sheet.csv by:  python ai_channels.py --from-sheet ai_check_sheet.csv --write
+# ai_keep.txt wins over this list.

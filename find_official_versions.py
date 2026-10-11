@@ -28,6 +28,7 @@ from results_index import RES
 CACHE = os.path.join(RES, "official_search_cache.json")
 CANDIDATES = os.path.join(RES, "cover_candidates.csv")
 PROPOSALS = os.path.join(RES, "official_proposals.csv")
+UNRESOLVED = os.path.join(RES, "official_unresolved.csv")
 
 FAN_LYRIC = re.compile(r"\blyrics?\b|lyric video|lyrical|visuali[sz]er|\bwith lyrics\b|vietsub|engsub|sub espa|\blirik\b|\bletra\b|"
                        r"가사|歌詞|歌词|動態|动态", re.I)
@@ -155,6 +156,18 @@ def find_official(c, search, deezer=None):
     return None
 
 
+def write_unresolved(path, cands, found):
+    """The candidates that got no proposal, with the artist / song guesses that were searched, so the rules can be judged."""
+    done = {c["key"] for c, _ in found}
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["kind", "key", "title", "channel", "guesses searched", "link"])
+        for c in cands:
+            if c["key"] not in done:
+                guesses = "; ".join(f"{a} / {s}" for a, s in candidate_pairs(c["title"], c["pool_artist"], c["channel"])) or "(no artist guess)"
+                w.writerow([c["kind"], c["key"], c["title"], c["channel"], guesses, c["link"]])
+
+
 def write_proposals(path, cands, found):
     cols = ["approve", "kind", "old_key", "old_title", "old_channel", "old_views", "old_link", "artist", "song",
             "new_link", "new_title", "new_channel", "new_views", "new_seconds", "official_channel", "note"]
@@ -215,8 +228,10 @@ def main():
         if i % 25 == 0:
             print(f"  {i} / {len(todo)} searched, {len(found)} proposals", flush=True)
     write_proposals(PROPOSALS, todo, found)
+    write_unresolved(UNRESOLVED, todo, found)
     off = sum(1 for _, g in found if g["official"])
     print(f"\n{len(found)} proposals ({off} from the artist's own or a Topic channel, {len(found) - off} from other channels); {none} with no verified original.")
+    print(f"The {none} without a verified original are listed in {UNRESOLVED} with the guesses searched.")
     print(f"Review {PROPOSALS}: put y in `approve` for rows you accept (rows from the artist's own channel are pre-approved for fan lyric videos), then\n"
           f"  python replace_songs.py --proposals results/official_proposals.csv")
 
