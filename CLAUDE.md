@@ -195,7 +195,12 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   28 untagged under 10,000, 30 untagged 10,000+, shuffled) and `results/ai_check_key.csv` (do not open it). The listener fills `ai? (y / n / unsure)` (~90 min); `python ai_tag_check.py --score ai_check_sheet.csv`
   prints, scaled to the real pool with 95% ranges: share of LIKELY / CONFIRMED / UNTAGGED songs that are really AI, how much AI music the tagger finds, how many real songs the hide-low policy removes, and
   PASS / FAIL on marks fixed before listening (likely >= 70%, confirmed >= 90%, untagged AI <= 10%). Unsure answers are left out of the main numbers and bounded separately. The listener's judgement is the reference.
-* Offline check: `synthetic_tests.py` section 9, section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
+* **AI-tagger result (11 Oct, 99 songs listened to):** likely 28 of 29 really AI (no false alarms among under-10,000-view songs: 20 of 20), confirmed 12 of 12, untagged under 10,000 views 8 of 28 (29%, 95% range 15-47%),
+  untagged 10,000+ views 0 of 30. Marks all PASS, but the tagger finds only about 77% of AI music (59-85%): about 380 AI songs (240-783) remain among 5,658 pool songs. Safe filter, incomplete.
+* **Replacing songs (11 Oct):** `python replace_songs.py ai_check_sheet.csv` (preview) / `--apply` reads comments "replace with <youtube link>" in a listening sheet's `how you decided` column (the old song comes
+  from `listen_here`), adds the new video to the same pool list and style group (metadata via the YouTube API), marks the old song `i_agree = n`, logs both in `pool_audit_log.csv`. Then analyse
+  (`run_tests.py --list pool_youtube.csv`) and run `pool_duplicates.py`. Does not touch sent friend sheets or round-2 scoring (which reads captures and tags, not the pool).
+* Offline check: `synthetic_tests.py` section 9, section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

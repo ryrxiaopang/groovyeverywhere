@@ -922,6 +922,54 @@ def ai_tag_check_test():
     print("   stratified blind sample (tags never shown), answers read back per group, estimates scaled to the pool, marks give PASS or FAIL")
 
 
+def replace_songs_test():
+    """replace_songs.py: 'replace with <link>' comments become pool replacements; the old song is marked n, the new one joins the same list and style."""
+    print("\n17. REPLACING SONGS BY AN OFFICIAL UPLOAD")
+    import replace_songs as rs, tempfile, os, csv
+    d = tempfile.mkdtemp()
+    sheet = os.path.join(d, "sheet.csv")
+    rows = [("ai-012", "https://www.youtube.com/watch?v=TcPwpEHcKLA", "Henry Lau live TRAP", "replace song with https://www.youtube.com/watch?v=mshfI4IzcII"),
+            ("ai-017", "https://www.youtube.com/watch?v=AWBO0VF08v8", "Honey, There's No Time", "replace song with https://www.youtube.com/watch?v=UsqYXbHYkEI"),
+            ("ai-042", "https://www.youtube.com/watch?v=qv5eFIjvR-A", "me without you", "replace with https://youtu.be/nHZdYsXYOhA?t=3"),
+            ("ai-050", "https://www.youtube.com/watch?v=aaaaaaaaaaa", "no comment here", ""),
+            ("ai-051", "https://www.youtube.com/watch?v=bbbbbbbbbbb", "a note, not a replacement", "sounds like a real band"),
+            ("ai-052", "https://www.youtube.com/watch?v=ccccccccccc", "replace but no link", "replace this one"),
+            ("ai-053", "https://www.youtube.com/watch?v=ddddddddddd", "same video", "replace with https://www.youtube.com/watch?v=ddddddddddd")]
+    with open(sheet, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["item", "listen_here", "title", "channel", "ai? (y / n / unsure)", rs.COMMENT_COL])
+        for item, link, title, c in rows:
+            w.writerow([item, link, title, "ch", "", c])
+    pairs, problems = rs.pairs_from_sheet(sheet)
+    assert pairs == [("ai-012", "TcPwpEHcKLA", "mshfI4IzcII", "Henry Lau live TRAP"), ("ai-017", "AWBO0VF08v8", "UsqYXbHYkEI", "Honey, There's No Time"),
+                     ("ai-042", "qv5eFIjvR-A", "nHZdYsXYOhA", "me without you")], pairs
+    assert len(problems) == 2 and any("no YouTube link" in p for p in problems) and any("same video" in p for p in problems), problems
+    # a pool list with the three old songs (one already marked n elsewhere is not needed); the plan and the apply
+    cols = ["source", "track_id", "title", "artist", "duration", "listens", "licence", "listen", "site_genre", "group", "i_agree"]
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(cols)
+        w.writerow(["youtube", "TcPwpEHcKLA", "Henry Lau live TRAP", "Aaron", 200, 900, "youtube-standard", "u", "khiphop", "yt_khiphop", ""])
+        w.writerow(["youtube", "AWBO0VF08v8", "Honey, There's No Time", "Strange girl The", 180, 40, "youtube-standard", "u", "indierock", "yt_indierock", ""])
+        w.writerow(["youtube", "qv5eFIjvR-A", "me without you", "tatata_ash", 170, 12, "youtube-standard", "u", "indiepop", "yt_indiepop", ""])
+        w.writerow(["youtube", "UsqYXbHYkEI", "Honey, There's No Time (official)", "Feng Suave", 180, 5000, "youtube-standard", "u", "indierock", "yt_indierock", ""])   # new video ALREADY in the pool
+    lists = rs.load_lists(d)
+    details = {"mshfI4IzcII": dict(title="Henry Lau - TRAP", channel="Henry Lau - Topic", duration=210, views=3_000_000, licence="youtube-standard"),
+               "UsqYXbHYkEI": dict(title="x", channel="Feng Suave", duration=180, views=5000, licence="youtube-standard"),
+               "nHZdYsXYOhA": dict(title="me without you", channel="Official Artist", duration=175, views=80_000, licence="youtube-standard")}
+    acts = rs.plan(pairs, lists, details)
+    assert [x["new_already"] for x in acts] == [False, True, False] and all(x["list"] == "pool_youtube.csv" for x in acts)
+    assert acts[0]["row"]["group"] == "yt_khiphop" and acts[2]["row"]["group"] == "yt_indiepop" and acts[0]["row"]["artist"] == "Henry Lau"   # '- Topic' removed, style kept
+    log = os.path.join(d, "audit.csv")
+    assert rs.apply_plan(acts, lists, d, log) == (3, 2)                                                                  # 3 old songs marked, 2 new added (one was already there)
+    out = list(csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig")))
+    assert sorted(r["track_id"] for r in out if r["i_agree"] == "n") == ["AWBO0VF08v8", "TcPwpEHcKLA", "qv5eFIjvR-A"]
+    assert [r["track_id"] for r in out].count("UsqYXbHYkEI") == 1 and {"mshfI4IzcII", "nHZdYsXYOhA"} <= {r["track_id"] for r in out}
+    assert os.path.exists(os.path.join(d, "pool_youtube.csv.bak")) and "replaced by official upload youtube_mshfI4IzcII" in open(log, encoding="utf-8-sig").read()
+    lists2 = rs.load_lists(d)                                                                                              # a second run changes nothing
+    assert rs.apply_plan(rs.plan(pairs, lists2, details), lists2, d, log) == (0, 0)
+    assert rs.video_id("https://youtu.be/mshfI4IzcII?t=3") == "mshfI4IzcII" and rs.video_id("no link") is None
+    print("   the three 'replace' comments become replacements, notes and bad rows are reported, the old song is marked n, the new one keeps its style, a second run changes nothing")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -940,3 +988,4 @@ if __name__ == "__main__":
     list_d_and_rule_test()
     pool_duplicates_test()
     ai_tag_check_test()
+    replace_songs_test()
