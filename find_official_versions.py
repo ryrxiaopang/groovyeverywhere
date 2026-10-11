@@ -38,7 +38,7 @@ OFFICIAL = re.compile(r"official", re.I)
 LYRIC_CHANNEL = re.compile(r"lyrics?|lyric|letras|lirik|가사", re.I)
 # a recording that is NOT the studio original (live, session, translation, dated fan recording): never proposed as the replacement
 ALTERED = re.compile(r"\b(session|sessions|concert|tour|performance|fancam|traducci\w*|tradu[c\u00e7][a\u00e3]o|espa[n\u00f1]ol|subtitulad\w*|legendado|vietsub|engsub|"
-                     r"live|unplugged|remix|sped|slowed|8d|nightcore|reaction)\b|\u73fe\u5834|\u73b0\u573a|\u6f14\u5531\u6703|\u6f14\u5531\u4f1a|\ub77c\uc774\ube0c|\u30e9\u30a4\u30d6|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\b\d{6}\b", re.I)
+                     r"live|unplugged|acoustic|remix|sped|slowed|8d|nightcore|reaction|choreography|fan submission)\b|stage ?(cam|cut|mix|clip|performance)|dance practice|\u73fe\u5834|\u73b0\u573a|\u6f14\u5531\u6703|\u6f14\u5531\u4f1a|\ub77c\uc774\ube0c|\u30e9\u30a4\u30d6|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\b\d{6}\b", re.I)
 CHANNELLIKE = re.compile(r"\b(music|records?|radio|tv|lyrics?|vibes?|sounds?|studio|network|official|topic|channel|collective|nation)\b", re.I)
 
 
