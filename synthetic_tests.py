@@ -829,6 +829,48 @@ def list_d_and_rule_test():
     print("   D = most viewed of the same style (one per artist, copies blocked); the verdict says SUPPORTED, CONTRADICTED, NOT CLEAR or CANNOT JUDGE as the rule says")
 
 
+def pool_duplicates_test():
+    """pool_duplicates.py: same-recording uploads are grouped (most-viewed kept), sound-alike songs with other titles are only listed, nothing else is touched."""
+    print("\n15. DUPLICATE UPLOADS IN THE POOL")
+    import pool_duplicates as pdp, tempfile, os, csv
+    rng = np.random.default_rng(4)
+    base, other = rng.normal(size=64), rng.normal(size=64)
+    whole = np.stack([base, base + 0.01 * rng.normal(size=64), base + 0.01 * rng.normal(size=64), other, other + 0.01 * rng.normal(size=64)]
+                     + [rng.normal(size=64) for _ in range(3)])
+    P = dict(key=[f"youtube_t{i}" for i in range(8)], whole=whole, listens=np.array([100.0, 5000.0, 50.0, 10.0, 20.0, 7.0, 8.0, 9.0]),
+             title=["Hold On", "Hold On (Official Audio)", "Artist - Hold On", "Other Song", "Totally Different Title", "Aaa", "Bbb", "Ccc"],
+             artist=["a", "a", "label", "b", "b", "c", "d", "e"], artist_name=["A", "A", "Label", "B", "B", "C", "D", "E"])
+    pairs, clusters = pdp.analyse(P)
+    assert len(clusters) == 1, clusters
+    c = clusters[0]
+    assert c["members"] == [0, 1, 2] and c["keep"] == 1 and sorted(c["drop"]) == [0, 2], c        # the 5,000-view upload is kept
+    cats = sorted((p["a"], p["b"], p["category"]) for p in pairs)
+    assert (3, 4, "check by ear") in cats and (0, 1, "duplicate") in cats and (0, 2, "duplicate") in cats and (1, 2, "duplicate") in cats, cats
+    assert not any(p["a"] >= 5 or p["b"] >= 5 for p in pairs)                                         # the unrelated songs are in no pair
+    assert pdp.title_share("Hold On (Official Audio)", "Artist - Hold On") == 1.0 and pdp.title_share("x", "") == 0.0
+    # marking: only the dropped copies get i_agree = n, the keeper and the sound-alike do not; a log line is written; a .bak copy exists
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["source", "track_id", "title", "artist", "i_agree"])
+        for i in range(8):
+            w.writerow(["youtube", f"t{i}", P["title"][i], P["artist_name"][i], ""])
+    log = os.path.join(d, "audit.csv")
+    assert pdp.apply_marks(P, clusters, here=d, log=log) == 2
+    rows = list(csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig")))
+    assert [r["track_id"] for r in rows if r["i_agree"] == "n"] == ["t0", "t2"] and os.path.exists(os.path.join(d, "pool_youtube.csv.bak"))
+    assert "duplicate upload of youtube_t1" in open(log, encoding="utf-8-sig").read()
+    assert pdp.apply_marks(P, clusters, here=d, log=log) == 0                                          # a second run changes nothing
+    # the sheet check: two copies on the SAME friend's sheets are reported (titles only), another friend's single copy is not
+    kc = os.path.join(d, "key.csv")
+    with open(kc, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f); w.writerow(["item", "friend", "key", "lists"])
+        for fr, k in (("Isaac", "youtube_t0"), ("Isaac", "youtube_t1"), ("Felicia", "youtube_t2"), ("Felicia", "youtube_t5")):
+            w.writerow([f"{fr}-1", fr, k, "A"])
+    tw = pdp.sheet_twins(P, clusters, kc)
+    assert tw == {"Isaac": [("Hold On", "Hold On (Official Audio)")]}, tw
+    print("   a triple upload is grouped and the most-viewed copy kept; sound-alikes with other titles are only listed; marking is idempotent; the sheet check shows titles only")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -845,3 +887,4 @@ if __name__ == "__main__":
     youtube_scale_test()
     clustered_range_test()
     list_d_and_rule_test()
+    pool_duplicates_test()

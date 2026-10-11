@@ -186,7 +186,12 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   H1 A beats C, H2 A beats D, H3 B beats A; SUPPORTED = difference of at least +10 points, 95% range (resampling friends) entirely above 0, at least 4 friends who rated both
   lists and 8 rated songs per list. `blind_test.score()` prints the verdict (`rule_verdict`, constants `RULE_*`): do not change them after looking at results. Score
   round 2 by passing only the round-2 sheets: `python blind_test.py --score <those files>`.
-* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
+* **Duplicate uploads in the pool (11 Oct):** `python pool_duplicates.py` (read-only report: `results/pool_duplicate_pairs.csv`, `results/pool_duplicate_clusters.csv`) groups songs with plain
+  Sound cosine >= 0.97 AND mostly the same title words (the same recording uploaded twice, e.g. artist and lyric channel); the most-viewed copy is kept. Sound-alikes with other
+  titles are listed as 'check by ear' and never marked. `--check-sheets` counts twins on each friend's sheets (titles only, never the lists); `--apply` marks the dropped copies
+  `i_agree = n` and logs them in `pool_audit_log.csv`. `--apply` changes the pool (and so refits the Sound scale): do it before the next round's lists, never between sending a
+  round and scoring it.
+* Offline check: `synthetic_tests.py` section 9, section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
