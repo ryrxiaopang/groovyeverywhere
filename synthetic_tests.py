@@ -669,6 +669,55 @@ def deezer_discover_test():
         dd.Deezer.get, dd.Deezer.save = _get, _save
 
 
+def seen_songs_test():
+    """Round 2 leaves out songs already recommended to the same friend (any list), without touching other friends or the genre pick."""
+    print("\n11. SONGS ALREADY RECOMMENDED ARE LEFT OUT")
+    import blind_test as bt, tag_ai, json, tempfile, os
+    # (a) the snapshot: only THIS friend's captures, all three lists
+    d = tempfile.mkdtemp()
+    def cap(name, friend, A, B, C):
+        json.dump(dict(friend=friend, A=[dict(key=k) for k in A], B=[dict(key=k) for k in B], C=[dict(key=k) for k in C]),
+                  open(os.path.join(d, name), "w"))
+    cap("1.json", "Felicia", ["youtube_1"], ["youtube_2"], ["youtube_3"])
+    cap("2.json", "Isaac", ["youtube_9"], [], [])
+    open(os.path.join(d, "bad.json"), "w").write("{not json")
+    assert bt.previously_recommended("Felicia", d) == {"youtube_1", "youtube_2", "youtube_3"}
+    assert bt.previously_recommended("Nobody", d) == set()
+    # (b) make_lists with a synthetic pool: the excluded songs appear in no list, and the lists are still full
+    rng = np.random.default_rng(0)
+    n = 300
+    P = dict(key=[f"youtube_{i}" for i in range(n)], source=["youtube"] * n, artist=[f"art{i}" for i in range(n)],
+             artist_name=[f"Artist {i}" for i in range(n)], group=["yt_pop"] * n, title=[f"Song {i}" for i in range(n)],
+             link=[f"https://x/{i}" for i in range(n)], listens=rng.integers(100, 1_000_000, n).astype(float),
+             whole=rng.normal(size=(n, 16)), parts=rng.normal(size=(n, 3, 16)), va_vg=rng.normal(size=(n, 2)), va_mc=rng.normal(size=(n, 2)),
+             inst=rng.random((n, 40)), bpm=rng.uniform(70, 160, n), confidence=rng.random(n), steadiness=rng.random(n), busyness=rng.random(n))
+    P["from"] = "synthetic"
+    for k in ("whole", "parts", "va_vg", "va_mc", "inst", "bpm", "confidence", "steadiness", "busyness", "listens"):
+        P[k] = np.asarray(P[k], float)
+    _load, _pool, _win = tag_ai.load_tags, bt._pool, bt.window_sound
+    try:
+        tag_ai.load_tags = lambda: {}
+        P = bt.apply_quality(P)
+        bt._attach_parts(P)
+        P["scale"] = None; P["whole_z"] = P["whole"]; P["parts_z"] = P["parts"]
+        bt._pool = bt._finish(P)
+        bt.window_sound = lambda q, P, scaled=True: None
+        j = 10
+        q = dict(whole=P["whole"][j] + 0.3 * rng.normal(size=16), va_vg=P["va_vg"][j], va_mc=P["va_mc"][j], inst=P["inst"][j],
+                 bpm=P["bpm"][j], confidence=P["confidence"][j], steadiness=P["steadiness"][j], busyness=P["busyness"][j])
+        first = bt.make_lists(q, "mood+rhythm", seed=1)
+        shown = {s["key"] for L in "ABC" for s in first[L]}
+        second = bt.make_lists(q, "mood+rhythm", seed=1, exclude=shown)
+        again = {s["key"] for L in "ABC" for s in second[L]}
+        assert shown and not (shown & again), shown & again
+        assert all(len(second[L]) == bt.K for L in "ABC") and second["excluded_as_seen"] == len(shown)
+        assert second["genre_group"] == first["genre_group"]                    # the genre pick ignores the exclusion
+        assert bt.make_lists(q, "mood+rhythm", seed=1)["excluded_as_seen"] == 0   # no exclude = nothing left out
+    finally:
+        tag_ai.load_tags, bt._pool, bt.window_sound = _load, _pool, _win
+    print("   the snapshot reads one friend's earlier lists; excluded songs appear in no list; lists stay full; the genre pick is unchanged")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -681,3 +730,4 @@ if __name__ == "__main__":
     near_copy_test()
     round2_test()
     deezer_discover_test()
+    seen_songs_test()

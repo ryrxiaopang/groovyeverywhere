@@ -170,7 +170,10 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   of the top tracks' album genres; 'Asian Music' split by writing) and not already in the pool, caps each genre (`DEFAULT_QUOTA`), and writes a sources
   file for `boost_artists.sh` + `results/deezer_selected.csv`. Use `--dry-run` first; `deezer_skip.txt` vetoes names. Deezer cannot be reached from
   the cloud sandbox, so it was only tested with canned answers (section 10): the first real run may need small fixes (check the printed counts).
-* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer) (needs no Essentia; the earlier sections do).
+* **No repeats across rounds (11 Oct):** `blind_test.previously_recommended(friend)` = every song already in any list of that friend's captures in `results/blind/`;
+  `build_friend_lists.py` takes this snapshot before it writes anything and passes it to `make_lists(exclude=...)`, so A, B and C never repeat a song
+  (`--no-exclude` turns it off). The closest-match genre for list C ignores the exclusion. Lists per round: 3 songs each (K = 3, user decision).
+* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

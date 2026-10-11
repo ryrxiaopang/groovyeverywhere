@@ -364,17 +364,21 @@ def near_copy_mask(P, plain, start_title="", start_artist=""):
 
 
 def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False, start_title="", start_artist="",
-               rank=None):
+               rank=None, exclude=None):
     """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
     genre group of the closest Sound match. Each list: K songs, 1 per artist; rank "match" (round 2, default via HG_RANK) = best
     match first, popularity ignored; rank "obscure" (round 1) = least popular good matches first.
     Quality guard: A and B never pick a song from the least-played `skip_least`% of its own site (0 = off), so the
     very least-played, often roughest, uploads do not win automatically. use_favourites keeps FMA songs that someone
-    favourited even when few played them (needs fma/tracks.csv). C is the random control and is not filtered."""
+    favourited even when few played them (needs fma/tracks.csv). C is the random control and is not filtered by popularity.
+    exclude: song keys never to recommend in any list (e.g. previously_recommended(friend)); the closest-match genre for C ignores it."""
     rank = rank or RANK
     P = pool()
     skip = scoring.least_played(P["listens"], P["source"], skip_least,
                                 favourites=fma_favourites(P["key"]) if use_favourites else None)
+    n_least_played = int(skip.sum())
+    seen = np.isin(np.array(P["key"]), list(exclude)) if exclude else np.zeros(len(P["key"]), bool)
+    skip = skip | seen                                       # previously recommended songs: never picked for A or B
     pairs = pair_similarities(q, P, window_sound(q, P))
     sims = similarities(q, pairs)
     pct = {f: scoring.to_percentile(s) for f, s in sims.items()}
@@ -405,7 +409,7 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     top_group = genre_of(P["group"][best])                  # one genre across sites, not one source list
     rng = random.Random(seed)
     used = set(a_idx) | set(b_idx)
-    same = [i for i in range(n) if genre_of(P["group"][i]) == top_group and i not in used and not none[i]]
+    same = [i for i in range(n) if genre_of(P["group"][i]) == top_group and i not in used and not none[i] and not seen[i]]
     c_idx = rng.sample(same, min(K, len(same)))
     out = {}
     for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
@@ -422,10 +426,27 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     out["genre_group"] = top_group
     out["best_sound_cosine"] = round(best_plain, 3)         # how strong the closest real match is (plain cosine)
     out["weak_capture"] = bool(best_plain < WEAK_COSINE)
-    out["skipped_least_played"] = int(skip.sum())
+    out["skipped_least_played"] = n_least_played
+    out["excluded_as_seen"] = int(seen.sum())
     out["excluded_as_same_song"] = [P["key"][i] for i in np.where(dup)[0]]
     out["mood_model"] = P["mood_kind"] if not np.isnan(q["va_vg"]).any() else "musicnn"
     return out
+
+
+def previously_recommended(friend, blind_dir=None):
+    """Song keys already put in ANY list (A, B or C) of this friend's earlier captures (results/blind/*.json). Round 2 leaves them out so a
+    friend is not asked to rate the same song again (10 Oct 2026). Take the snapshot BEFORE making a round's captures: songs recommended for
+    two of one friend's own songs in the same round are still allowed (they are merged into one row on the sheet)."""
+    seen = set()
+    for p in glob.glob(os.path.join(blind_dir or BLIND, "*.json")):
+        try:
+            with open(p, encoding="utf-8") as f:
+                rec = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if rec.get("friend") == friend:
+            seen |= {s["key"] for L in LISTS for s in rec.get(L, []) if "key" in s}
+    return seen
 
 
 def save_capture(friend, song, feature, q, lists, signal):

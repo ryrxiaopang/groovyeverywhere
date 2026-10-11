@@ -19,6 +19,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no-exclude", action="store_true", help="allow songs already recommended to this friend in an earlier round "
+                    "(by default they are left out: a friend is not asked to rate the same song twice)")
     ap.add_argument("--friend", action="append", help="only this friend (repeatable); a capture already made is never overwritten, so "
                     "use this when adding someone new")
     a = ap.parse_args()
@@ -29,6 +31,10 @@ def main():
         rows = [r for r in rows if r["friend"] in a.friend]
     print(f"{len(rows)} friend answers -> {'results/blind (FINAL)' if a.final else 'results/blind_preview (preview)'}")
     bt.pool()
+    # songs each friend was already shown in earlier captures: a snapshot taken BEFORE this run writes anything
+    seen = {} if a.no_exclude else {r["friend"]: bt.previously_recommended(r["friend"]) for r in rows}
+    if seen:
+        print("already recommended earlier (left out): " + ", ".join(f"{f} {len(s)}" for f, s in seen.items()))
     made = 0
     for r in rows:
         feature = (r.get("confirmed") or r.get("proposed_feature_for_list_B") or "sound").strip()
@@ -40,7 +46,7 @@ def main():
             print(f"  -- {label}: not analysed yet, skipped"); continue
         with np.load(p) as d:
             q = bt.query_from_analysis(dict(d))
-        lists = bt.make_lists(q, feature, seed=a.seed, start_title=r["song"], start_artist=r["artist"])
+        lists = bt.make_lists(q, feature, seed=a.seed, start_title=r["song"], start_artist=r["artist"], exclude=seen.get(r["friend"]))
         sizes = {k: len(lists[k]) for k in "ABC"}
         fn = bt.save_capture(r["friend"], f"{r['song']} - {r['artist']}", feature, q, lists, signal="full song, YouTube")
         flag = []
