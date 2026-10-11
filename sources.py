@@ -259,8 +259,10 @@ def temp_audio(info):
                    "--retries", "3", "--socket-timeout", "30", "--sleep-requests", "1",
                    "-f", "bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", "0",
                    "-o", out, info["download_url"]]
+            if os.environ.get("HG_YT_COOKIES_FILE"):          # optional: a cookies.txt exported from a browser that is signed in to YouTube (the demo uses it if YouTube blocks the download)
+                cmd[1:1] = ["--cookies", os.environ["HG_YT_COOKIES_FILE"]]
             try:
-                subprocess.run(cmd, check=True, timeout=600,
+                subprocess.run(cmd, check=True, timeout=float(os.environ.get("HG_YT_TIMEOUT", 600)),
                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             except subprocess.CalledProcessError as e:
                 msg = (e.stderr or b"").decode("utf-8", "replace").strip().lower()

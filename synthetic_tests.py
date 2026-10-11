@@ -1192,3 +1192,146 @@ if __name__ == "__main__":
     replace_songs_test()
     official_versions_test()
     ai_removal_test()
+
+
+def demo_server_test():
+    """demo_server.py: link parsing, one job at a time, every failure route offers the tab-capture fallback, audio is deleted, answers are logged."""
+    print("\n20. LIVE DEMO SERVER")
+    import contextlib, csv, json, os, tempfile, threading, time, urllib.request, urllib.error
+    import numpy as np
+    import demo_server as ds
+
+    # (a) which links are accepted: only YouTube, and only the 11-character id is used afterwards
+    ok_ids = {"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5s": "dQw4w9WgXcQ", "youtu.be/dQw4w9WgXcQ?si=abc": "dQw4w9WgXcQ",
+              "https://music.youtube.com/watch?v=dQw4w9WgXcQ": "dQw4w9WgXcQ", "https://www.youtube.com/shorts/dQw4w9WgXcQ": "dQw4w9WgXcQ", "dQw4w9WgXcQ": "dQw4w9WgXcQ"}
+    for text, vid in ok_ids.items():
+        assert ds.video_id(text) == vid, text
+    for bad in ("", "hello world", "https://vimeo.com/123456789", "https://evil.example/watch?v=dQw4w9WgXcQ", "https://www.youtube.com/watch?v=short",
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ; rm -rf /", "file:///etc/passwd"):
+        assert ds.video_id(bad) is None, bad
+    assert ds.yt_id_of("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ" and ds.yt_id_of("https://example.com/x") == ""
+    s = ds.shape(dict(A=[dict(link="https://youtu.be/dQw4w9WgXcQ", x=np.float64(1.5))] * 9, B=[], features=["sound"], pool=3, best_sound=np.float64(0.9)), 4)
+    assert len(s["A"]) == 4 and s["A"][0]["yt"] == "dQw4w9WgXcQ" and json.dumps(s, default=ds._plain)
+    got = ds.auto_samples(["a", "b", "c", "d"], ["A", "B", "C", "D"], ["x"] * 4, ["g1", "g1", "g2", "g3"], [5.0, 9.0, float("nan"), 1.0], n=2)
+    assert [x["key"] for x in got] == ["b", "c"], got                    # the two biggest groups (g1: 2 songs, then g2 / g3 tie by first seen), the most viewed song of each
+
+    # (b) a fake backend (no Essentia, no pool, no network)
+    d = tempfile.mkdtemp()
+    seen = dict(paths=[], features=[])
+    gate = threading.Event(); gate.set()
+
+    class Fake:
+        def warm(self): return 42
+        def weak_cosine(self): return 0.45
+        def info(self, vid):
+            if vid == "ddddddddddd":
+                raise ds.DemoError("lookup_failed", "YouTube would not let this computer read that video.", fallback="capture")
+            return dict(title="Song " + vid[:3], channel="Chan", duration=1200.0 if vid == "bbbbbbbbbbb" else 200.0)
+        @contextlib.contextmanager
+        def download(self, vid):
+            if vid == "ccccccccccc":
+                raise RuntimeError("http error 403: forbidden")
+            with tempfile.TemporaryDirectory(prefix="hg_fake_") as td:
+                p = os.path.join(td, "song.mp3"); open(p, "wb").write(b"x" * 100); seen["paths"].append(p)
+                yield p
+        def analyse(self, path):
+            gate.wait(10)
+            return dict(f=1)
+        def analyse_clip(self, wav_path):
+            n = os.path.getsize(wav_path)
+            return dict(rms_db=-20, silent_share=0.0), (None if n < 1000 else dict(f=2))
+        def query(self, feats): return feats
+        def sample_query(self, key): return dict(f=3), dict(title="T", artist="A")
+        def recommend(self, q, meta, k, features):
+            seen["features"].append(features)
+            best = 0.3 if q == dict(f=2) and seen.get("weak") else 0.9
+            row = lambda i, w: dict(key=f"youtube_x{i}{w}", title=f"Rec {i}", artist="Art", link=f"https://www.youtube.com/watch?v=xxxxxxxxx{i}{w}",
+                                    sound=np.float64(80), mood=70, rhythm=60, instruments=75, match=np.float64(80 - i), popularity="few plays", ai="")
+            return dict(A=[row(i, "a") for i in range(10)], B=[row(i, "b") for i in range(3 if features != "none" else 0)], features=["sound"] + features.split("+"),
+                        pool=42, best_sound=best, A_bar=np.float64(70.0), B_bar=65.0)
+        def samples(self): return [dict(key="youtube_s1", title="Sample one", artist="Someone")]
+
+    demo = ds.Demo(Fake(), k=4, log=os.path.join(d, "log.csv"), feedback=os.path.join(d, "fb.csv"))
+    html = os.path.join(d, "demo.html"); open(html, "w").write("<html>demo</html>")
+    srv = ds.make_server(demo, "127.0.0.1", 0, html)
+    assert srv.server_address[0] == "127.0.0.1"                                       # this computer only, unless --host is given
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    def call(path, body=None, raw=None):
+        data = raw if raw is not None else (None if body is None else json.dumps(body).encode())
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=data, method="POST" if data is not None else "GET")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
+    J = lambda r: (r[0], json.loads(r[1]))
+    try:
+        # before the pool is loaded the server says so instead of failing
+        assert J(call("/api/status"))[1]["ready"] is False
+        code, b = J(call("/api/link", dict(url="dQw4w9WgXcQ")))
+        assert code == 503 and b["error"] == "warming_up", (code, b)
+        demo.warm()
+        st = J(call("/api/status"))[1]
+        assert st["ready"] and st["pool"] == 42 and not st["busy"]
+        assert call("/")[0] == 200 and b"demo" in call("/")[1]
+        # a good link: two lists, the first k shown, YouTube ids filled in, the downloaded audio is gone afterwards
+        code, b = J(call("/api/link", dict(url="https://www.youtube.com/watch?v=aaaaaaaaaaa")))
+        assert code == 200 and b["ok"] and b["input"]["title"] == "Song aaa" and len(b["results"]["A"]) == 4 and len(b["results"]["B"]) == 3, (code, b)
+        assert b["results"]["A"][0]["yt"] == "xxxxxxxxx0a" and seen["paths"] and not os.path.exists(seen["paths"][-1]), "audio must be deleted"
+        token = b["token"]
+        # every failure route offers the tab capture, except the ones that are the user's to fix
+        for url, want_err, want_fallback in (("https://vimeo.com/123456789", "not_youtube", None), ("bbbbbbbbbbb", "too_long", None),
+                                             ("ccccccccccc", "download_failed", "capture"), ("ddddddddddd", "lookup_failed", "capture")):
+            code, b = J(call("/api/link", dict(url=url)))
+            assert b["error"] == want_err and b.get("fallback") == want_fallback and code in (200, 400), (url, code, b)
+        assert not os.path.exists(seen["paths"][-1])
+        # one job at a time
+        gate.clear()
+        t = threading.Thread(target=lambda: call("/api/link", dict(url="aaaaaaaaaaa")), daemon=True); t.start()
+        for _ in range(100):
+            if J(call("/api/status"))[1]["busy"]:
+                break
+            time.sleep(0.05)
+        st = J(call("/api/status"))[1]
+        assert st["busy"] and st["stage"], st
+        code, b = J(call("/api/link", dict(url="aaaaaaaaaaa")))
+        assert code == 429 and b["error"] == "busy", (code, b)
+        gate.set(); t.join(10)
+        assert not J(call("/api/status"))[1]["busy"]
+        # tab capture: needs a WAV; silent clips and non-WAV bodies are refused with a reason; a weak match carries a warning
+        wavlike = b"RIFF" + b"\0" * 5000
+        code, b = J(call("/api/capture", raw=wavlike))
+        assert code == 200 and b["ok"] and b["input"]["kind"] == "capture" and "warning" not in b, (code, b)
+        assert J(call("/api/capture", raw=b"RIFF" + b"\0" * 10))[1]["error"] == "silent"
+        assert J(call("/api/capture", raw=b"not a wav"))[0] == 400
+        seen["weak"] = True
+        assert "warning" in J(call("/api/capture", raw=wavlike))[1]
+        # samples: listed, one can be run, an unknown key is refused
+        assert J(call("/api/samples"))[1][0]["key"] == "youtube_s1"
+        code, b = J(call("/api/sample", dict(key="youtube_s1")))
+        assert code == 200 and b["input"]["title"] == "Sample one"
+        assert J(call("/api/sample", dict(key="nope")))[0] == 400
+        # refine: the chosen features reach the recommender; unknown tokens / no features are refused
+        code, b = J(call("/api/refine", dict(token=token, features="mood+instruments")))
+        assert code == 200 and seen["features"][-1] == "mood+instruments"
+        assert J(call("/api/refine", dict(token=token, features="bogus")))[0] == 400 and J(call("/api/refine", dict(token="x", features="mood")))[0] == 400
+        # ratings are saved with the song they belong to; bad ones are refused
+        assert J(call("/api/rate", dict(token=token, list="A", rec_key="youtube_x0a", rec_title="Rec 0", would_add="yes")))[0] == 200
+        assert J(call("/api/rate", dict(token=token, list="Z", would_add="yes")))[0] == 400 and J(call("/api/rate", dict(token="x", list="A")))[0] == 400
+        fb = list(csv.DictReader(open(os.path.join(d, "fb.csv"), encoding="utf-8-sig")))
+        assert len(fb) == 1 and fb[0]["rec_key"] == "youtube_x0a" and fb[0]["would_add"] == "yes" and fb[0]["input"] == "aaaaaaaaaaa", fb
+        # every run is logged with the reason when it failed
+        log = list(csv.DictReader(open(os.path.join(d, "log.csv"), encoding="utf-8-sig")))
+        errs = [r["error"] for r in log if r["ok"] == "0"]
+        assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" for r in log) >= 4, errs
+    finally:
+        gate.set(); srv.shutdown(); srv.server_close()
+    import io, contextlib as _cl
+    buf = io.StringIO()
+    with _cl.redirect_stdout(buf):
+        ds.summary(os.path.join(d, "log.csv"), os.path.join(d, "fb.csv"))
+    out = buf.getvalue()
+    assert "runs:" in out and "download_failed" in out and "link: median" in out and "would add 1 of 1" in out, out
+    print("   links are checked, one job at a time, every failure offers the tab capture, audio is deleted, ratings and runs are logged")

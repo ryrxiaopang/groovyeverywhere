@@ -5,7 +5,7 @@ stores only numbers, and recommends "hidden gems": good matches that few people 
 story and the mentor's three questions; `TODO.md` the task list; `VOICE_PIPELINE.md` the design for the Voice feature.
 The project's own written report is a claude.ai doc, "groovyeverywhere: Evidence Report"
 (https://claude.ai/artifact/GpjFC3gVZ6sMvqBKNY15dJ; read it only with the docs connector / Artifact tool, never WebFetch).
-Last updated 11 Oct 2026 (handoff written at the end of a long session: read START HERE first).
+Last updated 12 Oct 2026 (handoff written at the end of a long session: read START HERE first).
 
 
 ## START HERE: handoff for a new session (11 Oct 2026)
@@ -46,7 +46,14 @@ Commit as `git -c user.name=ryrxiaopang -c user.email=ryanchan3007@gmail.com com
    Jean Dawson; Idina Menzel's "Let It Go" is the right original of a piano cover) and 40 unresolved (length rule, "Song by Artist", titles with no artist, AI originals: all addressed in the latest code, NOT yet re-run by the user).
 5. After the pool edits: analyse once (`python -u run_tests.py --list pool_youtube.csv`, nothing else running), `python pool_duplicates.py` (255 extra copies in 237 groups found, report only), and `--apply` it before round 3's lists.
 6. `pending_artists.md`: 10 Spotify artists queued for the next expansion (names/genres unknown): run `spotify_artists.py` on the user's machine, ask the user for genres, then `boost_artists.sh`.
-7. Round 3 planning after round-2 scoring (pool changes refit the Sound scale, so freeze the pool before building lists).
+7. Demo: rehearse `demo_server.py` with real links, fix what breaks, choose `demo_samples.csv`, record the backup video (see `DEMO.md`).
+8. Round 3 planning after round-2 scoring (pool changes refit the Sound scale, so freeze the pool before building lists).
+
+**Demo day (built 12 Oct 2026; user decisions: the website runs on the user's laptop only, visitors try it at the laptop; input = paste a YouTube link live, tab capture as the fallback when the download fails).**
+`python demo_server.py` (+ `demo.html`) serves http://localhost:8765: paste a link -> yt-dlp -> `analyze.analyse` -> `recommend_song.recommend_query` (refactored out of `recommend()`; two lists: Sound only, Sound + chosen features) with a progress line, a play button (embedded YouTube),
+"would add / skip" answers (`results/demo_feedback.csv`), a run log with seconds per stage (`results/demo_log.csv`), `--summary`. Failure routes: download/lookup failure -> the page offers a 30 s TAB CAPTURE (`/api/capture`, same `capture_server.clip_query`); sample songs (`demo_samples.csv` or auto) work offline. One request at a time, audio only in temp folders,
+binds to 127.0.0.1 unless `--host`. Optional `HG_YT_COOKIES_FILE` (cookies.txt) and `HG_YT_TIMEOUT` (default 600, the demo sets 120) in `sources.temp_audio`. **`DEMO.md` is the run sheet** (rehearsal, checklist, run of show, failure table, honest limits). Tested offline (`synthetic_tests.demo_server_test`, section 20, fake backend) and in headless Chromium with canned results;
+**NOT yet run with the real models or a real YouTube link: the user must rehearse (`python demo_server.py`, 10 links, `--summary`) and paste the output / errors back.** Not done: the page is not wired to the blind-test sheets; no microphone path (tab capture only).
 
 **Known gaps (from a fresh review; see the Project Guide doc)**: AI tagger recall ~77% (the block list is the fix); the pool was seeded from the friends' own artists (list C may be an easy baseline, list D helps); few friends (ranges are rough);
 Rhythm is the weakest feature; the research question drifted from "hidden gems" to "does sound matching recommend songs people keep"; no live demo path; README still describes the first 160-song kit; results/ live only on the user's machine + backups.

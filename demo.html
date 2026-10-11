@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>groovyeverywhere</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #0b0813; --glow-a: #6a2a7a; --glow-b: #243a8f; --glow-c: #c2587a;
+  --glass: rgba(255,255,255,.055); --glass-strong: rgba(255,255,255,.09); --line: rgba(255,255,255,.14);
+  --ink: #f6eef8; --muted: #b3a4c2; --accent: #ff8fb3; --accent-2: #ffb48a; --on-accent: #1b0f1e;
+  --accent-soft: rgba(255,143,179,.16); --ok: #7fe0a8; --warn: #ffb48a; --bad: #ff7d8f;
+  --f-display: "Instrument Serif","Iowan Old Style",Georgia,serif;
+  --f-body: "Outfit","Segoe UI",system-ui,sans-serif; --f-mono: "DM Mono",ui-monospace,Menlo,monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #fbf1f4; --glow-a: #f3c2dc; --glow-b: #cdd5ff; --glow-c: #ffd2b8;
+    --glass: rgba(255,255,255,.6); --glass-strong: rgba(255,255,255,.82); --line: rgba(110,60,110,.18);
+    --ink: #2b1a33; --muted: #6d5a78; --accent: #c2336f; --accent-2: #d9742f; --on-accent: #fff;
+    --accent-soft: rgba(194,51,111,.12); --ok: #1c8a55; --warn: #b05a14; --bad: #c0283f; color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; color: var(--ink); font: 400 16px/1.5 var(--f-body); background: var(--bg);
+  background-image: radial-gradient(60vw 50vw at 10% -10%, var(--glow-a), transparent 60%),
+                    radial-gradient(55vw 45vw at 100% 10%, var(--glow-b), transparent 60%),
+                    radial-gradient(50vw 40vw at 50% 110%, var(--glow-c), transparent 65%);
+  background-attachment: fixed;
+}
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1080px; margin: 0 auto; padding: 18px 20px 0; }
+.brand { font: 500 17px var(--f-body); letter-spacing: .02em; }
+.light { display: inline-flex; align-items: center; gap: 8px; font: 500 13px var(--f-mono); color: var(--muted); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 4px rgba(255,180,138,.18); }
+.dot.ready { background: var(--ok); box-shadow: 0 0 0 4px rgba(127,224,168,.18); }
+.dot.busy { background: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+main { max-width: 1080px; margin: 0 auto; padding: 28px 20px 70px; }
+h1 { font: 400 clamp(40px, 7vw, 76px)/1.02 var(--f-display); margin: 12px 0 10px; letter-spacing: -.01em; }
+h1 em { color: var(--accent); }
+.lede { color: var(--muted); max-width: 640px; margin: 0 0 24px; font-size: 18px; }
+.card { background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 18px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+input[type=text] { flex: 1 1 340px; min-width: 0; padding: 14px 16px; font: 400 17px var(--f-body); color: var(--ink); background: var(--glass-strong);
+  border: 1px solid var(--line); border-radius: 12px; outline: none; }
+input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.btn { padding: 13px 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass-strong); color: var(--ink); font: 500 15px var(--f-body); cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); border: 0; font-weight: 600; }
+.alt { margin-top: 14px; color: var(--muted); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.chipbtn { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: 400 14px var(--f-body); cursor: pointer; }
+.chipbtn:hover:not(:disabled) { border-color: var(--accent); }
+.chipbtn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+#progress { margin-top: 16px; display: none; }
+#progress.on { display: block; }
+.stagebar { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 8px; }
+.stagebar i { display: block; height: 100%; width: 35%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); animation: slide 1.4s infinite ease-in-out; }
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.mono { font-family: var(--f-mono); }
+#elapsed { margin-left: 10px; }
+.msg { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass); }
+.msg.err { border-color: var(--bad); }
+.msg.warn { border-color: var(--warn); }
+#fallback { display: none; margin-top: 14px; }
+#fallback.on { display: block; }
+#fallback ol { margin: 8px 0 12px 20px; padding: 0; color: var(--muted); }
+#results { margin-top: 30px; display: none; }
+#results.on { display: block; }
+.now { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 16px; }
+.now .eyebrow { font: 500 12px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.now h2 { font: 400 clamp(26px, 4vw, 38px) var(--f-display); margin: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 20px; }
+@media (max-width: 520px) { .cols { grid-template-columns: 1fr; } }
+.col h3 { font: 400 26px var(--f-display); margin: 0 0 4px; }
+.col .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.rec { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); }
+.thumb { width: 96px; height: 72px; border-radius: 10px; background: var(--glass-strong) center/cover; position: relative; cursor: pointer; border: 0; padding: 0; color: #fff; }
+.thumb::after { content: "\25B6"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+.rec h4 { margin: 0; font: 500 16px/1.25 var(--f-body); }
+.rec .artist { color: var(--muted); font-size: 14px; }
+.match { font: 500 13px var(--f-mono); color: var(--accent); }
+.bars { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; align-items: center; margin-top: 6px; font: 400 12px var(--f-mono); color: var(--muted); }
+.bars .track { height: 5px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.bars .track i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.actions a { color: var(--accent); font-size: 14px; }
+.player { grid-column: 1 / -1; }
+.player iframe { width: 100%; aspect-ratio: 16/9; border: 0; border-radius: 12px; }
+.empty { color: var(--muted); padding: 16px 4px; }
+footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">groovyeverywhere</div>
+  <div class="light"><span class="dot" id="dot"></span><span id="lightTxt">loading the song pool…</span></div>
+</header>
+<main>
+  <h1>paste a song.<br><em>find its neighbours.</em></h1>
+  <p class="lede">Give it any YouTube link. It listens to the sound, the mood, the beat and the instruments, then finds songs in our pool that feel the same.</p>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="url" placeholder="Paste a YouTube link, e.g. https://www.youtube.com/watch?v=…" autocomplete="off" spellcheck="false">
+      <button class="btn primary" id="go" type="button" disabled>find similar songs</button>
+    </div>
+    <div class="alt">
+      <span>or</span>
+      <button class="chipbtn" id="capBtn" type="button">capture a browser tab instead</button>
+      <span>or try a sample:</span>
+      <span id="samples" class="row" style="gap:8px"></span>
+    </div>
+    <div id="progress">
+      <div><span id="stageTxt" class="mono">starting…</span> <span id="elapsed" class="mono" style="color:var(--muted)"></span></div>
+      <div class="stagebar"><i></i></div>
+    </div>
+    <div id="msg"></div>
+    <div id="fallback" class="msg warn">
+      <b>Plan B: capture this song from your browser.</b>
+      <ol>
+        <li>Open the song in another Chrome tab and start playing it.</li>
+        <li>Press the button below, choose that tab in the window that appears, and tick <b>“Also share tab audio”</b>.</li>
+        <li>Keep it playing for 30 seconds.</li>
+      </ol>
+      <button class="btn primary" id="capGo" type="button">start the 30-second capture</button>
+    </div>
+  </div>
+
+  <section id="results">
+    <div class="now"><span class="eyebrow">starting song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
+    <div id="warn"></div>
+    <div class="cols">
+      <div class="col">
+        <h3>closest in sound</h3>
+        <p class="sub">Matched on the overall sound alone.</p>
+        <div id="listA"></div>
+      </div>
+      <div class="col">
+        <h3>sound, plus what you care about</h3>
+        <p class="sub">Also has to be a good match on every feature you pick (top 35% on each).</p>
+        <div class="chips" id="chips" role="group" aria-label="Features that must also match">
+          <button class="chipbtn" data-f="mood" aria-pressed="true" type="button">the mood</button>
+          <button class="chipbtn" data-f="rhythm" aria-pressed="true" type="button">the rhythm</button>
+          <button class="chipbtn" data-f="instruments" aria-pressed="true" type="button">the instruments</button>
+        </div>
+        <div id="listB"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>The audio is deleted as soon as it has been analysed; only numbers are kept. Matches come from a pool of real songs that were analysed the same way. Rate a match with <b>would add</b> / <b>skip</b> and it is saved on this computer only.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let token = "", pollTimer = null, ready = false, busy = false;
+
+function setLight() {
+  fetch("/api/status").then(r => r.json()).then(s => {
+    ready = s.ready;
+    $("dot").className = "dot " + (s.busy ? "busy" : s.ready ? "ready" : "");
+    $("lightTxt").textContent = s.error ? "the pool did not load: " + s.error : s.busy ? "working…" : s.ready ? `ready · ${s.pool.toLocaleString()} songs` : "loading the song pool…";
+    if (!busy) { $("go").disabled = !s.ready || s.busy; }
+    if (s.ready && !$("samples").dataset.done) loadSamples();
+    if (s.busy && busy) { $("stageTxt").textContent = s.stage || "working…"; $("elapsed").textContent = s.elapsed + " s"; }
+  }).catch(() => { $("dot").className = "dot"; $("lightTxt").textContent = "cannot reach the demo server"; });
+}
+setInterval(setLight, 1500); setLight();
+
+function loadSamples() {
+  fetch("/api/samples").then(r => r.json()).then(list => {
+    $("samples").dataset.done = "1";
+    $("samples").innerHTML = list.map(s => `<button class="chipbtn" type="button" data-key="${esc(s.key)}" title="${esc(s.title)} · ${esc(s.artist)}">${esc((s.title || s.key).slice(0, 26))}</button>`).join("") || "<span>(none yet)</span>";
+    $("samples").querySelectorAll("button").forEach(b => b.onclick = () => run("/api/sample", { key: b.dataset.key }));
+  });
+}
+
+function showBusy(on) {
+  busy = on;
+  $("progress").classList.toggle("on", on);
+  $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;
+  document.querySelectorAll("#samples button").forEach(b => b.disabled = on);
+  if (on) { $("stageTxt").textContent = "starting…"; $("elapsed").textContent = ""; }
+}
+
+function message(text, kind) {
+  $("msg").innerHTML = text ? `<div class="msg ${kind || ""}">${esc(text)}</div>` : "";
+}
+
+async function run(path, body, raw) {
+  message(""); $("fallback").classList.remove("on"); showBusy(true);
+  try {
+    const r = await fetch(path, raw ? { method: "POST", body: raw } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok || d.error) {
+      message(d.message || "Something went wrong.", d.error === "busy" ? "warn" : "err");
+      if (d.fallback === "capture") $("fallback").classList.add("on");
+    } else { render(d); }
+  } catch (e) { message("Could not reach the demo server: " + e.message, "err"); }
+  showBusy(false);
+}
+
+$("go").onclick = () => run("/api/link", { url: $("url").value.trim() });
+$("url").addEventListener("keydown", e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); });
+$("capBtn").onclick = () => { message(""); $("fallback").classList.add("on"); $("fallback").scrollIntoView({ behavior: "smooth", block: "center" }); };
+
+function wav(samples, rate) {
+  const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+$("capGo").onclick = async () => {
+  const SECONDS = 30; let stream;
+  message(""); showBusy(true);
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    stream.getVideoTracks().forEach(t => t.stop());
+    if (!stream.getAudioTracks().length) throw new Error("No tab audio was shared. Choose the tab again and tick “Also share tab audio”.");
+    const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream);
+    const proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+    proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    for (let t = SECONDS; t > 0; t--) { $("stageTxt").textContent = `recording… ${t} s left`; $("elapsed").textContent = ""; await new Promise(r => setTimeout(r, 1000)); }
+    proc.disconnect(); src.disconnect(); stream.getTracks().forEach(t => t.stop());
+    const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0;
+    chunks.forEach(c => { all.set(c, o); o += c.length; });
+    const rate = ctx.sampleRate; await ctx.close();
+    $("stageTxt").textContent = "sending the recording…";
+    await run("/api/capture", null, wav(all, rate));
+  } catch (e) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    showBusy(false); message(e.message || String(e), "err"); $("fallback").classList.add("on");
+  }
+};
+
+function chosenFeatures() { return [...document.querySelectorAll("#chips [aria-pressed=true]")].map(b => b.dataset.f).join("+"); }
+document.querySelectorAll("#chips button").forEach(b => b.onclick = async () => {
+  const on = b.getAttribute("aria-pressed") === "true";
+  if (on && document.querySelectorAll("#chips [aria-pressed=true]").length === 1) return;       // at least one feature stays chosen
+  b.setAttribute("aria-pressed", on ? "false" : "true");
+  showBusy(true);
+  try {
+    const r = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, features: chosenFeatures() }) });
+    const d = await r.json();
+    if (d.ok) renderList("listB", d.results.B, "B");
+  } catch (e) { message("Could not update the list: " + e.message, "err"); }
+  showBusy(false);
+});
+
+function render(d) {
+  token = d.token;
+  $("nowTitle").textContent = d.input.title || d.input.id; $("nowArtist").textContent = d.input.artist || "";
+  $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : "";
+  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", "true"));
+  renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B");
+  $("results").classList.add("on"); $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function bar(label, v) {
+  return `<span>${label}</span><span class="track"><i style="width:${Math.max(2, Math.min(100, v))}%"></i></span><span>${Math.round(v)}</span>`;
+}
+
+function renderList(id, items, which) {
+  const el = $(id);
+  if (!items || !items.length) { el.innerHTML = '<div class="empty">No song passed every check for this starting song. Fewer features chosen usually finds some.</div>'; return; }
+  el.innerHTML = items.map((r, i) => {
+    const thumb = r.yt ? `style="background-image:url(https://i.ytimg.com/vi/${esc(r.yt)}/mqdefault.jpg)"` : "";
+    const link = /^https:\/\//.test(r.link || "") ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">open on YouTube</a>` : "";
+    return `<div class="rec" data-i="${i}">
+      <button class="thumb" type="button" ${thumb} aria-label="Play ${esc(r.title)}" ${r.yt ? "" : "disabled"} data-yt="${esc(r.yt)}"></button>
+      <div>
+        <h4>${esc(r.title)}</h4>
+        <div class="artist">${esc(r.artist)}</div>
+        <div class="match">${Math.round(r.match)}% match${r.popularity ? " · " + esc(r.popularity) : ""}</div>
+        <div class="bars">${bar("sound", r.sound)}${bar("mood", r.mood)}${bar("beat", r.rhythm)}${bar("instruments", r.instruments)}</div>
+        <div class="actions">
+          <button class="chipbtn" type="button" data-add="yes">would add</button>
+          <button class="chipbtn" type="button" data-add="no">skip</button>
+          ${link}
+        </div>
+      </div>
+      <div class="player"></div>
+    </div>`;
+  }).join("");
+  el.querySelectorAll(".rec").forEach(card => {
+    const r = items[+card.dataset.i];
+    card.querySelector(".thumb").onclick = e => {
+      const box = card.querySelector(".player");
+      box.innerHTML = box.innerHTML ? "" : `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(r.yt)}?autoplay=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    };
+    card.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
+      card.querySelectorAll("[data-add]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      fetch("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, list: which, rec_key: r.key, rec_title: r.title, would_add: b.dataset.add }) });
+    });
+  });
+}
+</script>
+</body>
+</html>

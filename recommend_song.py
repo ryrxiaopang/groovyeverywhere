@@ -18,8 +18,16 @@ pick_best = scoring.pick_best      # moved to scoring.py so blind_test.make_list
 
 
 def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=None):
+    """Recommendations for a song that is already analysed (results/<key>.npz)."""
     with np.load(os.path.join(RES, f"{key}.npz")) as d:
         q = bt.query_from_analysis(dict(d))
+    from results_index import read_meta
+    return recommend_query(q, read_meta(key) or {}, k, features, rank, only)   # its own title / artist: re-uploads, covers and the artist are not recommended
+
+
+def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="match", only=None):
+    """Recommendations for a query made by bt.query_from_analysis (a stored song, a pasted link or a captured clip).
+    meta = {'title': ..., 'artist': ...} of the starting song if known ({} otherwise)."""
     P = bt.pool()
     n = len(P["key"]); artists = np.array(P["artist"])
     skip = scoring.least_played(P["listens"], P["source"], scoring.SKIP_LEAST_PLAYED)
@@ -30,8 +38,6 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=
     plain = bt.raw_sound(q, P)
     dup = plain >= bt.DUP_COSINE
     none = dup | np.isin(artists, list({artists[i] for i in np.where(dup)[0]}))
-    from results_index import read_meta
-    meta = read_meta(key) or {}                  # the song's own title / artist: its re-uploads, covers and artist are not recommended
     none = none | bt.near_copy_mask(P, plain, meta.get("title") or "", meta.get("artist") or "")
     if only:                                # only songs from these pool groups (e.g. yt_jpop yt_jrnb yt_citypop): the rest is left out
         none = none | ~np.isin(np.array(P["group"]), list(only))
