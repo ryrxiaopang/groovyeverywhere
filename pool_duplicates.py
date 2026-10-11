@@ -12,12 +12,13 @@ A pair is
     their words (brackets and "feat." parts removed first), and
   * a "check by ear" pair when the sound is that close but the titles differ (a different song on the same record, or a retitled upload). These are
     listed but never marked.
-Copies are grouped (A = B, B = C makes one group of three); the most-viewed copy is kept.
+Copies are grouped (A = B, B = C makes one group of three). Copy kept: an official-looking title ("Official Audio", "M/V") first, a plain title next, a lyric /
+visualiser / subtitled re-upload last; the most-viewed copy breaks ties.
 
 --apply changes the pool, and the Sound scale is refitted whenever the pool changes. Do not apply it between sending a round's sheets and scoring
 that round; apply it before the next round's lists are built. Dry run first; the stored numbers are never deleted.
 """
-import argparse, collections, csv, os, shutil, time
+import argparse, collections, csv, os, re, shutil, time
 import numpy as np
 
 import blind_test as bt
@@ -26,6 +27,17 @@ from results_index import RES, HERE, POOL_LISTS, list_key
 LOG = os.path.join(HERE, "pool_audit_log.csv")
 SAME_COSINE = bt.DUP_COSINE              # plain cosine of the whole-song Sound numbers: the same recording
 MIN_TITLE = 0.6                          # share of the shorter title's words that the other title also has
+
+
+# Which copy to keep: an official-looking title beats a plain one, which beats a lyric / visualiser / subtitled re-upload; views only break ties.
+_OFFICIAL = re.compile(r"official|\bm/?v\b|music video|audio\)", re.I)
+_LYRIC = re.compile(r"lyrics?|lyric video|visuali[sz]er|vietsub|engsub|sub\)|\bsped\b|\bslowed\b|8d|\u6b4c\u8a5e|\u6b4c\u8bcd|\u52d5\u614b|\uac00\uc0ac|\u65e5\u672c\u8a9e", re.I)
+
+
+def keep_rank(title, views):
+    """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, then views."""
+    t = title or ""
+    return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0), views)
 
 
 def title_share(a, b):
@@ -74,7 +86,7 @@ def analyse(P):
                     groups[find(x)].append(x)
     clusters = []
     for members in groups.values():
-        keep = max(members, key=lambda i: (views[i], P["key"][i]))
+        keep = max(members, key=lambda i: (keep_rank(P["title"][i], views[i]), P["key"][i]))
         clusters.append(dict(keep=keep, drop=[i for i in members if i != keep], members=sorted(members)))
     clusters.sort(key=lambda c: -len(c["members"]))
     return pairs, clusters

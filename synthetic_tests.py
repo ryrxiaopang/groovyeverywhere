@@ -837,16 +837,18 @@ def pool_duplicates_test():
     base, other = rng.normal(size=64), rng.normal(size=64)
     whole = np.stack([base, base + 0.01 * rng.normal(size=64), base + 0.01 * rng.normal(size=64), other, other + 0.01 * rng.normal(size=64)]
                      + [rng.normal(size=64) for _ in range(3)])
-    P = dict(key=[f"youtube_t{i}" for i in range(8)], whole=whole, listens=np.array([100.0, 5000.0, 50.0, 10.0, 20.0, 7.0, 8.0, 9.0]),
-             title=["Hold On", "Hold On (Official Audio)", "Artist - Hold On", "Other Song", "Totally Different Title", "Aaa", "Bbb", "Ccc"],
+    P = dict(key=[f"youtube_t{i}" for i in range(8)], whole=whole, listens=np.array([100.0, 5000.0, 90000.0, 10.0, 20.0, 7.0, 8.0, 9.0]),
+             title=["Hold On", "Hold On (Official Audio)", "Artist - Hold On (Lyrics)", "Other Song", "Totally Different Title", "Aaa", "Bbb", "Ccc"],
              artist=["a", "a", "label", "b", "b", "c", "d", "e"], artist_name=["A", "A", "Label", "B", "B", "C", "D", "E"])
     pairs, clusters = pdp.analyse(P)
     assert len(clusters) == 1, clusters
     c = clusters[0]
-    assert c["members"] == [0, 1, 2] and c["keep"] == 1 and sorted(c["drop"]) == [0, 2], c        # the 5,000-view upload is kept
+    assert c["members"] == [0, 1, 2] and c["keep"] == 1 and sorted(c["drop"]) == [0, 2], c        # the official upload is kept although a lyric re-upload has 90,000 views
     cats = sorted((p["a"], p["b"], p["category"]) for p in pairs)
     assert (3, 4, "check by ear") in cats and (0, 1, "duplicate") in cats and (0, 2, "duplicate") in cats and (1, 2, "duplicate") in cats, cats
     assert not any(p["a"] >= 5 or p["b"] >= 5 for p in pairs)                                         # the unrelated songs are in no pair
+    assert pdp.keep_rank("Hold On (Official Audio)", 1) > pdp.keep_rank("Hold On", 999) > pdp.keep_rank("Hold On (Lyrics)", 10 ** 9)
+    assert pdp.keep_rank("LEE HI - M/V", 1) > pdp.keep_rank("LEE HI - Lyrics", 5) and pdp.keep_rank("Song - Visualizer", 5) < pdp.keep_rank("Song", 1)
     assert pdp.title_share("Hold On (Official Audio)", "Artist - Hold On") == 1.0 and pdp.title_share("x", "") == 0.0
     # marking: only the dropped copies get i_agree = n, the keeper and the sound-alike do not; a log line is written; a .bak copy exists
     d = tempfile.mkdtemp()
