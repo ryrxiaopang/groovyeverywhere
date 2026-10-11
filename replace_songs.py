@@ -3,6 +3,7 @@
   python replace_songs.py ai_check_sheet.csv                         # preview: reads the 'how you decided' comments of a listening sheet
   python replace_songs.py ai_check_sheet.csv --apply                 # make the changes
   python replace_songs.py --pair OLD_URL NEW_URL [--pair ...] [--apply]
+  python replace_songs.py --proposals results/official_proposals.csv [--apply]     # rows with approve = y (from find_official_versions.py)
 
 A comment such as  "replace with https://www.youtube.com/watch?v=XXXX"  on a sheet row means: drop that row's song (its link is in `listen_here`) and use the
 video in the comment instead. For each pair, --apply
@@ -48,6 +49,22 @@ def pairs_from_sheet(path):
                 problems.append(f"{r.get('item')}: the new link is the same video")
             else:
                 out.append((r.get("item") or "", old, new, r.get("title") or ""))
+    return out, problems
+
+
+def pairs_from_proposals(path):
+    """[(old key, old_id, new_id, old title)] from a review file made by find_official_versions.py: only rows whose `approve` starts with y."""
+    out, problems = [], []
+    with open(path, encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            if (r.get("approve") or "").strip().lower()[:1] != "y":
+                continue
+            old = (r.get("old_key") or "").split("_", 1)[-1] or video_id(r.get("old_link"))
+            new = video_id(r.get("new_link"))
+            if not old or not new or old == new:
+                problems.append(f"{r.get('old_key')}: needs a different new_link")
+            else:
+                out.append((r.get("old_key") or "", old, new, r.get("old_title") or ""))
     return out, problems
 
 
@@ -122,12 +139,16 @@ def apply_plan(actions, lists, here=HERE, log=LOG):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("sheet", nargs="?", help="a listening sheet with 'replace with <link>' comments")
+    ap.add_argument("--proposals", metavar="CSV", help="a review file from find_official_versions.py: the rows with approve = y are used")
     ap.add_argument("--pair", nargs=2, action="append", metavar=("OLD_URL", "NEW_URL"), default=[])
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
     pairs, problems = ([], [])
     if a.sheet:
         pairs, problems = pairs_from_sheet(a.sheet)
+    if a.proposals:
+        more, probs = pairs_from_proposals(a.proposals)
+        pairs, problems = pairs + more, problems + probs
     for old, new in a.pair:
         o, n = video_id(old), video_id(new)
         if o and n and o != n:

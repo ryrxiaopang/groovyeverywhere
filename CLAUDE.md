@@ -200,7 +200,12 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **Replacing songs (11 Oct):** `python replace_songs.py ai_check_sheet.csv` (preview) / `--apply` reads comments "replace with <youtube link>" in a listening sheet's `how you decided` column (the old song comes
   from `listen_here`), adds the new video to the same pool list and style group (metadata via the YouTube API), marks the old song `i_agree = n`, logs both in `pool_audit_log.csv`. Then analyse
   (`run_tests.py --list pool_youtube.csv`) and run `pool_duplicates.py`. Does not touch sent friend sheets or round-2 scoring (which reads captures and tags, not the pool).
-* Offline check: `synthetic_tests.py` section 9, section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
+* **Covers and fan lyric videos -> the original (11 Oct):** `python find_official_versions.py` (scan, offline, `results/cover_candidates.csv`), `--search [--limit N] [--deezer]` (YouTube search through yt-dlp, resumable cache
+  `results/official_search_cache.json`, writes `results/official_proposals.csv`), then edit `approve` (y) and run `python replace_songs.py --proposals results/official_proposals.csv [--apply]`.
+  Candidates: title says lyrics / lyric video / visualiser / subtitles (or the channel name says Lyrics) without "official"; or cover / karaoke / tribute / instrumental / piano version. An "Official Lyric Video" is kept.
+  A proposal needs the song title, the artist's name in channel or title, a length within a few seconds, and must not itself be a cover / lyric / remix / live; the artist's own or an "- Topic" channel ranks first
+  (`official_channel = yes`) and fan lyric videos with such a replacement come pre-approved; covers never do. A song titled "Cover Me Up" is a false candidate and simply finds no proposal.
+* Offline check: `synthetic_tests.py` section 9, section 18 (official versions), section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

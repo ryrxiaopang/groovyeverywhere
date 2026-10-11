@@ -970,6 +970,55 @@ def replace_songs_test():
     print("   the three 'replace' comments become replacements, notes and bad rows are reported, the old song is marked n, the new one keeps its style, a second run changes nothing")
 
 
+def official_versions_test():
+    """find_official_versions.py: spots covers and fan lyric videos, guesses the original artist, picks the artist's own upload, and feeds replace_songs."""
+    print("\n18. COVERS AND FAN LYRIC VIDEOS -> THE ORIGINAL UPLOAD")
+    import sys, types, tempfile, os, csv
+    sys.modules.setdefault("yt_dlp", types.ModuleType("yt_dlp"))                         # only the checking helpers are used, not the downloader
+    import find_official_versions as fo, replace_songs as rs
+    # (a) what counts as a candidate
+    assert fo.kind_of("Faouzia - UNETHICAL (Lyrics)", "Vibe Music") == "fan lyric video"
+    assert fo.kind_of("Dead and Gone", "StateChampsLyrics") == "fan lyric video"                                           # the channel says Lyrics
+    assert fo.kind_of("Song (Official Lyric Video)", "Artist") is None and fo.kind_of("Faouzia - UNETHICAL (Official Video)", "Faouzia") is None
+    assert fo.kind_of("Best Friend (cover by Sam)", "Sam") == "cover" and fo.kind_of("Hold On - Karaoke Version", "x") == "cover"
+    assert fo.kind_of("Hold On", "Some Band") is None and fo.kind_of("\u3010\u52d5\u614b\u6b4c\u8a5e\u3011No Reason", "Boba Beats") == "fan lyric video"
+    # (b) guessing artist and song
+    assert fo.candidate_pairs("Faouzia - UNETHICAL (Lyrics)", "Vibe Music", "Vibe Music") == [("Faouzia", "UNETHICAL")]
+    assert fo.candidate_pairs("\u201cKissing Other People\u201d // Lyrics", "Lennon Stella", "SomeLyrics") == [("Lennon Stella", "Kissing Other People")]
+    assert fo.candidate_pairs("Earrings (Lyrics)", "Vibe Music", "Vibe Music") == []                                      # the pool artist is just the uploader: no guess
+    # (c) finding the official upload among the search results
+    old = dict(key="youtube_OLDOLDOLD11", kind="fan lyric video", title="Faouzia - UNETHICAL (Lyrics)", channel="Vibe Music", pool_artist="Vibe Music",
+               views="900", duration="200", link="https://www.youtube.com/watch?v=OLDOLDOLD11")
+    entries = [dict(id="OLDOLDOLD11", title="Faouzia - UNETHICAL (Lyrics)", channel="Vibe Music", duration=200, view_count=9_000_000),
+               dict(id="LYRICFAN111", title="UNETHICAL lyric video Faouzia", channel="Fan", duration=200, view_count=5),
+               dict(id="COVERCOVER1", title="UNETHICAL Faouzia (cover)", channel="Sam", duration=200, view_count=500),
+               dict(id="WRONGLEN111", title="Faouzia - UNETHICAL (Official Video)", channel="Faouzia", duration=420, view_count=10),
+               dict(id="TOPICTOPIC1", title="UNETHICAL", channel="Faouzia - Topic", duration=201, view_count=70_000),
+               dict(id="OFFICIAL111", title="Faouzia - UNETHICAL (Official Video)", channel="Faouzia", duration=203, view_count=40_000_000)]
+    g = fo.find_official(old, lambda q, n: entries)
+    assert g["entry"]["id"] == "OFFICIAL111" and g["official"] and g["artist"] == "Faouzia", g                           # official channel first; old, lyric, cover and wrong-length results skipped
+    assert fo.find_official(old, lambda q, n: entries[:4]) is None                                                         # nothing acceptable left
+    cov = dict(old, key="youtube_COVCOV11111", kind="cover", title="Best Friend cover", channel="Sam", pool_artist="Sam", duration="")
+    ent2 = [dict(id="ROCROCROC11", title="Best Friend (Official Audio)", channel="Rex Orange County", duration=180, view_count=9)]
+    assert fo.find_official(cov, lambda q, n: ent2) is None                                                                # a cover with no artist in the title needs --deezer
+    g2 = fo.find_official(cov, lambda q, n: ent2, lambda q: ("Rex Orange County", "Best Friend", 180.0))
+    assert g2["entry"]["id"] == "ROCROCROC11" and "Deezer" in g2["note"]
+    assert fo.deezer_original("Best Friend", get=lambda q: {"data": [dict(title="Other", title_short="Other", artist=dict(name="X"), duration=1),
+                              dict(title="Best Friend", title_short="Best Friend", artist=dict(name="Rex Orange County"), duration=180)]}) == ("Rex Orange County", "Best Friend", 180.0)
+    # (d) the review file and replace_songs: only approve = y rows are used; fan lyric videos from an official channel come pre-approved, covers do not
+    d = tempfile.mkdtemp(); path = os.path.join(d, "p.csv")
+    fo.write_proposals(path, [old, cov], [(old, g), (cov, g2)])
+    rows = list(csv.DictReader(open(path, encoding="utf-8-sig")))
+    assert [r["approve"] for r in rows] == ["y", ""] and rows[0]["new_link"].endswith("OFFICIAL111") and rows[0]["official_channel"] == "yes"
+    pairs, problems = rs.pairs_from_proposals(path)
+    assert pairs == [("youtube_OLDOLDOLD11", "OLDOLDOLD11", "OFFICIAL111", "Faouzia - UNETHICAL (Lyrics)")] and not problems
+    rows[1]["approve"] = "Y"
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
+    assert len(rs.pairs_from_proposals(path)[0]) == 2                                                                      # approving the cover adds it
+    print("   covers and fan lyric videos are spotted, the original artist's own upload is chosen over re-uploads, covers, wrong lengths and the old video, nothing is approved for a cover unless you do it")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -989,3 +1038,4 @@ if __name__ == "__main__":
     pool_duplicates_test()
     ai_tag_check_test()
     replace_songs_test()
+    official_versions_test()
