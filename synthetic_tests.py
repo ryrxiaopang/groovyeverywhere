@@ -662,6 +662,23 @@ def deezer_discover_test():
         assert set(names) == {"Folk Singer", "Indie Band", "한국 밴드", "Deep Rock"}, names   # Rock Two cut by the rock=1 quota
         assert [c["genre"] for c in picked if c["name"] == "한국 밴드"] == ["kpop"] and used["indiefolk"] == 1 and used["rock"] == 1
         assert why == {"fans": 2, "albums": 1, "in pool / skipped": 1, "genre": 2, "quota": 1}, why
+        # the age filter: with --since the old act is left out and the year range is recorded; without it nothing changes (and albums without a date never count as old)
+        YEARS = {2: "2022-05-01", 6: "1999-01-01", 10: "2020-03-03", 9: "2019-01-01"}
+        _fg = fake_get
+        def dated(self, path, **p):
+            r = _fg(self, path, **p)
+            if path.startswith("/album/"):
+                r = dict(r, release_date=YEARS.get(int(path.split("/")[2]) // 100, ""))
+            return r
+        dd.Deezer.get = dated
+        class B(A): since = 2015
+        p2, why2, _ = dd.choose(dd.Deezer(cache_path="/nonexistent/x.json"), cand, B, {dd.norm("Already In Pool")}, set())
+        assert "Folk Singer" not in [c["name"] for c in p2] and why2.get("age") == 1, (why2, [c["name"] for c in p2])
+        assert [c["years"] for c in p2 if c["name"] == "Indie Band"] == [(2022, 2022)]
+        p3, why3, _ = dd.choose(dd.Deezer(cache_path="/nonexistent/x.json"), cand, A, {dd.norm("Already In Pool")}, set())
+        assert "age" not in why3 and "Folk Singer" in [c["name"] for c in p3]
+        assert dd.DEFAULT_QUOTA["rock"] == 4
+        dd.Deezer.get = fake_get
         src = dd.to_source(picked[0], 20)
         assert src["kind"] == "artist" and src["more"] == 20 and len(src["tracks"]) == 3 and src["tracks"][0]["seconds"] == 200.0
         print("   fans / albums / genre / pool / quota filters, depth-2 crawl and vote order behave; Asian Music is split by writing")

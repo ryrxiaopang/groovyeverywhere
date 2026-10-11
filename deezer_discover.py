@@ -34,7 +34,7 @@ CACHE = os.path.join(RES, "deezer_cache.json")
 # Deezer album genre name (lower case) -> pool genre. Anything not here is skipped (so metal, jazz, classical, latin, kids ... stay out).
 GENRE_MAP = {"pop": "pop", "rock": "rock", "alternative": "alternative", "rap/hip hop": "hiphop", "r&b": "rnb", "electro": "electro",
              "folk": "indiefolk", "singer & songwriter": "singer", "indie pop/folk": "indiepop", "indie rock": "indierock"}
-DEFAULT_QUOTA = {"pop": 12, "rnb": 12, "alternative": 12, "rock": 12, "indiepop": 8, "indierock": 8, "indiefolk": 8, "singer": 8,
+DEFAULT_QUOTA = {"pop": 12, "rnb": 12, "alternative": 12, "rock": 4, "indiepop": 8, "indierock": 8, "indiefolk": 8, "singer": 8,
                  "electro": 6, "hiphop": 6, "kpop": 4, "jpop": 4, "cpop": 4}
 
 
@@ -170,21 +170,25 @@ def genre_map_from(dz):
 
 
 def artist_genre_and_tracks(dz, aid, name, gmap):
-    """(pool genre or None, top tracks) from the artist's top tracks: the majority album genre, mapped."""
+    """(pool genre or None, top tracks, release years of the albums of the top 5 tracks) from the artist's top tracks: the majority album genre, mapped."""
     top = (dz.get(f"/artist/{aid}/top", limit=10).get("data") or [])
-    votes = {}
+    votes, years = {}, []
     for t in top[:5]:
         alb = (t.get("album") or {}).get("id")
         if not alb:
             continue
-        for g in ((dz.get(f"/album/{alb}").get("genres") or {}).get("data") or []):
+        info = dz.get(f"/album/{alb}")
+        m = re.match(r"(\d{4})", str(info.get("release_date") or ""))
+        if m:
+            years.append(int(m.group(1)))
+        for g in ((info.get("genres") or {}).get("data") or []):
             votes[g["id"]] = votes.get(g["id"], 0) + 1
     if not votes:
-        return None, top
+        return None, top, years
     pool = gmap.get(max(votes, key=votes.get))
     if pool == "asian":
         pool = asian_genre(" ".join([name] + [t.get("title") or "" for t in top]))
-    return pool, top
+    return pool, top, years
 
 
 def choose(dz, cand, args, taken, skip):
@@ -207,16 +211,19 @@ def choose(dz, cand, args, taken, skip):
             why["albums"] += 1; continue
         if norm(c["name"]) in taken or norm(c["name"]) in skip:
             why["in pool / skipped"] += 1; continue
-        genre, top = artist_genre_and_tracks(dz, c["id"], c["name"], gmap)
+        genre, top, years = artist_genre_and_tracks(dz, c["id"], c["name"], gmap)
         if genre not in quota or genre in OFF_POOL_GENRES:
             why["genre"] += 1; continue
+        since = getattr(args, "since", 0) or 0
+        if since and years and max(years) < since:            # the pool is for younger listeners: no top track from an album of the last few years = a legacy act
+            why["age"] = why.get("age", 0) + 1; continue
         if used.get(genre, 0) >= quota[genre]:
             why["quota"] += 1; continue
         if len(top) < 3:
             why["genre"] += 1; continue
         used[genre] = used.get(genre, 0) + 1
         taken.add(norm(c["name"]))
-        picked.append(dict(c, genre=genre, top=top))
+        picked.append(dict(c, genre=genre, top=top, years=(min(years), max(years)) if years else None))
     return picked, why, used
 
 
@@ -237,6 +244,8 @@ def main():
     ap.add_argument("--min-albums", type=int, default=2)
     ap.add_argument("--quota", action="append", help="genre=N, e.g. --quota rock=20 (repeatable); defaults in DEFAULT_QUOTA")
     ap.add_argument("--more", type=int, default=20, help="extra songs per artist from their own YouTube channel (plus their top 10)")
+    ap.add_argument("--since", type=int, default=0, metavar="YEAR",
+                    help="skip artists none of whose top songs is on an album released in YEAR or later (e.g. --since 2018): the pool is for younger listeners, so legacy acts are left out; 0 = off")
     ap.add_argument("--dry-run", action="store_true", help="print the choice, write nothing")
     a = ap.parse_args()
     dz = Deezer()
@@ -255,7 +264,8 @@ def main():
     songs = int(len(picked) * (10 + a.more) * 0.8)
     print(f"about {songs} songs to add (80% find a verified YouTube copy), about {songs * 16 / 3600:.0f} hours of analysis at ~16 s a song")
     for c in picked:
-        print(f"  {c['name'][:30]:30s} {c['genre']:12s} fans {c['fans']:>9,}  votes {c['votes']:>2}  depth {c['depth']}")
+        yrs = f"{c['years'][0]}-{c['years'][1]}" if c.get("years") else "?"
+        print(f"  {c['name'][:30]:30s} {c['genre']:12s} fans {c['fans']:>9,}  votes {c['votes']:>2}  depth {c['depth']}  top albums {yrs}")
     if a.dry_run:
         print("(dry run: nothing written)"); return
     with open(a.out, "w", encoding="utf-8") as f:
@@ -263,9 +273,9 @@ def main():
     sel = os.path.join(RES, "deezer_selected.csv")
     os.makedirs(RES, exist_ok=True)
     with open(sel, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f); w.writerow(["artist", "genre", "deezer_fans", "albums", "votes", "depth", "deezer_id"])
+        w = csv.writer(f); w.writerow(["artist", "genre", "deezer_fans", "albums", "votes", "depth", "deezer_id", "top_album_years"])
         for c in picked:
-            w.writerow([c["name"], c["genre"], c["fans"], c["albums"], c["votes"], c["depth"], c["id"]])
+            w.writerow([c["name"], c["genre"], c["fans"], c["albums"], c["votes"], c["depth"], c["id"], f"{c['years'][0]}-{c['years'][1]}" if c.get("years") else ""])
     print(f"\nwrote {a.out} and {sel}. Next: nohup bash boost_artists.sh {os.path.basename(a.out)} > boost_deezer.log 2>&1 &")
 
 
