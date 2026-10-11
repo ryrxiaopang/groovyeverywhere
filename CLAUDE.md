@@ -180,7 +180,13 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   rating was resampled alone, which made the ranges too narrow. At least 3 friends are needed (`MIN_FRIENDS`), otherwise the report prints "no range". It also
   prints the paired differences A minus C, B minus C and B minus A (`_boot_diff`, friends who rated both lists). With only a handful of friends the
   ranges are still rough guides. Still open: a written success rule before round 2 is sent, and a possible list D baseline (most-viewed songs of the genre).
-* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges) (needs no Essentia; the earlier sections do).
+* **List D and the success rule (11 Oct):** a fourth list D = the 3 most-viewed songs (one per artist) of the closest match's sub-style group (`blind_test.most_viewed_same_style`;
+  the wider genre if the style has under 9 songs), a popularity baseline; `HG_LIST_D=0` leaves it out (D is then empty). Songs in two lists are rated once (lists such as "AD").
+  `SUCCESS_RULE.md` (committed before the round-2 sheets are sent; its commit date is the timestamp) fixes what counts as success: primary outcome would-add on all rated songs;
+  H1 A beats C, H2 A beats D, H3 B beats A; SUPPORTED = difference of at least +10 points, 95% range (resampling friends) entirely above 0, at least 4 friends who rated both
+  lists and 8 rated songs per list. `blind_test.score()` prints the verdict (`rule_verdict`, constants `RULE_*`): do not change them after looking at results. Score
+  round 2 by passing only the round-2 sheets: `python blind_test.py --score <those files>`.
+* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.

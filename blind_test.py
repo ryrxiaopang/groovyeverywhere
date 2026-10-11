@@ -24,7 +24,8 @@ def valid_feature(feature):
     """One feature, or several joined by + (e.g. mood+rhythm)."""
     parts = feature.split("+")
     return bool(parts) and all(f in FEATURES for f in parts)
-LISTS = ("A", "B", "C")          # A = Sound only, B = Sound + chosen feature, C = random from the same genre
+LISTS = ("A", "B", "C", "D")     # A = Sound only, B = Sound + chosen feature, C = random from the same genre, D = most-viewed of the same style
+LIST_D = os.environ.get("HG_LIST_D", "1") == "1"       # round 2 (11 Oct): list D, a popularity baseline. HG_LIST_D=0 leaves it out (D is then an empty list)
 K = 3                            # songs per list
 
 # ---- Round 2 settings (10 Oct 2026). Each can be changed with an environment variable, nothing else needs editing.
@@ -365,10 +366,31 @@ def near_copy_mask(P, plain, start_title="", start_artist=""):
     return mask
 
 
+def most_viewed_same_style(P, best, blocked, artists, k=None, min_pool=3):
+    """List D, the popularity baseline: the k most-viewed songs (one per artist) in the same sub-style group (e.g. yt_indiepop, yt_kpop) as the
+    song closest to the friend's song, so a Korean-pop fan is not given English rock. If that group is too small (under min_pool * k songs, e.g.
+    the mixed 'playlist' group) the wider genre is used. Not affected by similarity: it answers 'what would a most-viewed list give this friend?'."""
+    from results_index import genre_of
+    k = k or K
+    n = len(P["key"])
+    ok = ~np.asarray(blocked, bool)
+    same = [i for i in range(n) if ok[i] and P["group"][i] == P["group"][best]]
+    if len(same) < min_pool * k:
+        same = [i for i in range(n) if ok[i] and genre_of(P["group"][i]) == genre_of(P["group"][best])]
+    views = np.nan_to_num(np.asarray(P["listens"], float), nan=-1.0)
+    picked, seen_art = [], set()
+    for i in sorted(same, key=lambda i: -views[i]):
+        if artists[i] not in seen_art:
+            seen_art.add(artists[i]); picked.append(i)
+        if len(picked) == k:
+            break
+    return picked
+
+
 def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_favourites=False, start_title="", start_artist="",
                rank=None, exclude=None):
-    """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). C: random songs from the
-    genre group of the closest Sound match. Each list: K songs, 1 per artist; rank "match" (round 2, default via HG_RANK) = best
+    """A: Sound only. B: Sound + the chosen feature (every chosen feature >= 65%). D: the most-viewed songs of the closest match's style (a
+    popularity baseline, HG_LIST_D). C: random songs from the genre group of the closest Sound match. Each list: K songs, 1 per artist; rank "match" (round 2, default via HG_RANK) = best
     match first, popularity ignored; rank "obscure" (round 1) = least popular good matches first.
     Quality guard: A and B never pick a song from the least-played `skip_least`% of its own site (0 = off), so the
     very least-played, often roughest, uploads do not win automatically. use_favourites keeps FMA songs that someone
@@ -410,11 +432,12 @@ def make_lists(q, feature, seed=0, skip_least=scoring.SKIP_LEAST_PLAYED, use_fav
     best_plain = float(np.max(np.where(none, -np.inf, plain)))
     top_group = genre_of(P["group"][best])                  # one genre across sites, not one source list
     rng = random.Random(seed)
-    used = set(a_idx) | set(b_idx)
+    d_idx = most_viewed_same_style(P, best, none | seen, artists) if LIST_D else []
+    used = set(a_idx) | set(b_idx) | set(d_idx)
     same = [i for i in range(n) if genre_of(P["group"][i]) == top_group and i not in used and not none[i] and not seen[i]]
     c_idx = rng.sample(same, min(K, len(same)))
     out = {}
-    for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None)):
+    for name, idx, bar in (("A", a_idx, a_bar), ("B", b_idx, b_bar), ("C", c_idx, None), ("D", d_idx, None)):
         out[name] = [dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i],
                           link=P["link"][i],                    # already a link that opens (apply_quality: check_pool_links.py / check_links.py)
                           note=friend_note(P["ai"][i]) if "ai" in P else "",
@@ -492,7 +515,7 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
             continue
         fr = merged.setdefault(r["friend"], {})
         for L in LISTS:
-            for s in r[L]:
+            for s in r.get(L, []):                              # captures made before list D existed have no "D"
                 it = fr.get(s["key"])
                 if it is None:
                     it = fr[s["key"]] = dict(s, lists=set(), starts=[], captures=[], liked=r["feature"])
@@ -543,6 +566,40 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
 
 
 MIN_FRIENDS = 3        # a range that resamples friends needs at least this many friends with ratings
+
+# The round-2 success rule (SUCCESS_RULE.md, committed BEFORE the sheets were sent; do not change these after looking at results)
+RULE_MIN_FRIENDS = 4   # friends who rated BOTH lists of a claim
+RULE_MIN_RATED = 8     # rated songs in EACH list of a claim
+RULE_MIN_EFFECT = 0.10 # would-add difference (10 points) the claim must reach, with the 95% range entirely above 0
+RULE_CLAIMS = (("H1", "A", "C", "Sound matching beats random songs of the same genre"),
+               ("H2", "A", "D", "Sound matching beats the most-viewed songs of the same style"),
+               ("H3", "B", "A", "Adding the feature the friend loves beats Sound alone"))
+
+
+def rule_verdict(rows):
+    """Print the verdict on each pre-set claim from the primary outcome (would add, all rated songs, all friends)."""
+    grp = {L: collections.defaultdict(list) for L in LISTS}
+    for r in rows:
+        for L in r["lists"]:
+            if r["add"] is not None:
+                grp[L][r["friend"]].append(r["add"])
+    print(f"\n=== PRE-SET SUCCESS RULE (SUCCESS_RULE.md): primary outcome = would add, all rated songs")
+    for tag, x, y, text in RULE_CLAIMS:
+        both = [f for f in grp[x] if f in grp[y]]
+        nx, ny = sum(len(v) for v in grp[x].values()), sum(len(v) for v in grp[y].values())
+        if len(both) < RULE_MIN_FRIENDS or min(nx, ny) < RULE_MIN_RATED:
+            res = (f"CANNOT JUDGE yet: needs {RULE_MIN_FRIENDS}+ friends who rated both lists (have {len(both)}) "
+                   f"and {RULE_MIN_RATED}+ rated songs in each (have {nx} and {ny})")
+        else:
+            d, lo, hi = _boot_diff(grp[x], grp[y])
+            span = f"{100*d:+.0f} points, 95% range {100*lo:+.0f} to {100*hi:+.0f}, {len(both)} friends"
+            if d >= RULE_MIN_EFFECT and lo > 0:
+                res = f"SUPPORTED ({span})"
+            elif hi < 0:
+                res = f"CONTRADICTED: list {x} is clearly worse ({span})"
+            else:
+                res = f"NOT CLEAR ({span}): no clear difference with this many friends, which is not the same as no effect"
+        print(f"  {tag}  {text}\n      {res}")
 
 
 def _boot_clustered(groups, n=2000, seed=0, min_friends=MIN_FRIENDS):
@@ -613,7 +670,7 @@ def score(paths):
         print(f"({n_broken} rows were left out because the friend said the link did not work)")
     if n_ai:
         print("rows where the friend said the song sounds AI-generated, by list: " + ", ".join(f"{L}: {n_ai[L]}" for L in LISTS))
-    names = {"A": "Sound only", "B": "Sound + chosen feature", "C": "Random, same genre"}
+    names = {"A": "Sound only", "B": "Sound + chosen feature", "C": "Random, same genre", "D": "Most viewed, same style"}
 
     def report(sel, title):
         res = {L: {"add": [], "heard": [], "rating": []} for L in LISTS}
@@ -641,7 +698,7 @@ def score(paths):
                   + (f"{np.mean(rt):4.2f} {rng_r}" if rt else "        -         ")
                   + (f"  {100*np.mean(h):6.0f}%" if h else "          ") + f"  {len(a)}")
         print("  differences between lists (same friends rated both; the range resamples friends):")
-        for x, y in (("A", "C"), ("B", "C"), ("B", "A")):
+        for x, y in (("A", "C"), ("B", "C"), ("B", "A"), ("A", "D"), ("B", "D")):
             d, lo, hi = _boot_diff(grp[x]["add"], grp[y]["add"]); dr, rlo, rhi = _boot_diff(grp[x]["rating"], grp[y]["rating"])
             if not np.isfinite(d):
                 continue
@@ -652,6 +709,7 @@ def score(paths):
         return by_feature
 
     report(rows, "ALL songs")
+    rule_verdict(rows)
     ai_share = {L: (sum(1 for r in rows if L in r["lists"] and r["ai"] != "none"), sum(1 for r in rows if L in r["lists"])) for L in LISTS}
     print("\nshare of the rated songs that the tagger marks AI-generated: " + ", ".join(f"{names[L]} {a}/{n}" for L, (a, n) in ai_share.items()))
     by_feature = report([r for r in rows if r["ai"] == "none" and not r["said_ai"]], "WITHOUT songs tagged AI or called AI by the friend (the matching on its own)")

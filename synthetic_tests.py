@@ -714,9 +714,9 @@ def seen_songs_test():
         q = dict(whole=P["whole"][j] + 0.3 * rng.normal(size=16), va_vg=P["va_vg"][j], va_mc=P["va_mc"][j], inst=P["inst"][j],
                  bpm=P["bpm"][j], confidence=P["confidence"][j], steadiness=P["steadiness"][j], busyness=P["busyness"][j])
         first = bt.make_lists(q, "mood+rhythm", seed=1)
-        shown = {s["key"] for L in "ABC" for s in first[L]}
+        shown = {s["key"] for L in "ABCD" for s in first[L]}
         second = bt.make_lists(q, "mood+rhythm", seed=1, exclude=shown)
-        again = {s["key"] for L in "ABC" for s in second[L]}
+        again = {s["key"] for L in "ABCD" for s in second[L]}
         assert shown and not (shown & again), shown & again
         assert all(len(second[L]) == bt.K for L in "ABC") and second["excluded_as_seen"] == len(shown)
         assert second["genre_group"] == first["genre_group"]                    # the genre pick ignores the exclusion
@@ -789,6 +789,46 @@ def clustered_range_test():
     print("   too-narrow row-level ranges are gone; <3 friends gives no range; list differences are paired by friend")
 
 
+def list_d_and_rule_test():
+    """List D (most-viewed songs of the same style) and the pre-set success verdict."""
+    print("\n14. LIST D AND THE PRE-SET SUCCESS RULE")
+    import blind_test as bt, io, contextlib
+    # (a) list D: most viewed first, one per artist, only the closest match's style, blocked songs never, wider genre when the style is tiny
+    n = 40
+    P = dict(key=[f"youtube_{i}" for i in range(n)], group=["yt_indiepop"] * 20 + ["yt_kpop"] * 15 + ["yt_rnb"] * 5,
+             listens=np.array([float(i * 100) for i in range(n)]))
+    artists = np.array([f"art{i // 2}" for i in range(n)])                      # two songs per artist
+    blocked = np.zeros(n, bool); blocked[19] = True                             # the most-viewed indiepop song is blocked (e.g. a copy)
+    d = bt.most_viewed_same_style(P, 0, blocked, artists)
+    assert d == [18, 17, 15], d                                                  # 19 blocked; 18 (art9), 17 (art8; 16 shares its artist), 15 (art7); all indiepop
+    assert all(P["group"][i] == "yt_indiepop" for i in d)
+    tiny = dict(key=["a", "b", "c", "d"], group=["yt_kpop", "yt_pop", "yt_pop", "yt_cpop"], listens=np.array([5.0, 40.0, 30.0, 20.0]))
+    assert bt.most_viewed_same_style(tiny, 0, np.zeros(4, bool), np.array(["w", "x", "y", "z"])) == [1, 2, 3]    # style too small: the genre "pop" is used
+    # (b) the verdict
+    def run(rows):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            bt.rule_verdict(rows)
+        return buf.getvalue()
+    def rows_for(friends, p):                                                    # p = chance of "would add" per list
+        rng = np.random.default_rng(5); out = []
+        for f in friends:
+            for L, pr in p.items():
+                for _ in range(10):
+                    out.append(dict(friend=f, lists=L, add=float(rng.random() < pr), heard=None, rating=None, liked="mood", ai="none", said_ai=False))
+        return out
+    five = ["F1", "F2", "F3", "F4", "F5"]
+    txt = run(rows_for(five, {"A": 0.8, "B": 0.8, "C": 0.2, "D": 0.5}))
+    assert "SUPPORTED" in txt.split("H1")[1].split("H2")[0] and "SUPPORTED" in txt.split("H2")[1].split("H3")[0], txt     # A beats C and D
+    assert "NOT CLEAR" in txt.split("H3")[1], txt                                                                       # B equals A
+    assert "CONTRADICTED" in run(rows_for(five, {"A": 0.1, "B": 0.1, "C": 0.9, "D": 0.5})).split("H1")[1].split("H2")[0]
+    assert "CANNOT JUDGE" in run(rows_for(["F1", "F2"], {"A": 0.8, "B": 0.8, "C": 0.2, "D": 0.5}))                       # only 2 friends
+    # a real but small gap (+5 points) is not enough, however clear
+    small = run(rows_for(five, {"A": 0.55, "B": 0.5, "C": 0.5, "D": 0.5}))
+    assert "SUPPORTED" not in small.split("H1")[1].split("H2")[0], small
+    print("   D = most viewed of the same style (one per artist, copies blocked); the verdict says SUPPORTED, CONTRADICTED, NOT CLEAR or CANNOT JUDGE as the rule says")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -804,3 +844,4 @@ if __name__ == "__main__":
     seen_songs_test()
     youtube_scale_test()
     clustered_range_test()
+    list_d_and_rule_test()

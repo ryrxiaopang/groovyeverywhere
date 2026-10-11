@@ -47,14 +47,14 @@ def main():
         with np.load(p) as d:
             q = bt.query_from_analysis(dict(d))
         lists = bt.make_lists(q, feature, seed=a.seed, start_title=r["song"], start_artist=r["artist"], exclude=seen.get(r["friend"]))
-        sizes = {k: len(lists[k]) for k in "ABC"}
+        sizes = {k: len(lists[k]) for k in bt.LISTS if lists.get(k) is not None and (k != "D" or bt.LIST_D)}
         fn = bt.save_capture(r["friend"], f"{r['song']} - {r['artist']}", feature, q, lists, signal="full song, YouTube")
         flag = []
         if lists["weak_capture"]:
             flag.append("weak match")
         if min(sizes.values()) < bt.K:
             flag.append("a list is short")
-        print(f"  ok {label:42.42s} feature={feature:18s} lists A/B/C={sizes['A']}/{sizes['B']}/{sizes['C']} "
+        print(f"  ok {label:42.42s} feature={feature:18s} lists {'/'.join(sizes)}={'/'.join(str(v) for v in sizes.values())} "
               f"closest Sound {lists['best_sound_cosine']:.2f} genre={lists['genre_group']} {' '.join(flag)}")
         made += 1
     print(f"{made} captures written")
