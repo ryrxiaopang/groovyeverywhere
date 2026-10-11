@@ -1,29 +1,25 @@
-# To-do for Claude Code (in priority order, updated 7 Oct 2026)
+# To-do (updated 11 Oct 2026)
 
-Read CLAUDE.md first. Keep its core rules: no audio is ever kept, the MTG test split is sealed, never run two analysis runs at
-once. Do one task at a time, run `python synthetic_tests.py` after each, and finish each with a short plain-language summary of
-what changed and any numbers measured.
+Read CLAUDE.md first, starting with its "START HERE" section: it has the state of the project, the decisions already made and the ordered list of what is waiting.
+Keep the core rules: no audio is ever kept, the MTG test split is sealed, never run two analysis runs at once, pass marks are set before looking.
+Run the offline tests after every change and finish each task with a short plain-language summary of what changed and any numbers measured.
 
-## Done
-- [x] Blind test: best part chosen AFTER combining features (`blind_test.pair_similarities`, one score per part).
-- [x] Hidden-gem quality guard (`scoring.least_played`, skips the least-played 10% of each site; FMA favourites need >= 3).
-- [x] Offline tests for the newer code are partly in place (`synthetic_tests.py` sections 3b-6: rescaling, blind pairing, audio
-      deletion, carry.py zip guard, key redaction, split ids). Still missing: `instrument_presence` / `instrument_somewhere`,
-      `match.rank(method="windows")`, `carry.py` pack/unpack merge, `run_tests.done_keys` retry cap.
-- [x] Sound rescaling adopted (spread^0.25), official test-split score done (see CLAUDE.md), YouTube + underrated-artist pool growth.
+## Waiting on the user's machine (details and commands in CLAUDE.md > START HERE > Pending)
+1. Round-2 ratings from five friends, then `python blind_test.py --score <round-2 sheets>` against `SUCCESS_RULE.md`.
+2. AI channels: `ai_channels.py --from-sheet ai_check_sheet.csv` (preview, then `--write`), confirm other SEO-style AI channels for `ai_block.txt`.
+3. Six replacements from the listening-sheet comments: `replace_songs.py ai_check_sheet.csv` (preview, then `--apply`).
+4. Covers and fan lyric videos -> the artist's own upload: `find_official_versions.py --search --limit 50 --deezer --explain 12`, review, approve, `replace_songs.py --proposals ...`.
+5. One analysis run (`run_tests.py --list pool_youtube.csv`), then `pool_duplicates.py` (`--apply` before round 3).
+6. `pending_artists.md`: 10 queued Spotify artists for the next pool expansion.
 
-## Next
-1. **Finish the YouTube analysis** (`run_tests.py --list pool_youtube.csv`, resumable) and keep growing the pool with
-   `build_youtube.py` / `build_underrated.py --add` (more genres: metal, jazz, folk, reggae, blues, country, world). Ask the
-   user for YouTube links for artists that could not be matched (SHIRT).
-2. **Voice: build it or drop it** with the test in `VOICE_PIPELINE.md` (Sound + Voice vs Sound alone; baseline 29%; ~250 questions).
-   Awaiting the user's OK for the GPU environment.
-3. **Rhythm:** switch the "is there a beat?" signal to busyness; finish tapping (11 of 50) and run T15.
-4. **Missing offline tests** (list above), `similar.py` on the rescaled Sound, optional `psycopg` + database setup.
-5. After Voice: friends' blind test (`capture_server.py` + `blind_test.py`), user test, freeze the pool as version 1, update the
-   Evidence Report doc.
+## Next (for a coding session)
+- After round 2 is scored: update the Project Guide doc and the Evidence Report; decide round 3 (more indie rock / alternative rock / singer-songwriter; list sizes; whether list D stays).
+- Re-run the AI-tagger check on a fresh sample if the tagger is retuned (the first 99 songs must not be reused to validate a new rule).
+- Rhythm: finish tapping (11 of 50) and decide its role (weak / optional).
+- Housekeeping: README refresh, merge the two link checkers, `similar.py` on the rescaled Sound, optional `psycopg` + database setup.
 
-## Runs the user does himself or herself (no code needed)
-- Fill in `youtube_listen_sheet_underrated.csv`, then `python check_youtube_quality.py --score`.
-- Finish tapping (http://localhost:8765/tap after `python capture_server.py`), then `python evaluate.py --split validation`.
-- After big changes: `python pool_mix.py` (needs the database), `python export_catalogue.py`, `python backup.py --to "$HG_BACKUP_DIR"`.
+## Done (recent)
+- Round 2 design: YouTube-only pool, best match first, lists A/B/C/D, no repeats, success rule written before sending, friend-resampled ranges, Sound scale fitted on the YouTube pool.
+- Pool growth: 33 Spotify artists, 60 Deezer-discovered artists (`deezer_discover.py`), pool tools (`pool_summary.py`, `pool_duplicates.py`).
+- AI music: tagger check (`ai_tag_check.py`), policy `hide` by default, `ai_keep.txt` / `ai_block.txt`, `ai_channels.py`.
+- Official versions: `find_official_versions.py` + `replace_songs.py` (two real batches run and fixed).

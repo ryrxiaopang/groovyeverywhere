@@ -5,7 +5,57 @@ stores only numbers, and recommends "hidden gems": good matches that few people 
 story and the mentor's three questions; `TODO.md` the task list; `VOICE_PIPELINE.md` the design for the Voice feature.
 The project's own written report is a claude.ai doc, "groovyeverywhere: Evidence Report"
 (https://claude.ai/artifact/GpjFC3gVZ6sMvqBKNY15dJ; read it only with the docs connector / Artifact tool, never WebFetch).
-Last updated 10 Oct 2026.
+Last updated 11 Oct 2026 (handoff written at the end of a long session: read START HERE first).
+
+
+## START HERE: handoff for a new session (11 Oct 2026)
+
+**Who and where.** The user is Ryan (GitHub `ryrxiaopang`; WSL Ubuntu desktop, repo `~/groovyeverywhere`); the mentor is "June". Work happens in TWO places:
+* **Cloud session (Claude Code on the web):** writes and tests code, edits the docs, commits to branch `claude/brave-rubin-xs7hbb` (it was started from `origin/hidden-gems-kit`; PR #1 on `hidden-gems-kit`
+  is the older kit and is not merged; do NOT open a PR unless asked). The cloud sandbox cannot reach Spotify, Deezer or YouTube (proxy 403), has no Essentia, no results/, no models: it can only test offline.
+* **The user's machine (WSL):** all data, analysis and web access. The user does `git pull` on `claude/brave-rubin-xs7hbb` and pastes outputs back. Never claim something ran there unless the user pasted its output.
+Offline tests in the cloud: `synthetic_tests.py` needs Essentia for its early sections, so run the newer sections one at a time:
+`python3 -I - <<'EOF'` / `import sys; sys.path.insert(0,"/home/user/groovyeverywhere")` / `import importlib.util; spec=importlib.util.spec_from_file_location("st","/home/user/groovyeverywhere/synthetic_tests.py")` /
+`m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); m.round2_test(); m.official_versions_test(); ...` (functions: round2_test, deezer_discover_test, seen_songs_test, youtube_scale_test,
+clustered_range_test, list_d_and_rule_test, pool_duplicates_test, ai_tag_check_test, replace_songs_test, official_versions_test, ai_removal_test = sections 9-19). Keep them green; add a section for every new feature.
+Commit as `git -c user.name=ryrxiaopang -c user.email=ryanchan3007@gmail.com commit -F file` (message ends with the Co-Authored-By line); push with `git push -u origin claude/brave-rubin-xs7hbb`.
+
+**Where the project stands (11 Oct 2026)**
+* **Round 2 of the friends' blind test was SENT on 11 Oct** to Felicia, Isaac, Weiyang, Xing You and Javen and is waiting for ratings. Lists per friend song: A Sound only, B Sound + the feature they love, C random same genre,
+  D 3 most-viewed songs of the closest match's style (a popularity baseline); 3 songs each, best match first, no song a friend was shown before, AI note off, YouTube-only pool of 5,658 songs, Sound scale fitted on the YouTube pool.
+  `SUCCESS_RULE.md` (commit bd40b47, written BEFORE sending) fixes how it is judged: primary outcome would-add; H1 A>C, H2 A>D, H3 B>A; SUPPORTED needs +10 points, a 95% range (resampling friends) above 0, 4+ friends who rated both
+  lists and 8+ rated songs per list. Score with `python blind_test.py --score <the round-2 sheet files only>` (it prints the verdicts); do not change the thresholds after seeing results. Round 1 was confounded by AI uploads (see below).
+  The round-2 lists were built with the old AI policy (hide-low), BEFORE the "remove all AI" decision below: say so when reporting. One twin pair (two uploads of one song) is on Xing You's sheet.
+* **Pool (YouTube only):** 6,795 songs in the lists, 6,740 analysed; after the quality filters (no dead links, ALL AI-tagged songs removed) 5,616. Mix: English/other Latin-script 68%, Korean 12.5%, Mandarin 8.7%, Japanese 7%, Cantonese 3%;
+  styles: R&B, pop, alternative, indie, indie pop largest; thin: alternative rock (36), indie rock (116), singer-songwriter (~110). Grown on 10-11 Oct with 33 Spotify artists (`spotify_artists9.json`) and 60 Deezer-discovered artists.
+* **Decisions the user made (do not reopen without asking):** YouTube-only pool (FMA/Jamendo/Audius never recommended); best match first, not hidden-gems-only; 3 songs per list; add list D; leave the AI note off the sheets; never repeat a song for a friend;
+  remove ALL AI songs from the pool (policy `hide`), with `ai_keep.txt` (kanegi, clouds.rap: never removed) and `ai_block.txt` (channels the user flags: all their songs removed); replace covers and fan lyric videos by the artist's own upload;
+  Voice dropped from version 1; Mood = VGGish -> emoMusic; punk/latin/funk/classical/soundtrack stay off the pool; do not raise YouTube terms (the user has permission).
+* **Measured so far:** sealed test (6 Oct) 16 pass / 3 fail / 6 warn / 2 skipped; Sound finds a same-artist song on another album in the top 10 for 29%; cosine family beats dot / Euclid / Manhattan, rescaling adds 2-4 points at most;
+  Voice +2.8 points (95% range -5.1 to +10.8) vs a +10 bar so dropped; AI tagger (listening check of 99 songs, 11 Oct): confirmed 12/12 and likely-under-10k 20/20 really AI (no false alarms), but untagged songs under 10,000 views are
+  29% AI (95% range 15-47%) so it finds only ~77% of AI music (59-85%); all three pre-set marks PASS (the "untagged <= 10%" one is not settled: 4-13%).
+
+**Pending, in this order (all on the user's machine; ask what has been done, I do NOT know which of these the user already ran)**
+1. Wait for the round-2 ratings, then score (above). Compare against round 1 only descriptively.
+2. AI channels: `python ai_channels.py --from-sheet ai_check_sheet.csv` (preview of the channels the user answered `y` for) then `--write`; `--suggest` lists other mostly-AI channels. The unresolved fan-lyric songs show many
+   SEO-style AI channels (ZYKO MUSIC, SOMEONE TRACK, NEON IDOL, Melody of Emotions, SSINSAI MUSIC, GEM.musician, V E X M O D E, YT SONG): candidates for `ai_block.txt`, for the user to confirm.
+3. Six replacements the user wrote in `ai_check_sheet.csv` ("replace with <official link>", items ai-012, 017, 042, 047, 082, 095): `source env_keys.sh; python replace_songs.py ai_check_sheet.csv` (preview), then `--apply`.
+4. Covers / fan lyric videos -> original: `python find_official_versions.py` (scan: 361 candidates = 335 fan lyric videos + 26 covers; 90 own-channel visualizers are skipped), then
+   `python find_official_versions.py --search --limit 50 --deezer --explain 12` (paste the proposals and the --explain blocks), approve rows (`approve = y`), `python replace_songs.py --proposals results/official_proposals.csv [--apply]`,
+   then run it on all candidates. Two 50-song batches so far: batch 1 had ~5 of 18 proposals right (own-channel visualizers were being replaced; fixed), batch 2 had 10 proposals (7 right: Eliza Rose, joon, Aioz, SRA, Drain, Meiko Nakahara,
+   Jean Dawson; Idina Menzel's "Let It Go" is the right original of a piano cover) and 40 unresolved (length rule, "Song by Artist", titles with no artist, AI originals: all addressed in the latest code, NOT yet re-run by the user).
+5. After the pool edits: analyse once (`python -u run_tests.py --list pool_youtube.csv`, nothing else running), `python pool_duplicates.py` (255 extra copies in 237 groups found, report only), and `--apply` it before round 3's lists.
+6. `pending_artists.md`: 10 Spotify artists queued for the next expansion (names/genres unknown): run `spotify_artists.py` on the user's machine, ask the user for genres, then `boost_artists.sh`.
+7. Round 3 planning after round-2 scoring (pool changes refit the Sound scale, so freeze the pool before building lists).
+
+**Known gaps (from a fresh review; see the Project Guide doc)**: AI tagger recall ~77% (the block list is the fix); the pool was seeded from the friends' own artists (list C may be an easy baseline, list D helps); few friends (ranges are rough);
+Rhythm is the weakest feature; the research question drifted from "hidden gems" to "does sound matching recommend songs people keep"; no live demo path; README still describes the first 160-song kit; results/ live only on the user's machine + backups.
+
+**Documents.** "groovyeverywhere: Project Guide" (Claude Docs, plain-language, two diagrams): https://claude.ai/artifact/H2yR1efMZgojuU35Y9CfNn (doc id `81d8ba8b-09b3-45c2-b706-e94c2a57d7df`, tab file `efabdedd-b889`, body node `b290520b-7b87`,
+widgets `6be93e52-97f6` and `2c5f61ad-cb0b`; edit with the Claude Docs tools, never WebFetch; update it after round 2). "groovyeverywhere: Evidence Report": https://claude.ai/artifact/GpjFC3gVZ6sMvqBKNY15dJ.
+
+**Habits that worked.** Plain language, numbers with 95% ranges, say what was NOT verified; preview before `--apply`; one analysis at a time (`pgrep -af "[r]un_tests"`); `boost_artists.sh` jobs queue behind each other; ask the user to paste
+outputs rather than guessing; correct earlier claims openly when a check shows they were wrong.
 
 ## Rules that must never be broken
 1. **No audio is ever kept.** Every download goes through `sources.temp_audio()` (a `TemporaryDirectory`); only numbers are
@@ -20,7 +70,7 @@ Last updated 10 Oct 2026.
    `test_split_freeze.json` ARE committed on purpose.
 
 ## Environment (Windows desktop, work happens in WSL Ubuntu)
-* Repo: `~/groovyeverywhere` in WSL (git branch `hidden-gems-kit`, local commits only, not pushed). The older big-data
+* Repo: `~/groovyeverywhere` in WSL; since 10 Oct the user works on branch `claude/brave-rubin-xs7hbb` (pulled from GitHub; `hidden-gems-kit` / PR #1 is the older kit). The older big-data
   folder `~/hidden-gems-tests` is a copy of the original kit; its results were MERGED into this repo's `results/`.
 * Edit WSL files from Windows with the editor tools at `\\wsl.localhost\Ubuntu\home\xiaopang\groovyeverywhere\...`.
   Run commands with `wsl -e bash -c '...'` and `source .venv/bin/activate`. Use `bash -ic` when a key from `~/.bashrc`
@@ -56,7 +106,7 @@ Last updated 10 Oct 2026.
   known weak point), `check_youtube.py`, `check_platforms.py`, `pool_mix.py`, `export_catalogue.py`, `backup.py`, `carry.py`,
   `gem_guard_check.py`, `select_test_split.py`, `check_youtube_quality.py`.
 
-## State of the work (7 Oct 2026)
+## Earlier state of the work (7 Oct 2026; kept for history, today's state is in START HERE)
 * Analysed songs: 8,185 (Jamendo 5,345, FMA 2,167, Audius 282, YouTube 391). Pool: 4,568 songs, 66% with singing.
 * **Official test (6 Oct):** 1,143 sealed test songs (of 1,686 listed; 498 gone from Jamendo, 45 not downloadable), 16 checks
   pass, 3 fail (Sound "styles apart" 65% vs 85% bar: only 5 happy-classical songs, plain cosine scores the same; both beat-
@@ -118,7 +168,7 @@ The user decided the pool may contain songs that used to be popular and are less
 NOT have to stay strict to hidden gems / obscurity. So: `recommend_song.py` ranks best match first by default (`--rank obscure`
 keeps the old rule), `build_youtube.py --ytdlp --relevance` takes songs in YouTube's order up to 20M views,
 `build_from_spotify.py` adds whole playlists (verified YouTube matches). The BLIND TEST lists still use `pick_hidden_gems`
-(changing them would break comparability with the sheets already made); decide before round 2 whether they should change too.
+(changing them would break comparability with the sheets already made). DECIDED for round 2: best match first (`HG_RANK=match`), see Round 2 settings.
 Pool quality audits (7 Oct): ~75 non-songs excluded by hand (news, recaps, reviews, listicles, "guess the song" games, karaoke,
 type beats, test uploads, ads); `NOT_A_SONG` is now much stricter. Re-run an audit after every big pool addition: titles with
 top N / best / guess / quiz / review / recap / news / compilation / playlist, and channel names with news / radio / tv.
@@ -135,7 +185,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * `tag_ai.py` -> `results/ai_tags.csv`: confirmed (the text says Suno / AI-generated ...) or likely (3+ soft signs), read through the
   YouTube Data API (yt-dlp was blocked as a bot after a few hundred songs). 312 confirmed, 805 likely of 4,463 YouTube songs. It was
   tuned on Isaac's 5 AI songs, so expect false alarms on small real artists. Policy `HG_AI_POLICY` = show / hide-low (default: AI songs
-  under 10,000 views are dropped) / hide. Recommendations and sheets carry a note ('likely AI-generated', 'AI-generated (confirmed)').
+  under 10,000 views are dropped) / hide. Since 11 Oct the DEFAULT IS `hide` (every tagged song leaves). Recommendations carry a note ('likely AI-generated', 'AI-generated (confirmed)'); friends' sheets do not (round 2).
 * `refresh_sheets.py` puts working links and the AI note into the existing sheets (item ids unchanged); `--rerate FILLED.csv` builds a
   mini sheet of the rows a friend could not open. `blind_test.py --score` now reads "n (link don't work)" and 1.5-style ratings, leaves
   broken-link rows out, and prints the result with and without AI-tagged songs.
@@ -162,7 +212,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   (refresh drops an old one). The AI *policy* (`HG_AI_POLICY`, hide-low) and `tag_ai.py` are unchanged, and `blind_test.py --score` still reports with and
   without AI-tagged songs, so the tags are used for scoring even though friends do not see them. `recommend_song.py` still shows the tag to the researcher.
 * **Running round 2 for a friend already in round 1:** `python build_friend_lists.py --final --friend NAME` makes NEW captures (old ones are never
-  overwritten), `python blind_test.py --sheets` writes `sheet_NAME_2.csv`, then `python refresh_sheets.py`. Open: nothing stops a round-2 list repeating a
+  overwritten), `python blind_test.py --sheets` writes `sheet_NAME_2.csv`, (skip `refresh_sheets.py` for round 2: YouTube links need no repair and it rewrites every sheet). Resolved 11 Oct: songs already shown to a friend are now excluded; before, nothing stopped a round-2 list repeating a
   round-1 song for the same friend (best-match-first will often pick the same top songs); decide whether to exclude songs already rated.
 * `python pool_summary.py` prints the pool by site / genre / sub-style / language (best guess) / AI tag; `--all-sites` shows what round 2 leaves out.
 * **Several songs per artist in a list (10 Oct):** `scoring.max_per_artist(k)` = ceil(k/4) (env `HG_MAX_PER_ARTIST` overrides): 1 of 3, 3 of 9 or 10. The blind test
@@ -179,7 +229,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **Friend-test ranges (11 Oct):** `blind_test.score()` ranges now resample FRIENDS first and then each friend's ratings (`_boot_clustered`); before, every
   rating was resampled alone, which made the ranges too narrow. At least 3 friends are needed (`MIN_FRIENDS`), otherwise the report prints "no range". It also
   prints the paired differences A minus C, B minus C and B minus A (`_boot_diff`, friends who rated both lists). With only a handful of friends the
-  ranges are still rough guides. Still open: a written success rule before round 2 is sent, and a possible list D baseline (most-viewed songs of the genre).
+  ranges are still rough guides. (The success rule and list D were added the same day: see below.)
 * **List D and the success rule (11 Oct):** a fourth list D = the 3 most-viewed songs (one per artist) of the closest match's sub-style group (`blind_test.most_viewed_same_style`;
   the wider genre if the style has under 9 songs), a popularity baseline; `HG_LIST_D=0` leaves it out (D is then empty). Songs in two lists are rated once (lists such as "AD").
   `SUCCESS_RULE.md` (committed before the round-2 sheets are sent; its commit date is the timestamp) fixes what counts as success: primary outcome would-add on all rated songs;
@@ -219,15 +269,15 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * Offline check: `synthetic_tests.py` section 9, section 19 (AI removal), section 18 (official versions), section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
-0. `pending_artists.md` lists 10 Spotify artists the user wants added at the next pool expansion (names and genres not yet looked up: run `spotify_artists.py` on the user's machine, then ask the user to confirm genres).
-1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
-2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.
-3. Rhythm: the beat-detection checks fail on validation and test. Busyness as the "is there a beat?" signal won on test (0.78 vs 0.66)
+The ordered list of what is waiting is in START HERE ("Pending"). Longer-term items, unchanged:
+1. Voice is dropped from version 1 (the design and the dry-run result are in `VOICE_PIPELINE.md`); revisit only if the friends' feedback points to singing style.
+2. Rhythm: the beat-detection checks fail on validation and test. Busyness as the "is there a beat?" signal won on test (0.78 vs 0.66)
    but NOT clearly on validation (0.754 vs 0.733, n=64), so the switch was NOT made (test numbers must not drive choices). Rhythm
    stays the least validated model: finish tapping 50 songs (11 done) to choose the speed method; present it as weak/optional.
-4. Friends' blind listening test (after the Voice decision), then the user test; pool freeze as "version 1".
-5. Housekeeping: switch `similar.py` to the rescaled Sound; install `psycopg` + `bash setup_db.sh` if the database is wanted;
-   re-run `check_platforms.py` when Spotify's limit resets; keep the Evidence Report doc in step with new results.
+3. Pool freeze as "version 1" and the user's own test after the friends' rounds.
+4. Housekeeping: switch `similar.py` to the rescaled Sound; install `psycopg` + `bash setup_db.sh` if the database is wanted;
+   re-run `check_platforms.py` when Spotify's limit resets; keep the Evidence Report and Project Guide docs in step with new results; refresh `README.md` (it still describes the first kit).
+5. The deleted-file clean-up: ~100 scripts sit in the repo root; two link checkers exist (`check_links.py`, `check_pool_links.py`): merge or archive when time allows.
 
 ## Conventions
 Plain-language explanations for the user (no jargon without a gloss); numbers with their 95% range; say what was NOT verified.

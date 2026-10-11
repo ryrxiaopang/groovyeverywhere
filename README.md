@@ -1,3 +1,5 @@
+> **Note (11 Oct 2026):** this README describes the first test kit (160 songs, Jamendo/FMA/Audius). The project has moved on: the current state, decisions and next steps are in `CLAUDE.md` (start at "START HERE"), the plain-language overview is the Claude doc "groovyeverywhere: Project Guide", and the round-2 success rule is `SUCCESS_RULE.md`.
+
 # Hidden Gems – first tests with Essentia's models
 
 ## Quick setup on a new machine (desktop)
