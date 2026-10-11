@@ -79,6 +79,8 @@ def _sq(s):
 
 def channel_matches(channel, *names):
     """True when the channel's name is (part of) one of the names or the other way round: 'JastinMartinVEVO' ~ 'Jastin Martin', 'Aioz - Topic' ~ 'Aioz'."""
+    if re.search(r"unofficial|\bfans?\b|fan ?club|fanpage|\bAIFC\b", channel or "", re.I):    # "Sonu Nigam - UnOfficial" ends in "official" but is not the artist's channel
+        return False
     c = _sq(channel)
     if len(c) < 3:
         return False
