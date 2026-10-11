@@ -142,9 +142,16 @@ def find_official(c, search, deezer=None):
             if bs.verify(e, song, artist, dur):
                 cands.append(e)
         if cands:
-            cands.sort(key=lambda e: bs.official_rank(e, artist), reverse=True)
+            # "Song - Artist" titles are common: the uploader may be named after either part, so the artist's own channel is recognised under both readings
+            def rank(e):
+                a, b = bs.official_rank(e, artist), bs.official_rank(e, song)
+                return (a[0] or b[0], a[1])
+            cands.sort(key=rank, reverse=True)
             best = cands[0]
-            return dict(artist=artist, song=song, entry=best, official=bool(bs.official_rank(best, artist)[0]), note=note)
+            swapped = not bs.official_rank(best, artist)[0] and bs.official_rank(best, song)[0]
+            if swapped:
+                note = (note + "; " if note else "") + "title looked like 'Song - Artist': check the artist"
+            return dict(artist=artist, song=song, entry=best, official=bool(rank(best)[0]), note=note)
     return None
 
 

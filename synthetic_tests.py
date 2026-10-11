@@ -1005,6 +1005,12 @@ def official_versions_test():
     assert g2["entry"]["id"] == "ROCROCROC11" and "Deezer" in g2["note"]
     assert fo.deezer_original("Best Friend", get=lambda q: {"data": [dict(title="Other", title_short="Other", artist=dict(name="X"), duration=1),
                               dict(title="Best Friend", title_short="Best Friend", artist=dict(name="Rex Orange County"), duration=180)]}) == ("Rex Orange County", "Best Friend", 180.0)
+    # a 'Song - Artist' title: the official channel is the SECOND part; it must still be recognised and ranked first
+    rev = dict(old, key="youtube_REVREVREV11", kind="fan lyric video", title="TAO LANG - LOONIE (Lyrics)", channel="Fan", pool_artist="Fan", duration="200")
+    ent3 = [dict(id="FANFANFAN111", title="LOONIE - TAO LANG (Lyrics)", channel="Another Fan", duration=200, view_count=99_000_000),
+            dict(id="LOONIEOFF11", title="LOONIE - TAO LANG (Official Music Video)", channel="LOONIE", duration=201, view_count=1_000_000)]
+    g3 = fo.find_official(rev, lambda q, n: ent3)
+    assert g3["entry"]["id"] == "LOONIEOFF11" and g3["official"] and "check the artist" in g3["note"], g3
     # (d) the review file and replace_songs: only approve = y rows are used; fan lyric videos from an official channel come pre-approved, covers do not
     d = tempfile.mkdtemp(); path = os.path.join(d, "p.csv")
     fo.write_proposals(path, [old, cov], [(old, g), (cov, g2)])
