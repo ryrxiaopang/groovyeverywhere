@@ -199,16 +199,16 @@ def write_unresolved(path, cands, found):
     done = {c["key"] for c, _ in found}
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f); w.writerow(["kind", "key", "title", "channel", "guesses searched", "link"])
+        w = csv.writer(f); w.writerow(["kind", "key", "title", "channel", "old_seconds", "guesses searched", "link"])
         for c in cands:
             if c["key"] not in done:
                 guesses = "; ".join(f"{a} / {s}" for a, s in candidate_pairs(c["title"], c["pool_artist"], c["channel"])) or "(no artist guess)"
-                w.writerow([c["kind"], c["key"], c["title"], c["channel"], guesses, c["link"]])
+                w.writerow([c["kind"], c["key"], c["title"], c["channel"], c["duration"], guesses, c["link"]])
 
 
 def write_proposals(path, cands, found):
     cols = ["approve", "kind", "old_key", "old_title", "old_channel", "old_views", "old_link", "artist", "song",
-            "new_link", "new_title", "new_channel", "new_views", "new_seconds", "official_channel", "note"]
+            "new_link", "new_title", "new_channel", "new_views", "new_seconds", "old_seconds", "official_channel", "note"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f); w.writerow(cols)
@@ -217,7 +217,7 @@ def write_proposals(path, cands, found):
             pre = "y" if (g["official"] and c["kind"] == "fan lyric video") else ""
             w.writerow([pre, c["kind"], c["key"], c["title"], c["channel"], c["views"], c["link"], g["artist"], g["song"],
                         f"https://www.youtube.com/watch?v={e['id']}", e.get("title"), e.get("channel") or e.get("uploader"),
-                        e.get("view_count") or "", int(e.get("duration") or 0), "yes" if g["official"] else "no", g["note"]])
+                        e.get("view_count") or "", int(e.get("duration") or 0), c["duration"], "yes" if g["official"] else "no", g["note"]])
 
 
 def main():
