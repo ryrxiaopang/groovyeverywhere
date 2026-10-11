@@ -873,6 +873,55 @@ def pool_duplicates_test():
     print("   a triple upload is grouped and the most-viewed copy kept; sound-alikes with other titles are only listed; marking is idempotent; the sheet check shows titles only")
 
 
+def ai_tag_check_test():
+    """ai_tag_check.py: stratified blind sample, answers read back per group, estimates scaled to the pool, pass marks."""
+    print("\n16. AI-TAGGER CHECK")
+    import ai_tag_check as ai, tempfile, os, csv, io, contextlib
+    rng = np.random.default_rng(2)
+    frame, n = [], 0
+    for status, views, count in (("confirmed", 500, 20), ("confirmed", 50000, 10), ("likely", 300, 120), ("likely", 40000, 30),
+                                 ("none", 800, 250), ("none", 90000, 140)):
+        for _ in range(count):
+            frame.append(dict(key=f"youtube_{n}", title=f"t{n}", channel=f"c{n}", link=f"https://y/{n}", status=status, views=float(views))); n += 1
+    s1, pops = ai.draw_sample(frame, seed=3); s2, _ = ai.draw_sample(frame, seed=3)
+    assert [r["key"] for r in s1] == [r["key"] for r in s2] and len(s1) == 100 and len({r["key"] for r in s1}) == 100      # reproducible, no repeats
+    assert pops == {"C": 30, "LL": 120, "LH": 30, "NL": 250, "NH": 140}, pops
+    got = {g: sum(r["group"] == g for r in s1) for g in ai.SIZES}
+    assert got == ai.SIZES, got
+    assert [r["group"] for r in s1] != sorted(r["group"] for r in s1)                                                         # shuffled
+    tiny, _ = ai.draw_sample(frame[:5], seed=1); assert len(tiny) == 5                                                        # a short group is taken whole
+    d = tempfile.mkdtemp(); sheet, key = os.path.join(d, "sheet.csv"), os.path.join(d, "key.csv")
+    m, _ = ai.make(frame, sheet, key, seed=3)
+    text = open(sheet, encoding="utf-8-sig").read()
+    assert m == 100 and "confirmed" not in text and "likely" not in text and "none" not in text.split("\n", 1)[1]            # the sheet does not reveal the tags
+    # a rater: 12 of 12 confirmed AI; likely-low 14 of 20; likely-high 9 of 10; untagged-low 3 yes, 1 unsure, 24 no; untagged-high 1 of 30
+    plan = {"C": ["y"] * 12, "LL": ["y"] * 14 + ["n"] * 6, "LH": ["y"] * 9 + ["n"], "NL": ["y"] * 3 + ["u"] + ["n"] * 24, "NH": ["y"] + ["n"] * 29}
+    rows = list(csv.DictReader(open(key, encoding="utf-8"))); filled = os.path.join(d, "filled.csv"); used = {g: 0 for g in plan}
+    with open(filled, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["item", "ai? (y / n / unsure)"])
+        for r in rows:
+            w.writerow([r["item"], plan[r["group"]][used[r["group"]]]]); used[r["group"]] += 1
+    counts, p2 = ai.read_answers([filled], key)
+    assert counts == {"C": [12, 0, 0], "LL": [14, 6, 0], "LH": [9, 1, 0], "NL": [3, 24, 1], "NH": [1, 29, 0]} and p2["LL"] == 120 and p2["C_under_10k"] == 20
+    point, rng_ = ai.estimates(counts, p2)
+    likely = (120 * 0.7 + 30 * 0.9) / 150; untagged = (250 * (3 / 27) + 140 * (1 / 30)) / 390
+    assert abs(point["likely"] - likely) < 1e-9 and abs(point["untagged"] - untagged) < 1e-9 and point["confirmed"] == 1.0
+    assert abs(point["wrongly_dropped"] - (20 * 0 + 120 * 0.3)) < 1e-9                                                       # 30% of the 120 dropped 'likely' songs are real
+    assert rng_["likely"][0] < point["likely"] < rng_["likely"][1]
+    v = ai.verdict(point)
+    assert v == {"likely": "PASS", "confirmed": "PASS", "untagged": "PASS"}, (v, point)                                       # 0.74 >= 0.70, 1.0 >= 0.90, 0.083 <= 0.10
+    worse = dict(counts, NL=[10, 17, 1], LL=[8, 12, 0])                                                                       # many missed AI songs, many false alarms
+    assert ai.verdict(ai.estimates(worse, p2)[0]) == {"likely": "FAIL", "confirmed": "PASS", "untagged": "FAIL"}
+    assert ai.verdict(ai.estimates(dict(counts, C=[0, 0, 0]), p2)[0])["confirmed"] == "unknown"                              # nothing answered in a group: no verdict
+    lo, hi = ai.wilson(7, 10); assert abs(lo - 0.397) < 0.002 and abs(hi - 0.892) < 0.002 and all(np.isnan(ai.wilson(0, 0)))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ai.score([filled], key)
+    out = buf.getvalue()
+    assert "100 songs answered, 1 of them 'unsure'" in out and "PASS" in out and "If every 'unsure' were AI" in out, out
+    print("   stratified blind sample (tags never shown), answers read back per group, estimates scaled to the pool, marks give PASS or FAIL")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -890,3 +939,4 @@ if __name__ == "__main__":
     clustered_range_test()
     list_d_and_rule_test()
     pool_duplicates_test()
+    ai_tag_check_test()

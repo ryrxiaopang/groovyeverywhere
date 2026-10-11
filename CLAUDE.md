@@ -191,7 +191,11 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   titles are listed as 'check by ear' and never marked. `--check-sheets` counts twins on each friend's sheets (titles only, never the lists); `--apply` marks the dropped copies
   `i_agree = n` and logs them in `pool_audit_log.csv`. `--apply` changes the pool (and so refits the Sound scale): do it before the next round's lists, never between sending a
   round and scoring it.
-* Offline check: `synthetic_tests.py` section 9, section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
+* **AI-tagger check (11 Oct):** `python ai_tag_check.py --make` writes `ai_check_sheet.csv` (100 YouTube pool songs, tags hidden: 12 confirmed, 20 likely under 10,000 views, 10 likely 10,000+,
+  28 untagged under 10,000, 30 untagged 10,000+, shuffled) and `results/ai_check_key.csv` (do not open it). The listener fills `ai? (y / n / unsure)` (~90 min); `python ai_tag_check.py --score ai_check_sheet.csv`
+  prints, scaled to the real pool with 95% ranges: share of LIKELY / CONFIRMED / UNTAGGED songs that are really AI, how much AI music the tagger finds, how many real songs the hide-low policy removes, and
+  PASS / FAIL on marks fixed before listening (likely >= 70%, confirmed >= 90%, untagged AI <= 10%). Unsure answers are left out of the main numbers and bounded separately. The listener's judgement is the reference.
+* Offline check: `synthetic_tests.py` section 9, section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
