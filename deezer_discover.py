@@ -191,7 +191,20 @@ def artist_genre_and_tracks(dz, aid, name, gmap):
     return pool, top, years
 
 
-def choose(dz, cand, args, taken, skip):
+def load_overrides(path):
+    """{normalised artist name: pool genre} from a file of 'Artist Name = genre' lines (# starts a comment). Deezer files most indie / singer-songwriter artists
+    under 'Alternative' or 'Pop', so this is how you put an artist into the style you want it counted in (indierock, singer, indiepop ...)."""
+    out = {}
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8-sig"):
+            line = line.split("#", 1)[0].strip()
+            name, eq, g = line.rpartition("=")
+            if eq and name.strip() and g.strip():
+                out[norm(name)] = g.strip().lower()
+    return out
+
+
+def choose(dz, cand, args, taken, skip, overrides=None):
     gmap = genre_map_from(dz)
     quota = dict(DEFAULT_QUOTA)
     for q in args.quota or []:
@@ -212,6 +225,8 @@ def choose(dz, cand, args, taken, skip):
         if norm(c["name"]) in taken or norm(c["name"]) in skip:
             why["in pool / skipped"] += 1; continue
         genre, top, years = artist_genre_and_tracks(dz, c["id"], c["name"], gmap)
+        if overrides and norm(c["name"]) in overrides:
+            genre = overrides[norm(c["name"])]                # your label wins over Deezer's (it still has to be a genre with a quota)
         if genre not in quota or genre in OFF_POOL_GENRES:
             why["genre"] += 1; continue
         since = getattr(args, "since", 0) or 0
@@ -257,7 +272,13 @@ def main():
     if os.path.exists(sp):
         skip = {norm(x) for x in open(sp, encoding="utf-8") if x.strip()}
     taken = pool_artist_names() | {norm(s) for s in seeds}
-    picked, why, used = choose(dz, cand, a, taken, skip)
+    overrides = load_overrides(os.path.join(HERE, "deezer_genres.txt"))
+    bad = sorted({g for g in overrides.values() if g not in DEFAULT_QUOTA})
+    if bad:
+        print(f"!! deezer_genres.txt: unknown genre(s) {', '.join(bad)}; use one of {', '.join(DEFAULT_QUOTA)}")
+    if overrides:
+        print(f"{len(overrides)} artist(s) with your own genre in deezer_genres.txt")
+    picked, why, used = choose(dz, cand, a, taken, skip, overrides)
     dz.save()
     print(f"\n{len(picked)} artists picked of {len(cand)} candidates; skipped because: " + ", ".join(f"{k} {v}" for k, v in why.items()))
     print("by genre: " + ", ".join(f"{g} {n}" for g, n in sorted(used.items(), key=lambda x: -x[1])))

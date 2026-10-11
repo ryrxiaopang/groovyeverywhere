@@ -678,6 +678,16 @@ def deezer_discover_test():
         p3, why3, _ = dd.choose(dd.Deezer(cache_path="/nonexistent/x.json"), cand, A, {dd.norm("Already In Pool")}, set())
         assert "age" not in why3 and "Folk Singer" in [c["name"] for c in p3]
         assert dd.DEFAULT_QUOTA["rock"] == 4
+        # your own genre label (deezer_genres.txt): wins over Deezer's, still needs a quota genre, comments and blanks are ignored
+        import tempfile as _tf
+        ov_path = os.path.join(_tf.mkdtemp(), "g.txt")
+        open(ov_path, "w", encoding="utf-8").write("# my labels\nFolk Singer = singer\n\nIndie Band = nonsense  # not a pool genre\nDeep Rock = indierock\n")
+        ov = dd.load_overrides(ov_path)
+        assert ov == {"folk singer": "singer", "indie band": "nonsense", "deep rock": "indierock"}, ov
+        p4, why4, used4 = dd.choose(dd.Deezer(cache_path="/nonexistent/x.json"), cand, A, {dd.norm("Already In Pool")}, set(), ov)
+        g4 = {c["name"]: c["genre"] for c in p4}
+        assert g4["Folk Singer"] == "singer" and g4["Deep Rock"] == "indierock" and "Indie Band" not in g4 and g4["Rock Two"] == "rock", g4        # Deep Rock left the rock quota, so Rock Two takes the free slot
+        assert dd.load_overrides("/nonexistent/none.txt") == {}
         dd.Deezer.get = fake_get
         src = dd.to_source(picked[0], 20)
         assert src["kind"] == "artist" and src["more"] == 20 and len(src["tracks"]) == 3 and src["tracks"][0]["seconds"] == 200.0
