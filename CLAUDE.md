@@ -208,6 +208,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * Offline check: `synthetic_tests.py` section 9, section 18 (official versions), section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
+0. `pending_artists.md` lists 10 Spotify artists the user wants added at the next pool expansion (names and genres not yet looked up: run `spotify_artists.py` on the user's machine, then ask the user to confirm genres).
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
 2. Voice: environment + Demucs benchmark, then the steps in `VOICE_PIPELINE.md` section 7.
 3. Rhythm: the beat-detection checks fail on validation and test. Busyness as the "is there a beat?" signal won on test (0.78 vs 0.66)
