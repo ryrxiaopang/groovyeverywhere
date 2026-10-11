@@ -9,30 +9,44 @@ import scoring
 from results_index import latest_rows, RES
 
 _lib = None
-_scale = None
+_scale = {}                # sites the scale is fitted on (None = every pool song of every site) -> (average, spread)
+_scale_sources = None
 MIN_SCALE_SONGS = 200      # fewer pool songs than this -> the average and spread come from every analysed song
+
+
+def use_scale_sources(sources):
+    """Fit the Sound scale only on pool songs from these sites (e.g. ("youtube",), the sites we recommend from); None / () / "all" = every
+    site (the old behaviour, which evaluate.py and the sealed-test copy rely on). Called by blind_test.pool() BEFORE anything is rescaled; the
+    library and the sliding windows are rescaled with the scale, so they are dropped when it changes."""
+    global _scale_sources, _lib, _win
+    new = None if not sources or "all" in sources else tuple(sorted(sources))
+    if new != _scale_sources:
+        _scale_sources, _lib, _win = new, None, None
 
 
 def sound_scale():
     """(average, spread) of each of the 1,280 Sound numbers, from the recommendation pool (or, while the pool is
-    tiny, from every analysed song). THE one scale every Sound comparison uses (blind test, clip matching, evaluate.py),
-    so they all agree. Cached in results/sound_scale.npz and refitted when the pool changes."""
-    global _scale
-    if _scale is not None:
-        return _scale
+    tiny, from every analysed song). THE one scale every Sound comparison in this process uses (blind test, clip matching,
+    evaluate.py), so they all agree. By default it is fitted on every site's pool songs (results/sound_scale.npz);
+    after use_scale_sources(("youtube",)) only on that site's (results/sound_scale_youtube.npz). Refitted when the pool changes."""
+    src = _scale_sources
+    if src in _scale:
+        return _scale[src]
     from results_index import pool_keys
     rows = latest_rows(RES)
     done = sorted(k for k, r in rows.items() if r["status"] == "done" and os.path.exists(os.path.join(RES, f"{k}.npz")))
+    if src:
+        done = [k for k in done if k.split("_")[0] in src]
     pk = pool_keys()
-    keys, basis = [k for k in done if k in pk], "pool"
+    keys, basis = [k for k in done if k in pk], "pool" + (f" ({', '.join(src)})" if src else "")
     if len(keys) < MIN_SCALE_SONGS:
-        keys, basis = done, "all analysed"
+        keys, basis = done, "all analysed" + (f" ({', '.join(src)})" if src else "")
     h = hashlib.md5(("\n".join(keys) + f"|power={scoring.SOUND_SPREAD_POWER}").encode()).hexdigest()   # refit if either changes
-    cache = os.path.join(RES, "sound_scale.npz")
+    cache = os.path.join(RES, "sound_scale.npz" if not src else "sound_scale_" + "_".join(src) + ".npz")
     if os.path.exists(cache):
         with np.load(cache) as d:
             if str(d["hash"]) == h:
-                _scale = (d["mu"], d["sd"]); return _scale
+                _scale[src] = (d["mu"], d["sd"]); return _scale[src]
     X = []
     for k in keys:
         try:
@@ -40,11 +54,11 @@ def sound_scale():
                 X.append(np.asarray(d["effnet_whole"], np.float64))
         except Exception:
             continue
-    _scale = scoring.fit_sound_scale(np.stack(X))
-    np.savez(cache[:-4] + ".tmp.npz", hash=h, mu=_scale[0], sd=_scale[1], n=len(X))
+    _scale[src] = scoring.fit_sound_scale(np.stack(X))
+    np.savez(cache[:-4] + ".tmp.npz", hash=h, mu=_scale[src][0], sd=_scale[src][1], n=len(X))
     os.replace(cache[:-4] + ".tmp.npz", cache)
     print(f"  Sound scale fitted on {len(X)} {basis} songs")
-    return _scale
+    return _scale[src]
 
 
 def _unit(a):

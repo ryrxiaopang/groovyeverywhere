@@ -62,6 +62,8 @@ def pool():
     global _pool
     if _pool is not None:
         return _pool
+    import match
+    match.use_scale_sources(POOL_SOURCES)                  # the Sound scale is fitted on the sites we recommend from (11 Oct), before anything is rescaled
     import pool_db
     P = pool_db.load(pool_only=True)
     if P is None:
@@ -438,7 +440,7 @@ def previously_recommended(friend, blind_dir=None):
     friend is not asked to rate the same song again (10 Oct 2026). Take the snapshot BEFORE making a round's captures: songs recommended for
     two of one friend's own songs in the same round are still allowed (they are merged into one row on the sheet)."""
     seen = set()
-    for p in glob.glob(os.path.join(blind_dir or BLIND, "*.json")):
+    for p in glob.glob(os.path.join(blind_dir or os.path.join(RES, "blind"), "*.json")):   # always the REAL captures: a preview run points BLIND at results/blind_preview
         try:
             with open(p, encoding="utf-8") as f:
                 rec = json.load(f)

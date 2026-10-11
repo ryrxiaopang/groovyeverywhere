@@ -683,6 +683,14 @@ def seen_songs_test():
     open(os.path.join(d, "bad.json"), "w").write("{not json")
     assert bt.previously_recommended("Felicia", d) == {"youtube_1", "youtube_2", "youtube_3"}
     assert bt.previously_recommended("Nobody", d) == set()
+    _b = bt.BLIND
+    try:
+        bt.BLIND = d + "_preview"                                      # a preview run: BLIND is elsewhere, the real captures still count
+        real = os.path.join(bt.RES, "blind")
+        assert bt.previously_recommended("Felicia", d) == {"youtube_1", "youtube_2", "youtube_3"}
+        assert bt.previously_recommended("Felicia") == bt.previously_recommended("Felicia", real)     # default = results/blind
+    finally:
+        bt.BLIND = _b
     # (b) make_lists with a synthetic pool: the excluded songs appear in no list, and the lists are still full
     rng = np.random.default_rng(0)
     n = 300
@@ -718,6 +726,39 @@ def seen_songs_test():
     print("   the snapshot reads one friend's earlier lists; excluded songs appear in no list; lists stay full; the genre pick is unchanged")
 
 
+def youtube_scale_test():
+    """The Sound scale can be fitted on YouTube songs only (round 2), without changing the default all-site fit that evaluate.py uses."""
+    print("\n12. SOUND SCALE FITTED ON THE YOUTUBE POOL")
+    import match, results_index, tempfile, os
+    rng = np.random.default_rng(1)
+    d = tempfile.mkdtemp()
+    rows, X = {}, {"youtube": [], "fma": []}
+    for site, shift in (("youtube", 0.0), ("fma", 5.0)):                 # the two sites sit in different places on purpose
+        for i in range(6):
+            v = rng.normal(size=8) + shift
+            X[site].append(v); k = f"{site}_{i}"
+            np.savez(os.path.join(d, k + ".npz"), effnet_whole=v); rows[k] = dict(status="done")
+    saved = (match.RES, match.latest_rows, match.MIN_SCALE_SONGS, results_index.pool_keys, dict(match._scale), match._scale_sources, match._lib, match._win)
+    try:
+        match.RES, match.latest_rows, match.MIN_SCALE_SONGS = d, (lambda r: rows), 2
+        results_index.pool_keys = lambda *a, **k: set(rows)
+        match._scale.clear(); match._scale_sources = None
+        mu_all = match.sound_scale()[0]
+        assert np.allclose(mu_all, np.mean(X["youtube"] + X["fma"], axis=0)) and os.path.exists(os.path.join(d, "sound_scale.npz"))
+        match._lib = match._win = "stale"
+        match.use_scale_sources(("youtube",))
+        assert match._lib is None and match._win is None                  # rescaled vectors are rebuilt with the new scale
+        mu_yt = match.sound_scale()[0]
+        assert np.allclose(mu_yt, np.mean(X["youtube"], axis=0)) and not np.allclose(mu_yt, mu_all)
+        assert os.path.exists(os.path.join(d, "sound_scale_youtube.npz"))
+        match.use_scale_sources(("all",))                                  # "all" = the old default again
+        assert np.allclose(match.sound_scale()[0], mu_all)
+    finally:
+        match.RES, match.latest_rows, match.MIN_SCALE_SONGS, results_index.pool_keys = saved[:4]
+        match._scale.clear(); match._scale.update(saved[4]); match._scale_sources, match._lib, match._win = saved[5:]
+    print("   YouTube-only fit differs from the all-site fit, has its own cache file, resets the rescaled library, and 'all' restores the default")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -731,3 +772,4 @@ if __name__ == "__main__":
     round2_test()
     deezer_discover_test()
     seen_songs_test()
+    youtube_scale_test()

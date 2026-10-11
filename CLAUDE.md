@@ -150,8 +150,11 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **YouTube-only pool:** `blind_test.POOL_SOURCES` (env `HG_POOL_SOURCES`, default `youtube`; `all` = every site) is applied inside
   `blind_test.apply_quality`, which now runs whichever store the numbers came from (before, the PostgreSQL path skipped it). FMA / Jamendo / Audius
   songs (and the 154 YouTube alternatives of dead FMA pages) stay analysed and stored, they are just never recommended. `pool_keys()`, the
-  analysis and the sealed test are unchanged. NOT changed: the Sound rescaling (`results/sound_scale.npz`) was fitted on the old all-site pool;
-  refitting it on the YouTube pool is a separate decision (it would change the numbers), say so before doing it.
+  analysis and the sealed test are unchanged. **Sound scale (11 Oct):** `blind_test.pool()` calls `match.use_scale_sources(POOL_SOURCES)`, so the
+  rescaling (average and spread of the 1,280 Sound numbers, power 0.25) is fitted on the YouTube pool songs only (`results/sound_scale_youtube.npz`;
+  refitted automatically when the set of analysed pool songs changes, so build all friends' lists AFTER the analysis has finished). `evaluate.py`,
+  the validation numbers and the sealed-test copy keep the default all-site fit (`results/sound_scale.npz`); `match.library()` and the sliding windows
+  are rescaled with the same scale as the query. The fit uses `pool_keys()` (before the AI / link filters), a small mismatch we accepted.
 * **Best match first for the blind test:** `blind_test.make_lists(rank=...)` / env `HG_RANK`, default `match` (uses `scoring.pick_best`, shared with
   `recommend_song.py`; the least-played-10% guard and one-song-per-artist still apply). `HG_RANK=obscure` is the round-1 rule. The capture JSON stores
   `rank`. List C (random same genre) is unchanged.
@@ -173,7 +176,7 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **No repeats across rounds (11 Oct):** `blind_test.previously_recommended(friend)` = every song already in any list of that friend's captures in `results/blind/`;
   `build_friend_lists.py` takes this snapshot before it writes anything and passes it to `make_lists(exclude=...)`, so A, B and C never repeat a song
   (`--no-exclude` turns it off). The closest-match genre for list C ignores the exclusion. Lists per round: 3 songs each (K = 3, user decision).
-* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats) (needs no Essentia; the earlier sections do).
+* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
