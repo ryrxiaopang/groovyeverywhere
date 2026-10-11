@@ -1088,6 +1088,25 @@ def official_versions_test():
     assert fo.channel_matches("Hikaru Utada", "Utada Hikaru") and not fo.channel_matches("Hikaru Tanaka", "Utada Hikaru")
     assert fo.ALTERED.search("\u8521\u7434 \u60c5\u4eba\u7684\u773c\u6dda HD\u73fe\u5834") and not fo.ALTERED.search("\u8521\u7434 Tsai Chin\u300a\u60c5\u4eba\u7684\u773c\u6dda\u300bOfficial Audio")
     assert fo.length_ok(100, 200, False, cover=True) and not fo.length_ok(100, 200, False) and not fo.length_ok(100, 300, False, cover=True) and not fo.length_ok(100, 20, False, cover=True)
+    # (i) review_proposals.py: numbered rows, flags, marking by row number without touching other columns
+    import review_proposals as rp, collections
+    d = tempfile.mkdtemp(); pf = os.path.join(d, "p.csv")
+    cols = ["approve", "kind", "old_key", "old_title", "old_channel", "new_link", "new_title", "new_channel", "new_seconds", "old_seconds", "official_channel"]
+    rows = [dict(zip(cols, ["y", "fan lyric video", "youtube_a", "Song (Lyrics)", "Fan", "L1", "Song (Audio)", "Artist", "200", "190", "yes"])),
+            dict(zip(cols, ["", "fan lyric video", "youtube_b", "Song (Lyrics)", "Fan2", "L1", "Song (Audio)", "Artist", "200", "100", "yes"])),
+            dict(zip(cols, ["", "cover", "youtube_c", "Other (cover)", "Kid", "L3", "Other (Live)", "Someone", "200", "200", "no"]))]
+    rp.save(pf, rows, cols)
+    back, bc = rp.load(pf)
+    cnt = collections.Counter(r["new_link"] for r in back)
+    assert rp.flags(back[0], cnt) == ["x2"] and rp.flags(back[1], cnt) == ["len", "x2"] and rp.flags(back[2], cnt) == ["lyr", "chan"], [rp.flags(r, cnt) for r in back]
+    assert rp.parse_numbers("1 3-3, 2", 3) == {1, 2, 3}
+    for bad in ("0", "4", "x", "3-1"):
+        try:
+            rp.parse_numbers(bad, 3); raise AssertionError(bad)
+        except ValueError:
+            pass
+    assert rp.apply_marks(back, {2, 3}, {1}) == (2, 1) and [r["approve"] for r in back] == ["", "y", "y"]
+    rp.save(pf, back, bc); assert [r["new_link"] for r in rp.load(pf)[0]] == ["L1", "L1", "L3"]
     print("   covers and fan lyric videos are spotted, the original artist's own upload is chosen over re-uploads, covers, wrong lengths and the old video, nothing is approved for a cover unless you do it")
 
 
