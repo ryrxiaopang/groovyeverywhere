@@ -1011,6 +1011,28 @@ def official_versions_test():
             dict(id="LOONIEOFF11", title="LOONIE - TAO LANG (Official Music Video)", channel="LOONIE", duration=201, view_count=1_000_000)]
     g3 = fo.find_official(rev, lambda q, n: ent3)
     assert g3["entry"]["id"] == "LOONIEOFF11" and g3["official"] and "check the artist" in g3["note"], g3
+    # the 18 real proposals of 11 Oct: an artist's OWN visualizer / lyric video is the original (never a candidate); fan re-uploads still are
+    ic = fo.is_candidate
+    assert ic("Jastin Martin - Want This To Happen (Visualizer)", "JastinMartinVEVO", "Jastin Martin") is None
+    assert ic("Alessi Rose - Skin (Visualizer)", "AlessiRoseVEVO", "Alessi Rose") is None and ic("Lyle Kam - all we do is talk (lyric visualizer)", "Lyle Kam", "Lyle Kam") is None
+    assert ic("\ub9ac\ub3c4\uc5b4 (Redoor)  - Feathers (Visualizer)", "Redoor \ub9ac\ub3c4\uc5b4", "\ub9ac\ub3c4\uc5b4") is None
+    assert ic('Omichle - "Blur" (Lyrics Video) | K-indie Bedroom Pop', "Omichle (\uc624\ubbf8\ud074)", "Omichle") is None
+    assert ic("joon - by my side (ft. bixby) [lyrics]", "Biteki \u3073\u3066\u304d", "joon") == "fan lyric video"
+    assert ic("SRA - You (Lyrics)", "Monday Vibes", "SRA") == "fan lyric video" and ic("Dead and Gone (Lyrics)", "StateChampsLyrics", "State Champs") == "fan lyric video"
+    assert ic("Rol3ert frozen - acoustic piano version-", "Rol3ert", "Rol3ert") == "cover"                     # an own-channel COVER is still a cover
+    assert ic("Earrings (Lyrics)", "Vibe Music", "Vibe Music") == "fan lyric video"                                 # pool artist = uploader: no exemption
+    assert fo.candidate_pairs("Vietsub | B.O.T.A. (Baddest Of Them All) - Eliza Rose & Interplanetary Criminal | Lyrics Video", "Vietsub", "Vietsub M\u1ed7i Ng\u00e0y") \
+        == [("B.O.T.A.", "Eliza Rose & Interplanetary Criminal")]
+    assert fo.channel_matches("Aioz - Topic", "Aioz") and fo.channel_matches("Eliza Rose", "B.O.T.A.", "Eliza Rose & Interplanetary Criminal") and not fo.channel_matches("MrMoMMusic", "A Little Sound")
+    # a live / session / translated / dated fan recording is never proposed, even from a channel that matches
+    eliza = dict(old, key="youtube_ELIZAVIET11", title="Vietsub | B.O.T.A. (Baddest Of Them All) - Eliza Rose & Interplanetary Criminal | Lyrics Video", channel="Vietsub M\u1ed7i Ng\u00e0y",
+                 pool_artist="Vietsub", duration="227")
+    ent4 = [dict(id="LIVELIVELIV", title="Eliza Rose - B.O.T.A. Hamburg, 20.05.2025", channel="Msauerland", duration=225, view_count=26),
+            dict(id="SESSIONSESS", title="Eliza Rose & Interplanetary Criminal - B.O.T.A. | Bedroom Session", channel="Eliza Rose", duration=225, view_count=70_000),
+            dict(id="TRANSLATED1", title="Eliza Rose & Interplanetary Criminal - B.O.T.A. [Traducci\u00f3n al Espa\u00f1ol]", channel="MOI", duration=227, view_count=1),
+            dict(id="ELIZAOFFICI", title="Eliza Rose & Interplanetary Criminal - B.O.T.A. (Baddest Of Them All) [Official Video]", channel="Eliza Rose", duration=227, view_count=54_745_994)]
+    g4 = fo.find_official(eliza, lambda q, n: ent4)
+    assert g4["entry"]["id"] == "ELIZAOFFICI" and g4["official"], g4
     # (d) the review file and replace_songs: only approve = y rows are used; fan lyric videos from an official channel come pre-approved, covers do not
     d = tempfile.mkdtemp(); path = os.path.join(d, "p.csv")
     fo.write_proposals(path, [old, cov], [(old, g), (cov, g2)])

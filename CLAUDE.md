@@ -209,6 +209,9 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   song of a listed channel leaves, tagged or not (catches the ~23% of AI the tagger misses); `ai_keep.txt` = artists / channels that always stay (kanegi, clouds.rap), wins over the tags and the block list.
   Both are in `blind_test.apply_quality`; matching is on the normalised channel (and, for the keep list, the artist) name. `python ai_channels.py --from-sheet ai_check_sheet.csv [--write]` builds the block list from the
   listening answers (channels with a y), `--suggest` lists other mostly-AI channels. Nothing is deleted. `find_official_versions.py` also writes `results/official_unresolved.csv` (candidates with no proposal).
+* **Finder fixes from the first 50-song batch (11 Oct):** of 18 proposals only ~5 were right. Causes fixed in `find_official_versions.py`: (1) a visualizer / lyric video on the ARTIST'S OWN channel (VEVO, own name) is the
+  original, not a candidate (`is_candidate`, `channel_matches`; own-channel covers stay candidates); (2) a replacement whose title is live / session / translation / dated fan recording is never proposed (`ALTERED`);
+  (3) "Vietsub | Song - Artist | Lyrics Video" titles are cleaned (`clean_name`) and the title's own "A - B" beats the pool's artist field; the artist's channel is recognised under both readings of "A - B".
 * Offline check: `synthetic_tests.py` section 9, section 19 (AI removal), section 18 (official versions), section 17 (replacing songs), section 16 (AI-tagger check), section 15 (duplicates) and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges), section 14 (list D and the rule) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order

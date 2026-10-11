@@ -36,6 +36,9 @@ COVER = re.compile(r"\bcover(ed|s)?\b|covered by|\btribute\b|\bkaraoke\b|\binstr
                    r"\bremake\b|카버|カバー|翻唱", re.I)
 OFFICIAL = re.compile(r"official", re.I)
 LYRIC_CHANNEL = re.compile(r"lyrics?|lyric|letras|lirik|가사", re.I)
+# a recording that is NOT the studio original (live, session, translation, dated fan recording): never proposed as the replacement
+ALTERED = re.compile(r"\b(session|sessions|concert|tour|performance|fancam|traducci\w*|tradu[c\u00e7][a\u00e3]o|espa[n\u00f1]ol|subtitulad\w*|legendado|vietsub|engsub|"
+                     r"live|unplugged|remix|sped|slowed|8d|nightcore|reaction)\b|\d{1,2}[./]\d{1,2}[./]\d{2,4}|\b\d{6}\b", re.I)
 CHANNELLIKE = re.compile(r"\b(music|records?|radio|tv|lyrics?|vibes?|sounds?|studio|network|official|topic|channel|collective|nation)\b", re.I)
 
 
@@ -50,14 +53,35 @@ def kind_of(title, channel=""):
 
 
 _BRACKETS = re.compile(r"[\(\[\{【《「『（][^\)\]\}】》」』）]*[\)\]\}】》」』）]")
-_NOISE = re.compile(r"\blyrics?( video)?\b|\bvisuali[sz]er\b|\bofficial\b|\bm/?v\b|\baudio\b|\bcover\b|\bfull\b|//.*$|⚜.*$", re.I)
+_NOISE = re.compile(r"\blyrics?( video)?\b|\bvisuali[sz]er\b|\bofficial\b|\bm/?v\b|\baudio\b|\bcover\b|\bfull\b|\bvietsub\b|\bengsub\b|//.*$|⚜.*$", re.I)
 
 
 def clean_name(t):
     t = _BRACKETS.sub(" ", t or "")
     t = _NOISE.sub(" ", t)
-    t = re.sub(r"[“”\"'`‘’\U0001F300-\U0001FAFF☀-➿]+", " ", t)
-    return re.sub(r"\s+", " ", t).strip(" -–—|:.")
+    t = re.sub(r"[\u201c\u201d\"'`\u2018\u2019\U0001F300-\U0001FAFF\u2600-\u27BF]+", " ", t)
+    parts = [re.sub(r"\s+", " ", x).strip(" -\u2013\u2014|:.") for x in t.split("|")]
+    parts = [x for x in parts if x]
+    if len(parts) > 1:                                   # "Vietsub | Song - Artist | Lyrics Video": keep the part that looks like "A - B"
+        parts = [next((x for x in parts if re.search(r"\s[-\u2013\u2014]\s", x)), parts[0])]
+    return parts[0] if parts else ""
+
+
+_TAIL = re.compile(r"(vevo|official|topic|records|music)+$")
+
+
+def _sq(s):
+    """A name squashed for comparing: no spaces or punctuation, and no trailing 'VEVO' / 'Official' / 'Topic' / 'Records' / 'Music'."""
+    from tag_ai import norm_name
+    return _TAIL.sub("", norm_name(s).replace(" ", ""))
+
+
+def channel_matches(channel, *names):
+    """True when the channel's name is (part of) one of the names or the other way round: 'JastinMartinVEVO' ~ 'Jastin Martin', 'Aioz - Topic' ~ 'Aioz'."""
+    c = _sq(channel)
+    if len(c) < 3:
+        return False
+    return any(len(n) >= 3 and (n in c or c in n) for n in (_sq(x) for x in names))
 
 
 def candidate_pairs(title, pool_artist, channel):
@@ -68,13 +92,23 @@ def candidate_pairs(title, pool_artist, channel):
     if m:
         pairs.append((m.group(1).strip(), m.group(2).strip()))
     pa = (pool_artist or "").strip()
-    if t and pa and pa.lower() != (channel or "").strip().lower() and not CHANNELLIKE.search(pa):
+    if not pairs and t and pa and pa.lower() != (channel or "").strip().lower() and not CHANNELLIKE.search(pa):   # the title's own "A - B" beats the pool's artist field
         pairs.append((pa, t))
     seen, out = set(), []
     for a, s in pairs:
         if a and s and (a.lower(), s.lower()) not in seen:
             seen.add((a.lower(), s.lower())); out.append((a, s))
     return out
+
+
+def is_candidate(title, channel="", pool_artist=""):
+    """kind_of(), except that a visualizer / lyric video on the ARTIST'S OWN channel is the original and is never a candidate (covers keep their kind)."""
+    kind = kind_of(title, channel)
+    if kind == "fan lyric video" and not LYRIC_CHANNEL.search(channel or ""):
+        names = [x for pr in candidate_pairs(title, pool_artist, channel) for x in pr]
+        if names and channel_matches(channel, *names):
+            return None
+    return kind
 
 
 def load_channels(res=RES):
@@ -85,7 +119,7 @@ def load_channels(res=RES):
         return {r["key"]: r.get("channel") or "" for r in csv.DictReader(f)}
 
 
-def scan(here=HERE, res=RES, rows=None):
+def scan(here=HERE, res=RES, rows=None, stats=None):
     """Candidate dicts from the pool lists: key, kind, title, channel, pool artist, views, duration, link."""
     if rows is None:
         from pool_summary import read_pool
@@ -96,7 +130,9 @@ def scan(here=HERE, res=RES, rows=None):
         if r["site"] != "youtube":
             continue
         channel = ch.get(r["key"], "")
-        kind = kind_of(r.get("title"), channel)
+        kind = is_candidate(r.get("title"), channel, r.get("artist"))
+        if stats is not None and kind is None and kind_of(r.get("title"), channel) == "fan lyric video":
+            stats["own_channel"] = stats.get("own_channel", 0) + 1     # an artist's own visualizer / lyric video: it IS the original
         if kind:
             vid = r["key"].split("_", 1)[1]
             out.append(dict(key=r["key"], kind=kind, title=r.get("title") or "", channel=channel, pool_artist=r.get("artist") or "",
@@ -140,16 +176,18 @@ def find_official(c, search, deezer=None):
         for e in search(f"{artist} {bs.clean_title(song)}", 8):
             if e.get("id") == old_id or kind_of(e.get("title"), e.get("channel") or e.get("uploader")):
                 continue                                              # not the old video, not another cover / fan lyric video
+            if ALTERED.search(e.get("title") or "") and not ALTERED.search(song):
+                continue                                              # a live clip, session, translation or dated fan recording is not the original
             if bs.verify(e, song, artist, dur):
                 cands.append(e)
         if cands:
             # "Song - Artist" titles are common: the uploader may be named after either part, so the artist's own channel is recognised under both readings
             def rank(e):
-                a, b = bs.official_rank(e, artist), bs.official_rank(e, song)
-                return (a[0] or b[0], a[1])
+                ch = e.get("channel") or e.get("uploader") or ""
+                return (channel_matches(ch, artist, song) or bs.official_rank(e, artist)[0], e.get("view_count") or 0)
             cands.sort(key=rank, reverse=True)
             best = cands[0]
-            swapped = not bs.official_rank(best, artist)[0] and bs.official_rank(best, song)[0]
+            swapped = not channel_matches(best.get("channel") or best.get("uploader") or "", artist) and rank(best)[0]
             if swapped:
                 note = (note + "; " if note else "") + "title looked like 'Song - Artist': check the artist"
             return dict(artist=artist, song=song, entry=best, official=bool(rank(best)[0]), note=note)
@@ -188,9 +226,11 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="only the first N candidates (a first small batch)")
     ap.add_argument("--deezer", action="store_true", help="for covers with no artist in the title, ask Deezer who the original artist is")
     a = ap.parse_args()
-    cands = scan()
+    stats = {}
+    cands = scan(stats=stats)
     by = collections.Counter(c["kind"] for c in cands)
     print(f"{len(cands)} suspected covers / fan lyric videos in the pool: " + ", ".join(f"{k} {v}" for k, v in by.items()))
+    print(f"({stats.get('own_channel', 0)} visualizers / lyric videos were skipped because they are on the artist's own channel: they are the original)")
     os.makedirs(RES, exist_ok=True)
     with open(CANDIDATES, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f); w.writerow(["kind", "key", "title", "channel", "pool_artist", "views", "link"])
