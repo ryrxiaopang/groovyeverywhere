@@ -293,7 +293,12 @@ def find_official(c, search, deezer=None, explain=None):
     alts = bracket_alts(c["title"])
     for artist, song in pairs:
         cands = []
-        for e in search(f"{artist} {bs.clean_title(song)}", 8):
+        q = f"{artist} {bs.clean_title(song)}"
+        results = search(q, 8)
+        plain = re.sub(r"[^\w\s]+", " ", q).strip()          # "F**k Being A Princess": punctuation can make YouTube answer with nothing, so ask once more without it
+        if not results and plain != q:
+            results = search(plain, 8)
+        for e in results:
             why = "the old video itself" if e.get("id") == old_id else why_rejected(e, song, artist, dur, alts, c["kind"] == "cover")
             if explain is not None:
                 explain.append((f"{artist} / {song}", e, why))
