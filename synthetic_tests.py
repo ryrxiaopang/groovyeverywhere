@@ -759,6 +759,36 @@ def youtube_scale_test():
     print("   YouTube-only fit differs from the all-site fit, has its own cache file, resets the rescaled library, and 'all' restores the default")
 
 
+def clustered_range_test():
+    """The friend-test ranges resample friends (ratings of one friend are not independent) and need at least 3 friends."""
+    print("\n13. FRIEND-TEST RANGES RESAMPLE FRIENDS")
+    import blind_test as bt
+    # (a) fewer than 3 friends: no honest range
+    two = {"F1": [1.0, 0.0, 1.0], "F2": [0.0, 0.0, 1.0]}
+    assert all(np.isnan(x) for x in bt._boot_clustered(two))
+    # (b) friends who differ a lot give a wide range even with many ratings each; identical friends give a narrow one
+    rng = np.random.default_rng(0)
+    split = {f"F{i}": list((rng.random(60) < p).astype(float)) for i, p in enumerate([0.05, 0.95, 0.1, 0.9])}     # 240 ratings, 4 very different friends
+    alike = {f"F{i}": list((rng.random(60) < 0.5).astype(float)) for i in range(4)}
+    lo1, hi1 = bt._boot_clustered(split); lo2, hi2 = bt._boot_clustered(alike)
+    pooled = np.concatenate(list(split.values()))
+    r = np.random.default_rng(0)
+    old = np.percentile([r.choice(pooled, len(pooled)).mean() for _ in range(2000)], [2.5, 97.5])    # the old, row-level range
+    assert (hi1 - lo1) > 3 * (old[1] - old[0]), (hi1 - lo1, old[1] - old[0])       # the old range was far too narrow here
+    assert (hi2 - lo2) < (hi1 - lo1)
+    # (c) differences: a clear gap between lists is found (range above 0); no gap gives a range that includes 0; friends are paired
+    A = {f"F{i}": [1.0, 1.0, 1.0, 0.0] * 3 for i in range(5)}          # 75% would add
+    C = {f"F{i}": [0.0, 0.0, 1.0, 0.0] * 3 for i in range(5)}          # 25%
+    d, lo, hi = bt._boot_diff(A, C)
+    assert abs(d - 0.5) < 1e-9 and lo > 0.3 and hi <= 0.7, (d, lo, hi)
+    d0, lo0, hi0 = bt._boot_diff(A, A)
+    assert d0 == 0 and lo0 <= 0 <= hi0
+    d2, lo2_, hi2_ = bt._boot_diff({"F1": [1.0]}, {"F1": [0.0]})                   # one friend: a difference but no range
+    assert d2 == 1.0 and np.isnan(lo2_) and np.isnan(hi2_)
+    assert all(np.isnan(x) for x in bt._boot_diff({"F1": [1.0]}, {"F2": [0.0]}))    # nobody rated both lists
+    print("   too-narrow row-level ranges are gone; <3 friends gives no range; list differences are paired by friend")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -773,3 +803,4 @@ if __name__ == "__main__":
     deezer_discover_test()
     seen_songs_test()
     youtube_scale_test()
+    clustered_range_test()

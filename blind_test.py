@@ -542,12 +542,42 @@ def sheets(out_dir=os.path.join(HERE, "blind_sheets")):
     print(f"sheets are in {out_dir}/. Answer key: results/blind/key.csv (don't open it before scoring)")
 
 
-def _boot(vals, n=2000, seed=0):
-    v = np.asarray(vals, float)
-    if len(v) < 3:
+MIN_FRIENDS = 3        # a range that resamples friends needs at least this many friends with ratings
+
+
+def _boot_clustered(groups, n=2000, seed=0, min_friends=MIN_FRIENDS):
+    """95% range of the mean of ratings that come in groups ({friend: [values]}). One friend rates many songs, so ratings are not independent:
+    each replicate draws friends with replacement, then each drawn friend's own ratings with replacement (11 Oct 2026; before, every rating was
+    resampled alone, which gave ranges that were too narrow). (nan, nan) with fewer than `min_friends` friends: no honest range exists."""
+    g = [np.asarray(v, float) for v in groups.values() if len(v)]
+    if len(g) < min_friends:
         return (np.nan, np.nan)
     r = np.random.default_rng(seed)
-    return tuple(np.percentile([r.choice(v, len(v)).mean() for _ in range(n)], [2.5, 97.5]))
+    out = np.empty(n)
+    for i in range(n):
+        pick = [g[j] for j in r.integers(0, len(g), len(g))]
+        out[i] = np.concatenate([r.choice(v, len(v)) for v in pick]).mean()
+    return tuple(np.percentile(out, [2.5, 97.5]))
+
+
+def _boot_diff(g1, g2, n=2000, seed=0, min_friends=MIN_FRIENDS):
+    """(difference, low, high): mean(list 1) minus mean(list 2) with a 95% range, from the friends who rated BOTH lists. Friends are drawn together
+    for both lists, so a friend who rates everything high does not move the difference. nan range with fewer than `min_friends` such friends."""
+    both = [f for f in g1 if f in g2 and len(g1[f]) and len(g2[f])]
+    if not both:
+        return (np.nan, np.nan, np.nan)
+    a = {f: np.asarray(g1[f], float) for f in both}; b = {f: np.asarray(g2[f], float) for f in both}
+    point = np.concatenate(list(a.values())).mean() - np.concatenate(list(b.values())).mean()
+    if len(both) < min_friends:
+        return (point, np.nan, np.nan)
+    r = np.random.default_rng(seed)
+    out = np.empty(n)
+    for i in range(n):
+        pick = [both[j] for j in r.integers(0, len(both), len(both))]
+        out[i] = (np.concatenate([r.choice(a[f], len(a[f])) for f in pick]).mean()
+                  - np.concatenate([r.choice(b[f], len(b[f])) for f in pick]).mean())
+    lo, hi = np.percentile(out, [2.5, 97.5])
+    return (point, lo, hi)
 
 
 def score(paths):
@@ -575,7 +605,7 @@ def score(paths):
                 if said_ai:
                     for L in k["lists"]:
                         n_ai[L] += 1
-                rows.append(dict(lists=k["lists"], liked=k["liked"], add=(1.0 if yes(add) else 0.0) if add else None,
+                rows.append(dict(friend=k.get("friend") or "?", lists=k["lists"], liked=k["liked"], add=(1.0 if yes(add) else 0.0) if add else None,
                                  heard=(1.0 if yes(heard) else 0.0) if heard else None,
                                  rating=num(rt) if num(rt) is not None and 1 <= num(rt) <= 5 else None,
                                  ai=tags.get(k["key"], ("none",))[0], said_ai=said_ai))
@@ -587,22 +617,38 @@ def score(paths):
 
     def report(sel, title):
         res = {L: {"add": [], "heard": [], "rating": []} for L in LISTS}
+        grp = {L: {"add": collections.defaultdict(list), "rating": collections.defaultdict(list)} for L in LISTS}   # per friend, for the ranges
         by_feature = {}
         for r in sel:
             for L in r["lists"]:
-                if r["add"] is not None: res[L]["add"].append(r["add"]); by_feature.setdefault((r["liked"], L), []).append(r["add"])
+                if r["add"] is not None:
+                    res[L]["add"].append(r["add"]); grp[L]["add"][r["friend"]].append(r["add"]); by_feature.setdefault((r["liked"], L), []).append(r["add"])
                 if r["heard"] is not None: res[L]["heard"].append(r["heard"])
-                if r["rating"] is not None: res[L]["rating"].append(r["rating"])
-        print(f"\n=== {title}  ({len(sel)} rated rows)")
+                if r["rating"] is not None: res[L]["rating"].append(r["rating"]); grp[L]["rating"][r["friend"]].append(r["rating"])
+        friends = {r["friend"] for r in sel}
+        print(f"\n=== {title}  ({len(sel)} rated rows from {len(friends)} friend{'s' if len(friends) != 1 else ''})")
+        if len(friends) < MIN_FRIENDS:
+            print(f"    ranges need at least {MIN_FRIENDS} friends: with fewer there is no honest range, only the averages below")
         print(f"{'list':24s} {'would add':>22s} {'rating':>18s} {'heard before':>13s}   n")
         for L in LISTS:
             a, rt, h = res[L]["add"], res[L]["rating"], res[L]["heard"]
             if not a:
                 continue
-            lo, hi = _boot(a); rlo, rhi = _boot(rt) if rt else (np.nan, np.nan)
-            print(f"{names[L]:24s} {100*np.mean(a):5.0f}% ({100*lo:3.0f}-{100*hi:3.0f}%)  "
-                  + (f"{np.mean(rt):4.2f} ({rlo:.2f}-{rhi:.2f})" if rt else "        -         ")
+            lo, hi = _boot_clustered(grp[L]["add"]); rlo, rhi = _boot_clustered(grp[L]["rating"]) if rt else (np.nan, np.nan)
+            rng_a = f"({100*lo:3.0f}-{100*hi:3.0f}%)" if np.isfinite(lo) else "(no range)  "
+            rng_r = f"({rlo:.2f}-{rhi:.2f})" if np.isfinite(rlo) else "(no range)"
+            print(f"{names[L]:24s} {100*np.mean(a):5.0f}% {rng_a}  "
+                  + (f"{np.mean(rt):4.2f} {rng_r}" if rt else "        -         ")
                   + (f"  {100*np.mean(h):6.0f}%" if h else "          ") + f"  {len(a)}")
+        print("  differences between lists (same friends rated both; the range resamples friends):")
+        for x, y in (("A", "C"), ("B", "C"), ("B", "A")):
+            d, lo, hi = _boot_diff(grp[x]["add"], grp[y]["add"]); dr, rlo, rhi = _boot_diff(grp[x]["rating"], grp[y]["rating"])
+            if not np.isfinite(d):
+                continue
+            txt = f"would add {100*d:+4.0f} points " + (f"({100*lo:+.0f} to {100*hi:+.0f})" if np.isfinite(lo) else "(no range)")
+            if np.isfinite(dr):
+                txt += f"   rating {dr:+.2f} " + (f"({rlo:+.2f} to {rhi:+.2f})" if np.isfinite(rlo) else "(no range)")
+            print(f"    {x} minus {y}: {txt}")
         return by_feature
 
     report(rows, "ALL songs")
@@ -613,7 +659,7 @@ def score(paths):
     for (liked, L), v in sorted(by_feature.items()):
         print(f"  {liked:12s} {names[L]:24s} {100*np.mean(v):4.0f}%  (n={len(v)})")
     print("\nRead it like this: A and B should beat C clearly (the matching works). B beating A means the chosen")
-    print("feature adds something. Overlapping ranges = no clear difference with this many ratings. Compare the two tables:")
+    print("feature adds something. A difference whose range includes 0 is no clear difference with this many friends. Compare the two tables:")
     print("if A and B only look bad in the first, the AI-generated uploads (not the matching) are dragging them down.")
 
 

@@ -176,7 +176,11 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
 * **No repeats across rounds (11 Oct):** `blind_test.previously_recommended(friend)` = every song already in any list of that friend's captures in `results/blind/`;
   `build_friend_lists.py` takes this snapshot before it writes anything and passes it to `make_lists(exclude=...)`, so A, B and C never repeat a song
   (`--no-exclude` turns it off). The closest-match genre for list C ignores the exclusion. Lists per round: 3 songs each (K = 3, user decision).
-* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale) (needs no Essentia; the earlier sections do).
+* **Friend-test ranges (11 Oct):** `blind_test.score()` ranges now resample FRIENDS first and then each friend's ratings (`_boot_clustered`); before, every
+  rating was resampled alone, which made the ranges too narrow. At least 3 friends are needed (`MIN_FRIENDS`), otherwise the report prints "no range". It also
+  prints the paired differences A minus C, B minus C and B minus A (`_boot_diff`, friends who rated both lists). With only a handful of friends the
+  ranges are still rough guides. Still open: a written success rule before round 2 is sent, and a possible list D baseline (most-viewed songs of the genre).
+* Offline check: `synthetic_tests.py` section 9 and section 10 (Deezer), section 11 (no repeats), section 12 (YouTube-only Sound scale), section 13 (friend-resampled ranges) (needs no Essentia; the earlier sections do).
 
 ## Open work, in order
 1. Let the YouTube analysis finish (restart if stopped); optionally run another `build_youtube.py` / `build_underrated.py` round.
