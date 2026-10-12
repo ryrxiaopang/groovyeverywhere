@@ -1578,6 +1578,98 @@ def demo_bundle_test():
     print("   the bundle holds only pool songs with numbers, in cut-down files that give the same query, plus the lists, tags and a README")
 
 
+def demo_hardening_test():
+    """Fixes from the 12 Oct review of the demo server: CSV formulas, unwritable logs, half-written cache entries, live streams, analysis errors, odd Content-Length."""
+    print("\n24. DEMO SERVER HARDENING")
+    import contextlib, csv, io, json, os, tempfile
+    import demo_server as ds
+    d = tempfile.mkdtemp()
+    # (a) a typed song name or a title that starts with = + - @ is stored as plain text; a log that cannot be written does not raise
+    log = os.path.join(d, "x", "log.csv")
+    ds.append_row(log, ["a", "b"], dict(a="=HYPERLINK(1)", b="+1 -x"))
+    ds.append_row(log, ["a", "b"], dict(a="normal", b=5))
+    rows = list(csv.DictReader(open(log, encoding="utf-8-sig")))
+    assert rows[0]["a"] == "'=HYPERLINK(1)" and rows[0]["b"] == "'+1 -x" and rows[1]["a"] == "normal" and rows[1]["b"] == "5", rows
+    blocker = os.path.join(d, "afile"); open(blocker, "w").write("x")
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        ds.append_row(os.path.join(blocker, "sub", "log.csv"), ["a"], dict(a=1))              # the folder cannot be made: a message, no exception
+    assert "could not write" in out.getvalue()
+    # (b) a cache entry is complete or absent: no temporary files left, the .npz (what known() looks for) exists only with its .json
+    old_cache = ds.DEMO_CACHE
+    ds.DEMO_CACHE = os.path.join(d, "cache")
+    try:
+        b = ds.Backends.__new__(ds.Backends)
+        b.cache_put("aaaaaaaaaaa", dict(whole=np.ones(3), name="text-is-skipped"), dict(title="T", artist="A", duration=190))
+        names = sorted(os.listdir(ds.DEMO_CACHE))
+        assert names == ["aaaaaaaaaaa.json", "aaaaaaaaaaa.npz"], names
+        assert json.load(open(os.path.join(ds.DEMO_CACHE, "aaaaaaaaaaa.json")))["title"] == "T"
+    finally:
+        ds.DEMO_CACHE = old_cache
+    # (c) live streams and premieres are refused before any download
+    class P:
+        def __init__(self, out): self.returncode, self.stdout, self.stderr = 0, out, b""
+    real_run = ds.subprocess.run
+    try:
+        for payload in (dict(title="Live", duration=None, is_live=True), dict(title="Premiere", duration=200, live_status="is_upcoming"), dict(title="No length")):
+            ds.subprocess.run = lambda *a, _p=payload, **k: P(json.dumps(_p).encode())
+            try:
+                ds.Backends.__new__(ds.Backends).info("bbbbbbbbbbb")
+                raise AssertionError("a live stream must be refused")
+            except ds.DemoError as e:
+                assert e.code == "not_a_song", e.code
+        ds.subprocess.run = lambda *a, **k: P(json.dumps(dict(title="Song", channel="C", duration=200)).encode())
+        assert ds.Backends.__new__(ds.Backends).info("bbbbbbbbbbb")["duration"] == 200.0
+    finally:
+        ds.subprocess.run = real_run
+    # (d) stored numbers that cannot be read fall through to the download; an analysis crash is not reported as a blocked download
+    state = dict(analyse_fails=False)
+
+    class Fake:
+        def warm(self): return 1
+        def weak_cosine(self): return 0.45
+        def known(self, vid): return True
+        def known_query(self, vid): raise ValueError("truncated file")
+        def info(self, vid): return dict(title="S", channel="C", duration=200.0)
+        @contextlib.contextmanager
+        def download(self, vid):
+            with tempfile.TemporaryDirectory(prefix="hg_fake_") as td:
+                p = os.path.join(td, "song.mp3"); open(p, "wb").write(b"x"); yield p
+        def analyse(self, path):
+            if state["analyse_fails"]:
+                raise RuntimeError("model crashed")
+            return dict(f=1)
+        def query(self, feats): return feats
+        def recommend(self, q, meta, k, features):
+            return dict(A=[], B=[], features=["sound"], pool=1, best_sound=0.9, A_bar=1.0, B_bar=1.0)
+    demo = ds.Demo(Fake(), k=3, log=os.path.join(d, "l.csv"), feedback=os.path.join(d, "f.csv"))
+    demo.warm()
+    code, body = demo.from_link("https://youtu.be/dQw4w9WgXcQ")
+    assert code == 200 and body.get("ok"), (code, body)
+    state["analyse_fails"] = True
+    code, body = demo.from_link("https://youtu.be/dQw4w9WgXcQ")
+    assert body.get("error") == "analysis_failed" and body.get("fallback") == "capture" and "blocked" not in body["message"], body
+    # (e) Content-Length: negative or not a number is refused, never read
+    class H(ds.BaseHTTPRequestHandler):
+        pass
+    handler = ds.make_handler(demo, os.path.join(d, "demo.html"))
+    h = handler.__new__(handler)
+    for bad in ("-1", "abc"):
+        h.headers = {"Content-Length": bad}
+        try:
+            h._length(1000)
+            raise AssertionError(bad)
+        except ds.DemoError as e:
+            assert e.status == 400, e.status
+    h.headers = {"Content-Length": "5000"}
+    try:
+        h._length(1000); raise AssertionError("too big")
+    except ds.DemoError as e:
+        assert e.status == 413
+    h.headers = {}; assert h._length(1000) == 0
+    h.headers = {"Content-Length": "999"}; assert h._length(1000) == 999
+    print("   formulas neutralised, log failures harmless, cache entries atomic, live streams refused, analysis errors named correctly, bad lengths refused")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1603,3 +1695,4 @@ if __name__ == "__main__":
     mark_ai_out_test()
     analysis_fast_test()
     demo_bundle_test()
+    demo_hardening_test()

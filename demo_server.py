@@ -138,14 +138,23 @@ def build_heard(q, names):
                 instruments=top_instruments(q["inst"], names))
 
 
+def _csv_safe(v):
+    """Text typed by visitors or taken from YouTube can start with = + - @ and then run as a formula when the log is opened in Excel: a leading ' makes it plain text."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
 def append_row(path, cols, row):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    new = not os.path.exists(path)
-    with open(path, "a", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
-        if new:
-            w.writeheader()
-        w.writerow(row)
+    """Add one row to a log. A log that cannot be written (full disk, file open in Excel) is reported on the console and never costs a visitor their result."""
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        new = not os.path.exists(path)
+        with open(path, "a", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+            if new:
+                w.writeheader()
+            w.writerow({k: _csv_safe(v) for k, v in row.items()})
+    except OSError as e:
+        print(f"!! could not write {os.path.basename(path)}: {e}")
 
 
 class Backends:
@@ -172,7 +181,10 @@ class Backends:
             raise DemoError("lookup_failed", "YouTube would not let this computer read that video"
                             + (" (it needs a sign-in)." if "sign in" in msg or "bot" in msg else "."), fallback="capture")
         d = json.loads(p.stdout.decode("utf-8", "replace") or "{}")
-        return dict(title=d.get("title") or "", channel=d.get("channel") or d.get("uploader") or "", duration=float(d.get("duration") or 0))
+        duration = float(d.get("duration") or 0)
+        if d.get("is_live") or d.get("live_status") in ("is_live", "is_upcoming") or duration <= 0:
+            raise DemoError("not_a_song", "That is a live stream or a premiere, not a finished song. Pick a normal video of the song.")
+        return dict(title=d.get("title") or "", channel=d.get("channel") or d.get("uploader") or "", duration=duration)
 
     def download(self, vid):
         """A context manager that yields the path of the downloaded audio and deletes it afterwards."""
@@ -214,7 +226,7 @@ class Backends:
             except ValueError:
                 continue
             vid, title, dur = d.get("id") or "", d.get("title") or "", d.get("duration") or 0
-            if not re.fullmatch(_ID, vid) or vid in seen or (dur and not 60 <= dur <= MAX_SECONDS) or by.NOT_A_SONG.search(title):
+            if not re.fullmatch(_ID, vid) or vid in seen or (not dur or not 60 <= dur <= MAX_SECONDS) or by.NOT_A_SONG.search(title):
                 continue
             chan = d.get("channel") or d.get("uploader") or ""
             seen.add(vid)
@@ -257,9 +269,14 @@ class Backends:
             except Exception:
                 pass
         os.makedirs(DEMO_CACHE, exist_ok=True)
-        np.savez_compressed(os.path.join(DEMO_CACHE, f"{vid}.npz"), **arrays)
-        with open(os.path.join(DEMO_CACHE, f"{vid}.json"), "w", encoding="utf-8") as f:
+        # written under temporary names and renamed, the .npz LAST (known() looks for it): a kill half-way never leaves a broken entry that fails for every later visitor
+        side, tmp_side = os.path.join(DEMO_CACHE, f"{vid}.json"), os.path.join(DEMO_CACHE, f"{vid}.tmp.json")
+        with open(tmp_side, "w", encoding="utf-8") as f:
             json.dump(dict(title=meta.get("title", ""), artist=meta.get("artist", ""), duration=meta.get("duration", 0)), f, ensure_ascii=False)
+        os.replace(tmp_side, side)
+        tmp_npz = os.path.join(DEMO_CACHE, f"{vid}.tmp.npz")
+        np.savez_compressed(tmp_npz, **arrays)
+        os.replace(tmp_npz, os.path.join(DEMO_CACHE, f"{vid}.npz"))
 
     def heard(self, q):
         if not hasattr(self, "_names"):
@@ -454,10 +471,16 @@ class Demo:
 
         def run(times):
             known = getattr(self.b, "known", None)
+            stored = None
             if known and known(vid):                          # in the pool, or brought by an earlier visitor: no YouTube, no download, no analysis
                 t = time.time(); self._stage("loading the song's stored numbers")
-                q, meta = self.b.known_query(vid)
+                try:
+                    stored = self.b.known_query(vid)
+                except BaseException:                         # an unreadable stored file: analyse the song again instead of failing every time
+                    stored = None
                 times["lookup"] = time.time() - t
+            if stored:
+                q, meta = stored
                 ttl, art = meta.get("title") or vid, meta.get("artist") or ""
                 return self._finish("link", vid, q, dict(title=ttl, artist=art), DEFAULT_FEATURES, times,
                                     dict(title=ttl, artist=art, seconds=meta.get("duration") or 0), source="stored")
@@ -467,9 +490,11 @@ class Demo:
             if info["duration"] and info["duration"] > MAX_SECONDS:
                 raise DemoError("too_long", f"That video is {int(info['duration'] // 60)} minutes long. Pick a single song (under {MAX_SECONDS // 60} minutes).")
             t = time.time(); self._stage("downloading the audio")
+            phase = "download"
             try:
                 with self.b.download(vid) as path:
                     times["download"] = time.time() - t
+                    phase = "analysis"
                     t = time.time(); self._stage("listening to it (analysing)")
                     feats = self.b.analyse(path)
                     times["analyse"] = time.time() - t
@@ -479,6 +504,8 @@ class Demo:
             except DemoError:
                 raise
             except BaseException as e:
+                if phase == "analysis":
+                    raise DemoError("analysis_failed", "The song downloaded but could not be analysed" + (f" ({str(e)[:90]})" if str(e) else "") + ". Try the tab capture.", fallback="capture")
                 raise DemoError("download_failed", "YouTube blocked the download for this video" + (f" ({str(e)[:90]})" if str(e) else "") + ".", fallback="capture")
             put = getattr(self.b, "cache_put", None)
             if put:
@@ -589,10 +616,20 @@ def make_handler(demo, html_path):
             self.send_response(code); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(b)))
             self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(b)
 
-        def _json_body(self, limit=20000):
-            n = int(self.headers.get("Content-Length") or 0)
+        def _length(self, limit):
+            """The Content-Length of the request, 0..limit; anything else (negative, not a number, too big) is refused before a single byte is read."""
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                raise DemoError("bad_request", "Could not read the request.", status=400)
+            if n < 0:
+                raise DemoError("bad_request", "Could not read the request.", status=400)
             if n > limit:
                 raise DemoError("too_big", "Request too large.", status=413)
+            return n
+
+        def _json_body(self, limit=20000):
+            n = self._length(limit)
             try:
                 d = json.loads(self.rfile.read(n) or b"{}")
             except ValueError:
@@ -614,9 +651,7 @@ def make_handler(demo, html_path):
             u = urlparse(self.path)
             try:
                 if u.path == "/api/capture":
-                    n = int(self.headers.get("Content-Length") or 0)
-                    if n > MAX_CLIP_BYTES:
-                        raise DemoError("too_big", "Recording too large.", status=413)
+                    n = self._length(MAX_CLIP_BYTES)
                     code, body = demo.from_clip(self.rfile.read(n), visitor=(parse_qs(u.query).get("visitor") or [""])[0])
                 else:
                     d = self._json_body()
@@ -906,6 +941,10 @@ def main():
     os.environ.setdefault("HG_YT_TIMEOUT", "120")                  # a download that takes longer than this fails over to the tab capture
     if other_jobs_running():
         print("!! an analysis / pool-growing job is running: the demo will be slow and may run out of memory. Stop it before the demo day.")
+    import sources
+    old = sources.sweep_stale_temp(120)                            # audio folders a killed demo / analysis left in the temp folder (rule 1: no audio is kept)
+    if old:
+        print(f"removed {old} leftover temporary audio folder(s) from an earlier run")
     demo = Demo(k=a.k)
     srv = make_server(demo, a.host, a.port)
     threading.Thread(target=demo.warm, daemon=True).start()

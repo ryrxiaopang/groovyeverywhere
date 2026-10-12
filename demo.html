@@ -6,7 +6,7 @@
 <title>groovyeverywhere</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 :root {
   --bg: #0b0813; --glow-a: #6a2a7a; --glow-b: #243a8f; --glow-c: #c2587a;
@@ -189,7 +189,7 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 <script>
 const $ = id => document.getElementById(id);
 const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let token = "", pollTimer = null, ready = false, busy = false, tipTimer = null, idleTimer = null;
+let token = "", pollTimer = null, ready = false, busy = false, tipTimer = null;
 const MAX_SONGS = 3;                                       // one visitor can try up to three songs; each has its own tab and its own lists, never a mixed list
 let songs = [], active = -1;
 const newVisitor = () => Math.random().toString(36).slice(2, 10);
@@ -234,6 +234,7 @@ function showBusy(on, label) {
   if (on && label) $("stageTxt").textContent = label;
   $("progress").classList.toggle("on", on);
   $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;
+  document.querySelectorAll("#chips button").forEach(b => b.disabled = on);
   document.querySelectorAll("#samples button").forEach(b => b.disabled = on);
   if (on && !label) { $("stageTxt").textContent = "starting…"; $("elapsed").textContent = ""; }
   if (on) $("elapsed").textContent = "";
@@ -256,7 +257,7 @@ async function run(path, body, raw) {
   showBusy(false);
 }
 
-function looksLikeLink(t) { return /youtu\.?be|youtube\.com/i.test(t) || /^[A-Za-z0-9_-]{11}$/.test(t); }
+function looksLikeLink(t) { return /youtu\.?be|youtube\.com/i.test(t); }          // a bare 11-letter word ("Complicated") is a song name, not a video id
 
 $("go").onclick = () => {
   const t = $("url").value.trim();
@@ -299,10 +300,14 @@ function resetAll() {
   window.scrollTo({ top: 0, behavior: "smooth" }); $("url").focus();
 }
 $("next").onclick = resetAll;
+let lastTouch = Date.now();
 function touchIdle() {                                   // a visitor who walks away: the page returns to the start after 3 minutes without any activity
-  clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { if (!busy && ($("results").classList.contains("on") || $("url").value || $("cands").classList.contains("on"))) resetAll(); touchIdle(); }, 180000);
+  lastTouch = Date.now();
 }
+setInterval(() => {                                      // clicks inside the YouTube player never reach this page, so a song being played gets 12 minutes instead of 3
+  const limit = document.querySelector(".player iframe") ? 720000 : 180000;
+  if (!busy && Date.now() - lastTouch > limit && ($("results").classList.contains("on") || $("url").value || $("cands").classList.contains("on"))) { resetAll(); lastTouch = Date.now(); }
+}, 5000);
 ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(ev => window.addEventListener(ev, touchIdle, { passive: true }));
 touchIdle();
 $("url").addEventListener("keydown", e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); });
@@ -346,15 +351,19 @@ $("capGo").onclick = async () => {
 
 function chosenFeatures() { return [...document.querySelectorAll("#chips [aria-pressed=true]")].map(b => b.dataset.f).join("+"); }
 document.querySelectorAll("#chips button").forEach(b => b.onclick = async () => {
-  const on = b.getAttribute("aria-pressed") === "true";
+  if (busy) return;
+  const on = b.getAttribute("aria-pressed") === "true", idx = active;
   if (on && document.querySelectorAll("#chips [aria-pressed=true]").length === 1) return;       // at least one feature stays chosen
   b.setAttribute("aria-pressed", on ? "false" : "true");
   showBusy(true);
   try {
     const r = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, features: chosenFeatures() }) });
     const d = await r.json();
-    if (d.ok) { renderList("listB", d.results.B, "B"); if (songs[active]) { songs[active].results.B = d.results.B; songs[active].features = chosenFeatures().split("+"); } }
-  } catch (e) { message("Could not update the list: " + e.message, "err"); }
+    if (d.ok) {
+      if (songs[idx]) { songs[idx].results.B = d.results.B; songs[idx].features = chosenFeatures().split("+"); }
+      if (active === idx) renderList("listB", d.results.B, "B");
+    } else { b.setAttribute("aria-pressed", on ? "true" : "false"); message(d.message || "Could not update the list.", "err"); }
+  } catch (e) { b.setAttribute("aria-pressed", on ? "true" : "false"); message("Could not update the list: " + e.message, "err"); }
   showBusy(false);
 });
 
@@ -380,7 +389,7 @@ function renderTabs() {
   const el = $("tabs");
   el.innerHTML = songs.map((s, i) => `<button class="tab" type="button" role="tab" data-i="${i}" aria-pressed="${i === active}" title="${esc(s.input.title)}">${i + 1} · ${esc((s.input.title || s.input.id).slice(0, 28))}</button>`).join("")
     + (songs.length < MAX_SONGS ? '<button class="tab add" type="button" id="addSong">+ another song</button>' : "");
-  el.querySelectorAll(".tab[data-i]").forEach(b => b.onclick = () => showSong(+b.dataset.i));
+  el.querySelectorAll(".tab[data-i]").forEach(b => b.onclick = () => { if (!busy) showSong(+b.dataset.i); });
   const add = $("addSong");
   if (add) add.onclick = () => { $("cands").classList.remove("on"); message(""); window.scrollTo({ top: 0, behavior: "smooth" }); $("url").value = ""; $("url").focus(); };
 }
