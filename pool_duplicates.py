@@ -39,9 +39,9 @@ _ALTERED = re.compile(r"\b(performance|perf|live|stage|dance|choreography|extend
 
 
 def keep_rank(title, views):
-    """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, live / stage / performance / extended cut -1, then views."""
+    """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, live / stage / performance / extended cut -2 (so it loses even to a plain song when its own title says Official), then views."""
     t = title or ""
-    return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0) - (1 if _ALTERED.search(t) else 0), views)
+    return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0) - (2 if _ALTERED.search(t) else 0), views)
 
 
 def _left_names(titles):
