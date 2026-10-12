@@ -65,6 +65,7 @@ DEFAULT_GENRES = {
 }
 
 # More variety INSIDE the existing genres (no new genres): other sub-styles, languages and scenes of each genre.
+# 12 Oct: the pool is for YOUNGER listeners like the user's friends, so no hard / classic rock, emo, post-grunge, boom bap or funk phrases here.
 # `--variety` runs these after the main search above, round by round (every genre gets its round-1 query before any
 # gets its round-2 query), so a stopped or quota-limited run is still spread across all genres.
 EXTRA_QUERIES = {
@@ -76,8 +77,8 @@ EXTRA_QUERIES = {
     "jpop":      ["japanese pop new song", "j-rock band", "japanese indie pop"],
     "vocal_pop": ["dream pop vocal", "synth pop vocal", "bedroom pop vocal"],
     "rnb":       ["neo soul", "alternative r&b", "contemporary r&b new"],
-    "hiphop":    ["conscious rap", "boom bap new", "melodic rap"],
-    "singer":    ["acoustic singer songwriter original", "piano singer songwriter", "folk pop singer"],
+    "hiphop":    ["conscious rap", "melodic rap", "rnb rap new"],
+    "singer":    ["acoustic singer songwriter original", "piano singer songwriter", "folk pop singer", "bedroom singer songwriter"],
     "kindie":    ["korean indie band", "korean indie folk", "korean shoegaze"],
     "kballad":   ["korean ost ballad", "korean piano ballad", "korean acoustic ballad"],
     "klofi":     ["korean chill hip hop", "korean lofi r&b", "korean jazz hip hop"],
@@ -85,13 +86,13 @@ EXTRA_QUERIES = {
     "chiphop":   ["chinese rap new", "chinese trap", "chinese underground rap"],
     "twindie":   ["taiwan indie band", "taiwan folk", "taiwan bedroom pop"],
     "jrnb":      ["japanese neo soul", "japanese r&b new", "japanese soul vocal"],
-    "citypop":   ["japanese city pop new", "city pop inspired", "japanese funk pop vocal"],
+    "citypop":   ["japanese city pop new", "city pop inspired", "japanese city pop vocal"],
     "indiepop":  ["indie pop new", "jangle pop", "lofi indie pop"],
     "indierock": ["indie rock new", "garage rock band", "math rock vocal"],
-    "altrock":   ["alternative rock new", "post-grunge band", "emo rock band"],
+    "altrock":   ["alternative rock new", "indie alt rock band", "dream pop rock band"],
     "indiefolk": ["indie folk new", "chamber folk", "folk rock band"],
     "electro":   ["synthwave vocal", "future bass vocal", "downtempo vocal"],
-    "rock":      ["hard rock band new", "classic rock style band", "soft rock band"],
+    "rock":      ["pop rock band new", "soft rock indie band", "garage rock new"],
     "pop":       ["pop ballad new", "dance pop new", "electropop"],
     "alternative": ["alternative pop", "dark alternative", "alternative r&b rock"],
     "electronic": ["house vocal", "trip hop", "chillwave vocal"],

@@ -50,6 +50,9 @@ Commit as `git -c user.name=ryrxiaopang -c user.email=ryanchan3007@gmail.com com
 7. Demo: rehearse `demo_server.py` with real links, fix what breaks, choose `demo_samples.csv`, record the backup video (see `DEMO.md`).
 8. Round 3 planning after round-2 scoring (pool changes refit the Sound scale, so freeze the pool before building lists).
 
+**Unattended growth (12 Oct):** `nohup bash grow_more.sh [ARTISTS] > grow_more.log 2>&1 &` = Deezer round (next-best related artists into a new `deezer_artistsN.json`, `--since 2018`, rock / hiphop quotas 0, then `boost_artists.sh`) followed by the YouTube variety search + analysis + audio audit + quality pass; skips YouTube if 6 h are used.
+`build_youtube.EXTRA_QUERIES` no longer has hard / classic rock, emo, post-grunge, boom bap or funk phrases (audience decision). `deezer_genres.txt` ("Artist = genre") relabels Deezer's picks (indierock / singer thin spots); `deezer_skip.txt` vetoes. After a run: `pool_summary.py`, `pool_duplicates.py`, `ai_channels.py --suggest`, `find_official_versions.py`.
+
 **Demo day (built 12 Oct 2026; user decisions: the website runs on the user's laptop only, visitors try it at the laptop; input = paste a YouTube link live, tab capture as the fallback when the download fails).**
 `python demo_server.py` (+ `demo.html`) serves http://localhost:8765: paste a link -> yt-dlp -> `analyze.analyse` -> `recommend_song.recommend_query` (refactored out of `recommend()`; two lists: Sound only, Sound + chosen features) with a progress line, a play button (embedded YouTube),
 "would add / skip" answers (`results/demo_feedback.csv`), a run log with seconds per stage (`results/demo_log.csv`), `--summary`. Failure routes: download/lookup failure -> the page offers a 30 s TAB CAPTURE (`/api/capture`, same `capture_server.clip_query`); sample songs (`demo_samples.csv` or auto) work offline. One request at a time, audio only in temp folders,
