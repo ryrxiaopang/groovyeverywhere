@@ -25,7 +25,11 @@ RES = os.path.join(HERE, "results")
 LOG = os.path.join(RES, "demo_log.csv")
 FEEDBACK = os.path.join(RES, "demo_feedback.csv")
 SAMPLES_CSV = os.path.join(HERE, "demo_samples.csv")        # optional: key,title,artist of the sample songs you want on the page
-LOG_COLS = ["time", "kind", "input", "title", "ok", "error", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match"]
+LOG_COLS = ["time", "kind", "input", "title", "ok", "error", "source", "best_sound", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match"]
+DEMO_CACHE = os.path.join(RES, "demo_cache")        # the NUMBERS of songs visitors brought (never audio): a repeat is instant and does not touch YouTube again
+POOL_MSG = ("This is the closest we have, but it is not very close: our pool is mostly pop, R&B, indie and Asian pop, so songs from other styles "
+            "(metal, classical, Latin, ...) find few real neighbours.")
+CAPTURE_MSG = "The recording does not sound much like music (noise or a very quiet tab), so these matches may be weak."
 FEEDBACK_COLS = ["time", "token", "kind", "input", "list", "rec_key", "rec_title", "rating", "would_add"]
 MAX_SECONDS = 600                       # a song, not a mix or a live stream
 MAX_CLIP_BYTES = 25 * 1024 * 1024
@@ -182,6 +186,69 @@ class Backends:
         import blind_test as bt
         return bt.query_from_analysis(feats)
 
+    def search(self, q, n=5):
+        """Candidates for a typed song name: YouTube's own search through yt-dlp (no API quota): single songs of 1-10 minutes, official-looking uploads first."""
+        import build_youtube as by
+        cmd = ["yt-dlp", "--flat-playlist", "-j", "--no-warnings", "--force-ipv4", f"ytsearch12:{q}"]
+        if os.environ.get("HG_YT_COOKIES_FILE"):
+            cmd[1:1] = ["--cookies", os.environ["HG_YT_COOKIES_FILE"]]
+        code, so, se = _run(cmd, 35)
+        if code != 0 and not so.strip():
+            raise DemoError("search_failed", "YouTube search did not answer. Paste the song's link instead, or capture it from a tab.")
+        out, seen = [], set()
+        for line in so.splitlines():
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            vid, title, dur = d.get("id") or "", d.get("title") or "", d.get("duration") or 0
+            if not re.fullmatch(_ID, vid) or vid in seen or (dur and not 60 <= dur <= MAX_SECONDS) or by.NOT_A_SONG.search(title):
+                continue
+            chan = d.get("channel") or d.get("uploader") or ""
+            seen.add(vid)
+            out.append(dict(id=vid, title=title, channel=chan, seconds=dur, views=d.get("view_count") or 0,
+                            official=bool(re.search(r"official|vevo|- topic", f"{title} {chan}", re.I))))
+        out.sort(key=lambda r: not r["official"])           # stable: official-looking first, YouTube's own order otherwise
+        return out[:n]
+
+    def _stored(self, vid):
+        for p in (os.path.join(RES, f"youtube_{vid}.npz"), os.path.join(DEMO_CACHE, f"{vid}.npz")):
+            if os.path.exists(p):
+                return p
+        return None
+
+    def known(self, vid):
+        """True when this video's numbers are already stored (it is in the pool, or a visitor brought it before)."""
+        return self._stored(vid) is not None
+
+    def known_query(self, vid):
+        import numpy as np, blind_test as bt
+        from results_index import read_meta
+        p = self._stored(vid)
+        with np.load(p, allow_pickle=False) as d:
+            q = bt.query_from_analysis(dict(d))
+        meta = read_meta(f"youtube_{vid}") or {}
+        side = os.path.join(DEMO_CACHE, f"{vid}.json")
+        if not meta and os.path.exists(side):
+            meta = json.load(open(side, encoding="utf-8"))
+        return q, meta
+
+    def cache_put(self, vid, feats, meta):
+        """Keep the analysed NUMBERS (never the audio) of a visitor's song so that the next visitor with the same song is served at once."""
+        import numpy as np
+        arrays = {}
+        for k, v in feats.items():
+            try:
+                a = np.asarray(v)
+                if a.dtype != object:
+                    arrays[k] = a
+            except Exception:
+                pass
+        os.makedirs(DEMO_CACHE, exist_ok=True)
+        np.savez_compressed(os.path.join(DEMO_CACHE, f"{vid}.npz"), **arrays)
+        with open(os.path.join(DEMO_CACHE, f"{vid}.json"), "w", encoding="utf-8") as f:
+            json.dump(dict(title=meta.get("title", ""), artist=meta.get("artist", ""), duration=meta.get("duration", 0)), f, ensure_ascii=False)
+
     def heard(self, q):
         if not hasattr(self, "_names"):
             import evaluate
@@ -248,6 +315,17 @@ class FakeBackends:
 
     def sample_query(self, key):
         return dict(fake=3), dict(title="Practice sample", artist="Nobody")
+
+    def search(self, q, n=5):
+        time.sleep(0.6)
+        return [dict(id=f"{w}{i:010d}"[:11], title=f"{q.title()} (Official Audio)" if i == 0 else f"{q.title()} - version {i + 1}", channel=f"Practice channel {i + 1}",
+                     seconds=180 + 7 * i, views=1_000_000 // (i + 1), official=i == 0) for i, w in enumerate("abcde")][:n]
+
+    def known(self, vid):
+        return vid.startswith("a")                            # the first practice candidate shows the "instant" path
+
+    def known_query(self, vid):
+        return dict(fake=4), dict(title="Practice song from the pool", artist="Practice artist", duration=190)
 
     def heard(self, q):
         return dict(mood="warm and relaxed", happiness=6.4, energy=4.1, tempo="about 96 BPM", instruments=["piano", "acoustic guitar", "strings"])
@@ -316,11 +394,12 @@ class Demo:
             return 503, dict(error="warming_up", message=self.warm_error or "The song pool is still loading: wait for the green light at the top of the page.")
         if not self.lock.acquire(blocking=False):
             return 429, dict(error="busy", message="Another song is being analysed. Try again in a moment.")
-        t0, times, title, err = time.time(), {}, "", ""
+        t0, times, title, err, src, best = time.time(), {}, "", "", "", ""
         self.since = time.time()
         try:
             body = fn(times)
             title = (body.get("input") or {}).get("title", "")
+            src, best = body.get("source", ""), (body.get("results") or {}).get("best_sound", "")
             return 200, body
         except DemoError as e:
             err = e.code
@@ -332,10 +411,10 @@ class Demo:
             self.stage = ""
             self.lock.release()
             append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), kind=kind, input=ident, title=title, ok=int(not err),
-                                                error=err, seconds_total=round(time.time() - t0, 1),
+                                                error=err, source=src, best_sound=best if best == "" else round(float(best), 3), seconds_total=round(time.time() - t0, 1),
                                                 **{f"seconds_{k}": round(v, 1) for k, v in times.items()}))
 
-    def _finish(self, kind, ident, q, meta, features, times, extra_input):
+    def _finish(self, kind, ident, q, meta, features, times, extra_input, source="new"):
         t = time.time()
         self._stage("finding matches")
         res = shape(self.b.recommend(q, meta, self.k, features), self.k)
@@ -349,7 +428,11 @@ class Demo:
         self.last[token] = (q, meta, dict(kind=kind, id=ident))
         while len(self.last) > 8:
             self.last.popitem(last=False)
-        return dict(ok=True, token=token, input=dict(kind=kind, id=ident, **extra_input), results=res, heard=heard)
+        body = dict(ok=True, token=token, input=dict(kind=kind, id=ident, **extra_input), results=res, heard=heard, source=source)
+        bs = res.get("best_sound")
+        if bs is not None and bs < self.b.weak_cosine():           # nothing in the pool is really close: say so instead of presenting weak matches as good
+            body["warning"] = CAPTURE_MSG if kind == "capture" else POOL_MSG
+        return body
 
     # ---- the three ways in
     def from_link(self, text):
@@ -358,6 +441,14 @@ class Demo:
             return 400, dict(error="not_youtube", message="That does not look like a YouTube link. Paste the address of a video (youtube.com/watch?v=... or youtu.be/...).")
 
         def run(times):
+            known = getattr(self.b, "known", None)
+            if known and known(vid):                          # in the pool, or brought by an earlier visitor: no YouTube, no download, no analysis
+                t = time.time(); self._stage("loading the song's stored numbers")
+                q, meta = self.b.known_query(vid)
+                times["lookup"] = time.time() - t
+                ttl, art = meta.get("title") or vid, meta.get("artist") or ""
+                return self._finish("link", vid, q, dict(title=ttl, artist=art), DEFAULT_FEATURES, times,
+                                    dict(title=ttl, artist=art, seconds=meta.get("duration") or 0), source="stored")
             t = time.time(); self._stage("looking up the song")
             info = self.b.info(vid)
             times["lookup"] = time.time() - t
@@ -374,10 +465,40 @@ class Demo:
                 raise
             except BaseException as e:
                 raise DemoError("download_failed", "YouTube blocked the download for this video" + (f" ({str(e)[:90]})" if str(e) else "") + ".", fallback="capture")
+            put = getattr(self.b, "cache_put", None)
+            if put:
+                try:
+                    put(vid, feats, dict(title=info["title"], artist=info["channel"], duration=info["duration"]))
+                except BaseException:                         # a full disk or an odd value must not cost the visitor their result
+                    pass
             q = self.b.query(feats)
             return self._finish("link", vid, q, dict(title=info["title"], artist=info["channel"]), DEFAULT_FEATURES, times,
                                 dict(title=info["title"], artist=info["channel"], seconds=info["duration"]))
         return self._job("link", vid, run)
+
+    def search(self, text):
+        """Candidates for a typed song name (not a 'job': it only reads YouTube's search page). Each candidate says whether its numbers are stored already."""
+        q = re.sub(r"\s+", " ", (text or "").strip())[:90]
+        if len(q) < 2:
+            return 400, dict(error="empty", message="Type a song name, and the artist if you can.")
+        if not self.ready:
+            return 503, dict(error="warming_up", message=self.warm_error or "The song pool is still loading: wait for the green light at the top of the page.")
+        t0, err, res = time.time(), "", []
+        try:
+            res = self.b.search(q, 5)
+            known = getattr(self.b, "known", lambda v: False)
+            for r in res:
+                r["instant"] = bool(known(r["id"]))
+            return 200, dict(ok=True, query=q, results=res)
+        except DemoError as e:
+            err = e.code
+            return 200, dict(ok=False, error=e.code, message=e.message, query=q, results=[])
+        except BaseException as e:
+            err = f"internal: {type(e).__name__}"
+            return 200, dict(ok=False, error="search_failed", message="YouTube search did not answer. Paste the song's link instead.", query=q, results=[])
+        finally:
+            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), kind="search", input=q, title=f"{len(res)} results", ok=int(not err), error=err,
+                                                seconds_total=round(time.time() - t0, 1)))
 
     def from_clip(self, wav_bytes, seconds=30):
         if not wav_bytes or len(wav_bytes) > MAX_CLIP_BYTES or wav_bytes[:4] != b"RIFF":
@@ -394,10 +515,7 @@ class Demo:
             if feats is None:
                 raise DemoError("silent", "The recording was (almost) silent. In the sharing window choose the tab with the song and tick \"Also share tab audio\".")
             q = self.b.query(feats)
-            body = self._finish("capture", "tab", q, {}, DEFAULT_FEATURES, times, dict(title="your recording", artist="", seconds=seconds))
-            if (body["results"].get("best_sound") or 1) < self.b.weak_cosine():
-                body["warning"] = "The recording does not sound much like music (noise or a very quiet tab), so these matches may be weak."
-            return body
+            return self._finish("capture", "tab", q, {}, DEFAULT_FEATURES, times, dict(title="your recording", artist="", seconds=seconds))
         return self._job("capture", "tab", run)
 
     def get_samples(self):
@@ -489,6 +607,8 @@ def make_handler(demo, html_path):
                     d = self._json_body()
                     if u.path == "/api/link":
                         code, body = demo.from_link(d.get("url"))
+                    elif u.path == "/api/search":
+                        code, body = demo.search(d.get("q"))
                     elif u.path == "/api/sample":
                         code, body = demo.from_sample(str(d.get("key", "")))
                     elif u.path == "/api/refine":

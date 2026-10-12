@@ -101,6 +101,18 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(
 .player iframe { width: 100%; aspect-ratio: 16/9; border: 0; border-radius: 12px; }
 .empty { color: var(--muted); padding: 16px 4px; }
 footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760px; }
+#cands { margin-top: 16px; display: none; }
+#cands.on { display: block; }
+#cands h3 { font: 400 22px var(--f-display); margin: 0 0 10px; }
+.cand { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; align-items: center; padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); cursor: pointer; text-align: left; width: 100%; color: inherit; font: inherit; }
+.cand:hover, .cand:focus-visible { border-color: var(--accent); outline: none; }
+.cand .ct { width: 96px; height: 54px; border-radius: 8px; background: var(--glass-strong) center/cover; }
+.cand b { display: block; font-weight: 500; font-size: 16px; line-height: 1.25; }
+.cand span { color: var(--muted); font-size: 13px; }
+.badge { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 3px 8px; }
+.tip { margin-top: 10px; color: var(--muted); font-size: 14px; min-height: 22px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.linkbtn { background: none; border: 0; color: var(--accent); font: 500 14px var(--f-body); cursor: pointer; padding: 4px 0; }
 </style>
 </head>
 <body>
@@ -110,24 +122,25 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
   <div class="light"><span class="dot" id="dot"></span><span id="lightTxt">loading the song pool…</span></div>
 </header>
 <main>
-  <h1>paste a song.<br><em>find its neighbours.</em></h1>
-  <p class="lede">Give it any YouTube link. It listens to the sound, the mood, the beat and the instruments, then finds songs in our pool that feel the same.</p>
+  <h1>tell us a song you love.<br><em>we'll find its neighbours.</em></h1>
+  <p class="lede">Type a song and its artist, or paste a YouTube link. We listen to the sound, the mood, the beat and the instruments, then find songs that feel the same.</p>
 
   <div class="card">
     <div class="row">
-      <input type="text" id="url" placeholder="Paste a YouTube link, e.g. https://www.youtube.com/watch?v=…" autocomplete="off" spellcheck="false">
-      <button class="btn primary" id="go" type="button" disabled>find similar songs</button>
+      <input type="text" id="url" placeholder="e.g. Blinding Lights The Weeknd   (or paste a YouTube link)" autocomplete="off" spellcheck="false" autofocus>
+      <button class="btn primary" id="go" type="button" disabled>find the song</button>
     </div>
     <div class="alt">
-      <span>or</span>
-      <button class="chipbtn" id="capBtn" type="button">capture a browser tab instead</button>
-      <span>or try a sample:</span>
-      <span id="samples" class="row" style="gap:8px"></span>
+      <span>can't find it?</span>
+      <button class="chipbtn" id="capBtn" type="button">capture it from another browser tab</button>
+      <span id="sampleBox" hidden>operator samples: <span id="samples" class="row" style="gap:8px;display:inline-flex"></span></span>
     </div>
     <div id="progress">
       <div><span id="stageTxt" class="mono">starting…</span> <span id="elapsed" class="mono" style="color:var(--muted)"></span></div>
       <div class="stagebar"><i></i></div>
+      <div class="tip" id="tip"></div>
     </div>
+    <div id="cands" aria-live="polite"></div>
     <div id="msg"></div>
     <div id="fallback" class="msg warn">
       <b>Plan B: capture this song from your browser.</b>
@@ -141,7 +154,8 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
   </div>
 
   <section id="results">
-    <div class="now"><span class="eyebrow">starting song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
+    <div class="topbar"><div class="now" style="margin:0"><span class="eyebrow">your song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
+      <button class="btn" id="next" type="button">next person</button></div>
     <div id="heard" class="heard"></div>
     <div id="warn"></div>
     <div class="cols">
@@ -163,12 +177,18 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
     </div>
   </section>
 
-  <footer>The audio is deleted as soon as it has been analysed; only numbers are kept. Matches come from a pool of real songs that were analysed the same way. Rate a match with <b>would add</b> / <b>skip</b> and it is saved on this computer only.</footer>
+  <footer>The audio is deleted as soon as it has been analysed; only numbers are kept. Matches come from a pool of real songs that were analysed the same way. Rate a match with <b>would add</b> / <b>skip</b>. Your song and your answers are saved anonymously on this computer for our music research: no names, no accounts, no audio.</footer>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let token = "", pollTimer = null, ready = false, busy = false;
+let token = "", pollTimer = null, ready = false, busy = false, tipTimer = null, idleTimer = null;
+const OPERATOR = new URLSearchParams(location.search).has("samples");           // ?samples=1: the operator's safety-net sample buttons (hidden from visitors)
+const TIPS = ["We turn the song into four sets of numbers: its overall sound, its mood, its beat and its instruments.",
+              "The audio is thrown away as soon as the numbers exist. Only the numbers are kept.",
+              "Then we compare those numbers with thousands of songs we already analysed.",
+              "The second list also has to match on the things you pick below, such as the mood.",
+              "Tell us honestly with would add / skip: that is what helps our research."];
 
 function setLight() {
   fetch("/api/status").then(r => r.json()).then(s => {
@@ -176,7 +196,7 @@ function setLight() {
     $("dot").className = "dot " + (s.busy ? "busy" : s.ready ? "ready" : "");
     $("lightTxt").textContent = s.error ? "the pool did not load: " + s.error : s.busy ? "working…" : s.ready ? `ready · ${s.pool.toLocaleString()} songs` : "loading the song pool…";
     if (!busy) { $("go").disabled = !s.ready || s.busy; }
-    if (s.ready && !$("samples").dataset.done) loadSamples();
+    if (s.ready && OPERATOR && !$("samples").dataset.done) { $("sampleBox").hidden = false; loadSamples(); }
     if (s.busy && busy) { $("stageTxt").textContent = s.stage || "working…"; $("elapsed").textContent = s.elapsed + " s"; }
   }).catch(() => { $("dot").className = "dot"; $("lightTxt").textContent = "cannot reach the demo server"; });
 }
@@ -190,12 +210,16 @@ function loadSamples() {
   });
 }
 
-function showBusy(on) {
+function showBusy(on, label) {
   busy = on;
+  clearInterval(tipTimer);
+  if (on) { let i = 0; $("tip").textContent = TIPS[0]; tipTimer = setInterval(() => { i = (i + 1) % TIPS.length; $("tip").textContent = TIPS[i]; }, 6000); }
+  if (on && label) $("stageTxt").textContent = label;
   $("progress").classList.toggle("on", on);
   $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;
   document.querySelectorAll("#samples button").forEach(b => b.disabled = on);
-  if (on) { $("stageTxt").textContent = "starting…"; $("elapsed").textContent = ""; }
+  if (on && !label) { $("stageTxt").textContent = "starting…"; $("elapsed").textContent = ""; }
+  if (on) $("elapsed").textContent = "";
 }
 
 function message(text, kind) {
@@ -215,7 +239,53 @@ async function run(path, body, raw) {
   showBusy(false);
 }
 
-$("go").onclick = () => run("/api/link", { url: $("url").value.trim() });
+function looksLikeLink(t) { return /youtu\.?be|youtube\.com/i.test(t) || /^[A-Za-z0-9_-]{11}$/.test(t); }
+
+$("go").onclick = () => {
+  const t = $("url").value.trim();
+  if (!t) return;
+  $("cands").classList.remove("on"); $("cands").innerHTML = "";
+  if (looksLikeLink(t)) run("/api/link", { url: t }); else search(t);
+};
+
+async function search(q) {
+  message(""); $("fallback").classList.remove("on"); showBusy(true, "searching YouTube…");
+  try {
+    const r = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q }) });
+    const d = await r.json();
+    if (!r.ok || d.ok === false) { message(d.message || "The search did not work.", "err"); }
+    else showCandidates(d.results, q);
+  } catch (e) { message("Could not reach the demo server: " + e.message, "err"); }
+  showBusy(false);
+}
+
+function mmss(s) { return s ? Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0") : ""; }
+
+function showCandidates(list, q) {
+  const el = $("cands");
+  if (!list.length) { message("Nothing found for “" + q + "”. Try the artist's name too, or paste a YouTube link.", "warn"); return; }
+  el.innerHTML = '<h3>Is it one of these?</h3>' + list.map((c, i) =>
+    `<button class="cand" type="button" data-i="${i}"><span class="ct" style="background-image:url(https://i.ytimg.com/vi/${esc(c.id)}/mqdefault.jpg)"></span>
+       <span><b>${esc(c.title)}</b><span>${esc(c.channel)} · ${esc(mmss(c.seconds))}</span></span>${c.instant ? '<span class="badge">instant</span>' : "<span></span>"}</button>`).join("")
+    + '<button class="linkbtn" type="button" id="noneOf">none of these: try other words</button>';
+  el.classList.add("on");
+  el.querySelectorAll(".cand").forEach(b => b.onclick = () => { el.classList.remove("on"); run("/api/link", { url: list[+b.dataset.i].id }); });
+  $("noneOf").onclick = () => { el.classList.remove("on"); $("url").focus(); $("url").select(); };
+}
+
+function resetAll() {
+  if (busy) return;
+  $("url").value = ""; $("cands").classList.remove("on"); $("cands").innerHTML = ""; message(""); $("fallback").classList.remove("on");
+  $("results").classList.remove("on"); $("listA").innerHTML = ""; $("listB").innerHTML = ""; $("heard").innerHTML = ""; $("warn").innerHTML = ""; token = "";
+  window.scrollTo({ top: 0, behavior: "smooth" }); $("url").focus();
+}
+$("next").onclick = resetAll;
+function touchIdle() {                                   // a visitor who walks away: the page returns to the start after 3 minutes without any activity
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (!busy && ($("results").classList.contains("on") || $("url").value || $("cands").classList.contains("on"))) resetAll(); touchIdle(); }, 180000);
+}
+["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(ev => window.addEventListener(ev, touchIdle, { passive: true }));
+touchIdle();
 $("url").addEventListener("keydown", e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); });
 $("capBtn").onclick = () => { message(""); $("fallback").classList.add("on"); $("fallback").scrollIntoView({ behavior: "smooth", block: "center" }); };
 

@@ -1258,9 +1258,17 @@ def demo_server_test():
             return dict(rms_db=-20, silent_share=0.0), (None if n < 1000 else dict(f=2))
         def query(self, feats): return feats
         def sample_query(self, key): return dict(f=3), dict(title="T", artist="A")
+        def search(self, q, n=5):
+            if q == "boom":
+                raise ds.DemoError("search_failed", "YouTube search did not answer.")
+            return [dict(id=c * 11, title=f"{q} {i}", channel="C", seconds=200, views=10, official=i == 0) for i, c in enumerate("kxyzwv")][:n]
+        def known(self, vid): return vid == "kkkkkkkkkkk" or vid in seen.setdefault("cached", set())
+        def known_query(self, vid): return dict(f=7), dict(title="Known " + vid[:3], artist="Pool Artist", duration=181)
+        def cache_put(self, vid, feats, meta):
+            seen.setdefault("cached", set()).add(vid); seen["cache_meta"] = meta
         def recommend(self, q, meta, k, features):
             seen["features"].append(features)
-            best = 0.3 if q == dict(f=2) and seen.get("weak") else 0.9
+            best = 0.3 if seen.get("weak") else 0.9
             row = lambda i, w: dict(key=f"youtube_x{i}{w}", title=f"Rec {i}", artist="Art", link=f"https://www.youtube.com/watch?v=xxxxxxxxx{i}{w}",
                                     sound=np.float64(80), mood=70, rhythm=60, instruments=75, match=np.float64(80 - i), popularity="few plays", ai="")
             return dict(A=[row(i, "a") for i in range(10)], B=[row(i, "b") for i in range(3 if features != "none" else 0)], features=["sound"] + features.split("+"),
@@ -1305,14 +1313,14 @@ def demo_server_test():
         assert not os.path.exists(seen["paths"][-1])
         # one job at a time
         gate.clear()
-        t = threading.Thread(target=lambda: call("/api/link", dict(url="aaaaaaaaaaa")), daemon=True); t.start()
+        t = threading.Thread(target=lambda: call("/api/link", dict(url="eeeeeeeeeee")), daemon=True); t.start()
         for _ in range(100):
             if J(call("/api/status"))[1]["busy"]:
                 break
             time.sleep(0.05)
         st = J(call("/api/status"))[1]
         assert st["busy"] and st["stage"], st
-        code, b = J(call("/api/link", dict(url="aaaaaaaaaaa")))
+        code, b = J(call("/api/link", dict(url="eeeeeeeeeee")))
         assert code == 429 and b["error"] == "busy", (code, b)
         gate.set(); t.join(10)
         assert not J(call("/api/status"))[1]["busy"]
@@ -1338,10 +1346,27 @@ def demo_server_test():
         assert J(call("/api/rate", dict(token=token, list="Z", would_add="yes")))[0] == 400 and J(call("/api/rate", dict(token="x", list="A")))[0] == 400
         fb = list(csv.DictReader(open(os.path.join(d, "fb.csv"), encoding="utf-8-sig")))
         assert len(fb) == 1 and fb[0]["rec_key"] == "youtube_x0a" and fb[0]["would_add"] == "yes" and fb[0]["input"] == "aaaaaaaaaaa", fb
+        # booth: a typed song name finds candidates (each says whether its numbers are stored), and a stored song needs no YouTube, no download, no analysis
+        code, b = J(call("/api/search", dict(q="  hello   world ")))
+        assert code == 200 and b["ok"] and b["query"] == "hello world" and len(b["results"]) == 5 and b["results"][0]["instant"] is True and b["results"][1]["instant"] is False, b
+        assert J(call("/api/search", dict(q="boom")))[1]["ok"] is False and J(call("/api/search", dict(q="a")))[0] == 400
+        n_paths = len(seen["paths"])
+        code, b = J(call("/api/link", dict(url="kkkkkkkkkkk")))
+        assert code == 200 and b["source"] == "stored" and b["input"]["title"] == "Known kkk" and len(seen["paths"]) == n_paths, b
+        # a new song's numbers are kept after its first analysis (never the audio), so the next visitor with the same song is served at once
+        assert "aaaaaaaaaaa" in seen["cached"] and seen["cache_meta"]["title"].startswith("Song")
+        code, b = J(call("/api/link", dict(url="aaaaaaaaaaa")))
+        assert b["source"] == "stored" and len(seen["paths"]) == n_paths
+        # a weak match is said out loud on every route, not only for recordings
+        seen["weak"] = True
+        code, b = J(call("/api/link", dict(url="kkkkkkkkkkk")))
+        assert "closest we have" in b["warning"], b
+        seen["weak"] = False
         # every run is logged with the reason when it failed
         log = list(csv.DictReader(open(os.path.join(d, "log.csv"), encoding="utf-8-sig")))
         errs = [r["error"] for r in log if r["ok"] == "0"]
-        assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" for r in log) >= 4, errs
+        assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" and r["kind"] == "link" for r in log) >= 4, errs
+        assert any(r["kind"] == "search" for r in log) and any(r["source"] == "stored" for r in log) and any(r["best_sound"] not in ("", None) for r in log), log[:3]
     finally:
         gate.set(); srv.shutdown(); srv.server_close()
     # "what we heard": plain words, never more than the models know
