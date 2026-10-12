@@ -887,6 +887,16 @@ def pool_duplicates_test():
     _, cl2 = pdp.analyse(P2)
     assert len(cl2) == 1 and cl2[0]["keep"] == 1 and sorted(cl2[0]["drop"]) == [0, 2], cl2
     assert pdp.own_channel("Aioz - Topic", ["Aioz - 放你走吧"]) and not pdp.own_channel("Minimal Sounds", ["Malcolm Todd - Earrings"]) and not pdp.own_channel("X", ["Song"])
+    # different language versions are not copies; a subtitled upload still is
+    assert pdp.language_markers("Trap (English Version)") == {"english"} and pdp.language_markers("Henry Trap Chinese ver MV English subs") == {"chinese"}
+    assert pdp.language_markers("Hold On (English subs)") == set() and pdp.language_markers("No One Noticed (Extended Spanish)") == {"spanish"}
+    vA, vB = rng.normal(size=64), rng.normal(size=64)
+    P3 = dict(key=[f"youtube_l{i}" for i in range(4)], whole=np.stack([vA, vA + 0.01 * rng.normal(size=64), vB, vB + 0.01 * rng.normal(size=64)]),
+              listens=np.array([5.0, 9.0, 5.0, 9.0]), title=["Trap (English Version)", "Trap Chinese ver MV", "Hold On", "Hold On (English subs)"],
+              artist=["h", "h", "x", "y"], artist_name=["H", "H", "X", "Y"])
+    pr3, cl3 = pdp.analyse(P3)
+    cats3 = {(p["a"], p["b"]): p["category"] for p in pr3}
+    assert cats3[(0, 1)] == "check by ear" and cats3[(2, 3)] == "duplicate" and len(cl3) == 1 and cl3[0]["members"] == [2, 3], (cats3, cl3)
     # marking: only the dropped copies get i_agree = n, the keeper and the sound-alike do not; a log line is written; a .bak copy exists
     d = tempfile.mkdtemp()
     with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:

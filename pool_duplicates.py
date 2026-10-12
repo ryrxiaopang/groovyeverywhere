@@ -61,6 +61,17 @@ def own_channel(channel, titles):
     return bool(names) and channel_matches(channel, *names)
 
 
+_SUBS = re.compile(r"(?:eng(?:lish)?|chinese|korean|viet(?:namese)?|thai|indo(?:nesian)?|spanish|pinyin|rom(?:anized)?)?[ +/]*\bsub(?:s|bed|titles?)?\b|\b(?:eng|vie)sub\b", re.I)
+_LANGS = re.compile(r"\b(english|chinese|mandarin|cantonese|korean|japanese|spanish|portuguese|french|thai|vietnamese|indonesian)\b|\u82f1\u6587\u7248|[\u4e2d\u97d3\u65e5\u7cb5\u56fd\u570b]\u6587\u7248|[\u8bed\u8a9e]\u7248", re.I)
+
+
+def language_markers(title):
+    """The languages a title names as the VERSION of the song ('Trap (English Version)', 'Chinese ver', 'Extended Spanish'), subtitle notes ('English subs') left out.
+    Two uploads whose markers differ are different recordings (a Chinese and an English version), not copies."""
+    t = _SUBS.sub(" ", (title or "").lower())
+    return {m.group(0) for m in _LANGS.finditer(t)}
+
+
 def title_share(a, b):
     """Words in common / words of the shorter title (brackets, 'feat.' and 'with' parts left out); 0 if either is empty."""
     ta, tb = set(bt._toks(bt._bare_title(a))), set(bt._toks(bt._bare_title(b)))
@@ -95,6 +106,8 @@ def analyse(P):
     for i, j, c in close_pairs(P["whole"]):
         share = title_share(P["title"][i], P["title"][j])
         cat = "duplicate" if share >= MIN_TITLE else "check by ear"
+        if cat == "duplicate" and language_markers(P["title"][i]) != language_markers(P["title"][j]):
+            cat = "check by ear"                                    # a Chinese and an English version of one song sound alike but are not copies
         pairs.append(dict(a=i, b=j, cosine=round(c, 4), title_share=round(share, 2), category=cat,
                           same_artist=str(P["artist"][i]).lower() == str(P["artist"][j]).lower()))
         if cat == "duplicate":
