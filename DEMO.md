@@ -35,8 +35,8 @@ What is saved on the laptop (anonymous, no names, no audio): `results/demo_log.c
 1. `git pull origin claude/brave-rubin-xs7hbb`, finish all analysis and pool-growing jobs, `python mark_ai_out.py --apply`, `python pool_duplicates.py --apply`, **freeze the pool**. (A changed pool changes the results the audience sees.)
 2. `source .venv/bin/activate && source env_keys.sh && python -m pip install -U yt-dlp` (an old yt-dlp is the most common reason for a blocked download).
 3. **`python demo_server.py --check`**: one line per thing that can fail on the day (yt-dlp age, ffmpeg, Essentia, memory, running jobs, the port, whether YouTube answers, the sample list, the address for a phone). Fix every `[FAIL]`, look at every `[warn]`.
-4. Put **10 or more links** in a text file, one per line (different genres, languages, an old song, a very new one, a long one, a song outside the pool's styles) and run `python demo_server.py --rehearse links.txt`. It runs each link through the real
-   pipeline without the browser and prints one line each (OK / FAIL, seconds, the song, its top match, and CAPTURE where the tab-capture box would have appeared). `python demo_server.py --summary` then gives the median seconds per stage. Write the real numbers on your run sheet.
+4. Make a text file with **10 or more songs**, one per line: a song NAME like a visitor would type it, or a link (`cp rehearsal_songs.txt links.txt` gives you a starting list: hits, the pool's styles, songs outside them, a long one). Run `python demo_server.py --rehearse links.txt`. It searches each name, takes the first candidate and runs it through the real
+   pipeline without the browser, printing one line each (OK / FAIL, seconds, the song, its top match, `(stored)` when no download was needed, and CAPTURE where the tab-capture box would have appeared). `python demo_server.py --summary` then gives the median seconds per stage. Write the real numbers on your run sheet.
 5. Start it for real: `python demo_server.py` (it warns if a job is still running). Open **http://localhost:8765** in Chrome. The light at the top turns green ("ready · N songs") after about a minute. Paste one link yourself and read the results aloud.
    * If Chrome cannot open `localhost`: in WSL run `hostname -I` and open `http://THAT-ADDRESS:8765`, and start the server with `--host 0.0.0.0`.
 6. **Operator samples (Plan C, optional):** visitors never see sample buttons. If you want a safety net for the operator, put 6 songs in `demo_samples.csv` (columns `key,title,artist`) and open `http://localhost:8765/?samples=1`. Without the file the operator view uses the most-viewed song of each big style.
@@ -45,6 +45,22 @@ What is saved on the laptop (anonymous, no names, no audio): `results/demo_log.c
 9. Test the tab capture once for real: open a song in another tab, press "capture a browser tab instead", choose that tab, tick "Also share tab audio".
 
 The page also shows a **"what we heard"** strip under the starting song: the mood in plain words (from the happiness and energy scores, 1-9), the tempo (only when the beat detector is sure, otherwise "tempo unclear": rhythm is the weakest feature) and the main instruments (singing and beats left out).
+
+## 2b. The booth laptop (the demo runs there, not on the desktop)
+
+The desktop analyses songs; the **laptop is the booth machine**, so it needs everything the demo reads. The full backup is about 10 GB; the demo needs a few hundred MB.
+1. **On the desktop, after the pool is frozen** (`mark_ai_out.py --apply`, `pool_duplicates.py --apply`, all analysis finished):
+   `python make_demo_bundle.py --out /mnt/c/Users/NAME/Downloads` (add `--dry-run` first to see the size). It packs only the pool songs' numbers (cut down to what the recommender reads: tested to give the same query), the lists, the tags and a README.
+2. **Copy the zip to the laptop** (USB stick or Drive) and follow `DEMO_BUNDLE_README.txt` inside it: `git pull` the code, `unzip -o` the bundle in the project folder, install the requirements, `python models.py` (about 60 MB), `sudo apt install ffmpeg`, `pip install -U yt-dlp`.
+3. `python demo_server.py --check`: it now also checks the models and that the pool's numbers are all there (a bundle that did not unzip properly shows up here).
+4. **Make a new bundle whenever the pool changes** (it must be the same pool as on the desktop).
+
+**Speed on the laptop (the CPU, not the memory, is the question; the GPU is not used at all by the analysis).** On the desktop a new song takes about 10-15 s to analyse. The laptop will be slower. What helps, in the order to try:
+* **Stored songs cost nothing:** a song already in the pool (or brought by an earlier visitor) is served in about 5 s with no download or analysis (the INSTANT badge). Steer visitors to the badge.
+* **Fast analysis is automatic** in the demo: it skips the models the app never reads (genre, four mood yes/no heads, DEAM, danceability, TempoCNN, Percival). The numbers it gives are identical to a full analysis (tested), only quicker.
+* **Measure, then decide on an excerpt:** `python demo_server.py --benchmark "Blinding Lights The Weeknd"` on the laptop downloads one song and analyses it four ways (full, fast, fast + middle 90 s, fast + middle 60 s), printing the seconds, where the time went, and how many of the top 10 matches stay the same as with the full analysis. Run it for 3 songs of different styles. If an excerpt keeps 8 or more of 10 and you need the speed, start the demo with `python demo_server.py --excerpt 90`. If not, keep whole songs.
+* **The download** (yt-dlp plus ffmpeg's mp3 conversion) is shown separately in the benchmark. A phone hotspot with a good signal matters more than the CPU for it.
+* Everything is logged per step: `results/demo_log.csv` has a `detail` column (decode / effnet / mood / rhythm seconds) for every new song.
 
 ## 3. At the booth: 30 minutes before
 

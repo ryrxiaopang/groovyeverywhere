@@ -16,6 +16,7 @@ results/demo_feedback.csv (the "would you add it?" answers).
 One request at a time (the models use a lot of memory): a second request while one runs gets "busy".
 """
 import argparse, collections, csv, json, os, re, subprocess, sys, tempfile, threading, time
+import numpy as np
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -25,7 +26,7 @@ RES = os.path.join(HERE, "results")
 LOG = os.path.join(RES, "demo_log.csv")
 FEEDBACK = os.path.join(RES, "demo_feedback.csv")
 SAMPLES_CSV = os.path.join(HERE, "demo_samples.csv")        # optional: key,title,artist of the sample songs you want on the page
-LOG_COLS = ["time", "visitor", "kind", "input", "title", "ok", "error", "source", "best_sound", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match"]
+LOG_COLS = ["time", "visitor", "kind", "input", "title", "ok", "error", "source", "best_sound", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match", "detail"]
 DEMO_CACHE = os.path.join(RES, "demo_cache")        # the NUMBERS of songs visitors brought (never audio): a repeat is instant and does not touch YouTube again
 POOL_MSG = ("This is the closest we have, but it is not very close: our pool is mostly pop, R&B, indie and Asian pop, so songs from other styles "
             "(metal, classical, Latin, ...) find few real neighbours.")
@@ -178,9 +179,13 @@ class Backends:
         import sources
         return sources.temp_audio(dict(source="youtube", download_allowed=True, download_url=f"https://www.youtube.com/watch?v={vid}"))
 
-    def analyse(self, path):
+    def analyse_full(self, path, fast=True, max_seconds=None):
+        """(features, timings per step). fast = skip the models the app never reads (same numbers for everything it does read); max_seconds = only the middle of a long song."""
         import analyze
-        feats, _ = analyze.analyse(path)
+        return analyze.analyse(path, fast=fast, max_seconds=max_seconds)
+
+    def analyse(self, path):
+        feats, self.last_timings = self.analyse_full(path, True, int(os.environ.get("HG_DEMO_EXCERPT", "0") or 0) or None)
         return feats
 
     def analyse_clip(self, wav_path):
@@ -417,7 +422,7 @@ class Demo:
             self.lock.release()
             append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(visitor), kind=kind, input=ident, title=title, ok=int(not err),
                                                 error=err, source=src, best_sound=best if best == "" else round(float(best), 3), seconds_total=round(time.time() - t0, 1),
-                                                **{f"seconds_{k}": round(v, 1) for k, v in times.items()}))
+                                                detail=times.get("_detail", ""), **{f"seconds_{k}": round(v, 1) for k, v in times.items() if not k.startswith("_")}))
 
     def _finish(self, kind, ident, q, meta, features, times, extra_input, source="new"):
         t = time.time()
@@ -466,6 +471,9 @@ class Demo:
                     t = time.time(); self._stage("listening to it (analysing)")
                     feats = self.b.analyse(path)
                     times["analyse"] = time.time() - t
+                    tm = getattr(self.b, "last_timings", None)
+                    if tm:                                          # where the analysis time went (decode / effnet / mood / rhythm ...): visible in the log, for the booth laptop
+                        times["_detail"] = ", ".join(f"{k} {v:.1f}" for k, v in tm.items() if k != "total" and v >= 0.05)
             except DemoError:
                 raise
             except BaseException as e:
@@ -666,6 +674,48 @@ def summary(log=LOG, feedback=FEEDBACK):
                 print(f"  '{name}': would add {sum(r['would_add'] == 'yes' for r in sub)} of {len(sub)} ({100 * sum(r['would_add'] == 'yes' for r in sub) / len(sub):.0f}%)")
 
 
+def benchmark(text, b=None, printer=print):
+    """How fast is analysis on THIS machine, and what do the speed-ups cost? Downloads one song (or finds it by name), analyses it in four ways and compares the recommendations
+    with those of the full analysis (the way the pool songs were analysed). Run it on the booth laptop."""
+    b = b or Backends()
+    vid, title = video_id(text), text
+    if not vid:
+        found = b.search(text, 1)
+        if not found:
+            raise SystemExit(f"nothing found on YouTube for {text!r}")
+        vid, title = found[0]["id"], found[0]["title"]
+    printer(f"song: {title} ({vid})")
+    t = time.time(); b.warm(); printer(f"pool loaded in {time.time() - t:.0f} s (this happens once, when the server starts)")
+    modes = [("full, as the pool songs were analysed", False, None), ("fast: skips models the demo never reads", True, None),
+             ("fast + only the middle 90 s", True, 90), ("fast + only the middle 60 s", True, 60)]
+    rows, base = [], None
+    t_dl = time.time()
+    with b.download(vid) as path:
+        printer(f"download + conversion to mp3: {time.time() - t_dl:.1f} s (yt-dlp and ffmpeg: it depends on the connection and the CPU, not on the models)")
+        for label, fast, secs in modes:
+            t = time.time(); feats, tm = b.analyse_full(path, fast, secs); took = time.time() - t
+            q = b.query(feats)
+            top = [r["key"] for r in b.recommend(q, {}, 10, DEFAULT_FEATURES)["A"][:10]]
+            whole = np.asarray(q["whole"], float)
+            if base is None:
+                base = (top, whole)
+            cos = float(whole @ base[1] / (np.linalg.norm(whole) * np.linalg.norm(base[1]) + 1e-12))
+            rows.append(dict(mode=label, seconds=took, same=len(set(top) & set(base[0])), cos=cos, detail=", ".join(f"{k} {v:.1f}" for k, v in tm.items() if k != "total" and v >= 0.05)))
+    printer(f"\n{'way of analysing':42s} {'seconds':>8s}  {'same top-10 as full':>20s}  {'Sound match to full':>20s}   where the time went")
+    for r in rows:
+        printer(f"{r['mode']:42s} {r['seconds']:8.1f}  {str(r['same']) + ' of 10':>20s}  {r['cos']:20.4f}   {r['detail']}")
+    full, fast = rows[0], rows[1]
+    full = dict(full, seconds=max(full['seconds'], 1e-9))
+    printer(f"\nfast mode saves {100 * (1 - fast['seconds'] / full['seconds']):.0f}% and should give the SAME top 10 ({fast['same']} of 10 here)"
+            + ("" if fast["same"] >= 9 else "  !! it should be identical: tell me about this output"))
+    for r in rows[2:]:
+        ok = r["same"] >= 8
+        printer(f"{r['mode']}: saves {100 * (1 - r['seconds'] / full['seconds']):.0f}% but keeps {r['same']} of 10 matches: " + ("acceptable if you need the speed (start the demo with --excerpt "
+                + ("90" if "90" in r["mode"] else "60") + ")" if ok else "too much changes: keep whole songs"))
+    printer("One song is one data point: run it for 3 songs of different styles before deciding on an excerpt.")
+    return rows
+
+
 def _run(cmd, timeout=45):
     """(return code, stdout, stderr) of a command, never raising: (-1, '', reason) when it could not run."""
     try:
@@ -702,6 +752,17 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
         add("ok" if avail >= 8 else "warn" if avail >= 4 else "fail", f"{avail:.1f} GB of memory free" + ("" if avail >= 8 else ": close other programs and stop analysis jobs; the pool and models need about 6 GB"))
     except (OSError, StopIteration, ValueError):
         add("warn", "could not read the free memory")
+    try:
+        import models
+        missing = [n for n in ("effnet", "musicnn", "instruments", "emomusic", "vggish", "emomusic_vggish") if not models.available(n)]
+        add("fail" if missing else "ok", f"analysis models missing: {', '.join(missing)} (run  python models.py, about 60 MB)" if missing else "the analysis models are present")
+    except Exception as e:
+        add("warn", f"could not check the models ({type(e).__name__})")
+    if lists:
+        from results_index import pool_keys
+        keys = pool_keys(here)
+        have = sum(os.path.exists(os.path.join(here, "results", f"{k}.npz")) for k in keys)
+        add("ok" if keys and have >= 0.98 * len(keys) else "fail", f"{have} of {len(keys)} pool songs have their numbers" + ("" if keys and have >= 0.98 * len(keys) else " (on a booth laptop: unzip the demo bundle inside the project folder; on the desktop: finish the analysis)"))
     running = other_jobs_running() if jobs is None else jobs
     add("warn" if running else "ok", "an analysis / pool-growing job is running: the demo will be slow (stop it first)" if running else "no analysis job is running")
     try:
@@ -732,33 +793,51 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
 
 
 def rehearse(links_path, demo, out_csv=os.path.join(RES, "demo_rehearsal.csv"), printer=print):
-    """Run every link of a text file (one per line, # = comment) through the real pipeline, without the browser, and print one line each with the seconds it took.
-    Returns the rows. A failure that would show the tab-capture box is marked CAPTURE."""
+    """Run every line of a text file (a song NAME like a visitor would type, or a YouTube link; # = comment) through the real pipeline, without the browser, and print one line
+    each with the seconds it took. A name is searched first and the first candidate is used, so the search is rehearsed too. Returns the rows; a failure that would show the
+    tab-capture box is marked CAPTURE, a song served from stored numbers is marked (stored)."""
+    if not os.path.exists(links_path):
+        raise SystemExit(f"{links_path} not found. Make a text file with one song per line (a song name and artist, or a YouTube link; # starts a comment). "
+                         f"There is an example: cp rehearsal_songs.txt {links_path}")
     with open(links_path, encoding="utf-8-sig") as f:
-        links = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+        lines = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+    if not lines:
+        raise SystemExit(f"{links_path} has no songs in it")
     if not demo.ready:
         demo.warm()
     if not demo.ready:
         raise SystemExit(f"the pool did not load: {demo.warm_error}")
     rows = []
-    for i, url in enumerate(links, 1):
+    for i, text in enumerate(lines, 1):
         t = time.time()
-        code, body = demo.from_link(url)
-        ok = code == 200 and body.get("ok")
-        title = (body.get("input") or {}).get("title", "")
+        target, picked, why = text, "", ""
+        if not video_id(text) and "://" not in text and not re.match(r"^(www\.)?[\w-]+\.[a-z]{2,}/", text):        # a NAME (not a web address): search it, take the first candidate, like a visitor's tap
+            code0, found = demo.search(text)
+            res = (found.get("results") or []) if code0 == 200 else []
+            if not res:
+                why = "no_search_result"
+            else:
+                target, picked = res[0]["id"], res[0]["title"]
+        if why:
+            code, body, ok = 0, {}, False
+        else:
+            code, body = demo.from_link(target)
+            ok = code == 200 and body.get("ok")
+            why = "" if ok else ("CAPTURE " if body.get("fallback") == "capture" else "") + str(body.get("error", ""))
+        title = (body.get("input") or {}).get("title", "") or picked
         top = ((body.get("results") or {}).get("A") or [{}])[0].get("title", "") if ok else ""
-        why = "" if ok else ("CAPTURE " if body.get("fallback") == "capture" else "") + str(body.get("error", ""))
+        src = body.get("source", "") if ok else ""
         secs = round(time.time() - t, 1)
-        rows.append(dict(n=i, url=url, ok=int(bool(ok)), error=why, title=title, seconds=secs, top1=top))
-        printer(f"{i:2d} {'OK  ' if ok else 'FAIL'} {secs:5.1f}s  {(title or url)[:38]:38s} -> {top[:34]:34s} {why}")
-    if rows:
-        os.makedirs(os.path.dirname(out_csv), exist_ok=True)
-        with open(out_csv, "w", newline="", encoding="utf-8-sig") as f:
-            w = csv.DictWriter(f, fieldnames=list(rows[0]))
-            w.writeheader(); w.writerows(rows)
-        good = [r["seconds"] for r in rows if r["ok"]]
-        printer(f"\n{len(good)} of {len(rows)} worked" + (f"; median {sorted(good)[len(good) // 2]:.0f} s, slowest {max(good):.0f} s" if good else "")
-                + f"; {sum(r['error'].startswith('CAPTURE') for r in rows)} would need the tab capture. Saved {out_csv}")
+        rows.append(dict(n=i, asked=text, ok=int(bool(ok)), error=why, title=title, source=src, seconds=secs, top1=top))
+        printer(f"{i:2d} {'OK  ' if ok else 'FAIL'} {secs:5.1f}s  {text[:30]:30s} -> {(title or '-')[:30]:30s} top: {top[:26]:26s} {'(stored) ' if src == 'stored' else ''}{why}")
+    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+    with open(out_csv, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader(); w.writerows(rows)
+    good = [r["seconds"] for r in rows if r["ok"]]
+    stored = sum(r["source"] == "stored" for r in rows)
+    printer(f"\n{len(good)} of {len(rows)} worked ({stored} served from stored numbers)" + (f"; median {sorted(good)[len(good) // 2]:.0f} s, slowest {max(good):.0f} s" if good else "")
+            + f"; {sum(r['error'].startswith('CAPTURE') for r in rows)} would need the tab capture. Saved {out_csv}")
     return rows
 
 
@@ -779,10 +858,20 @@ def main():
     ap.add_argument("--summary", action="store_true", help="print what the logged runs and answers show, then exit")
     ap.add_argument("--check", action="store_true", help="pre-flight check of everything the demo needs (yt-dlp, ffmpeg, memory, port, YouTube, ...), then exit")
     ap.add_argument("--fake", action="store_true", help="PRACTICE MODE: canned matches (no models, no pool); the page shows a banner. For testing the page and the browser on a busy machine")
+    ap.add_argument("--benchmark", metavar="SONG", help="time the analysis on THIS machine and compare the speed-ups with the full analysis: a song name or a YouTube link, then exit")
+    ap.add_argument("--excerpt", type=int, default=0, metavar="SECONDS", help="analyse only the middle SECONDS of songs longer than that (faster; check with --benchmark first). Default: whole songs")
     ap.add_argument("--rehearse", metavar="LINKS.txt", help="run the links of this file (one per line) through the real pipeline and print the timings, then exit")
     a = ap.parse_args()
     if a.summary:
         return summary()
+    if a.excerpt:
+        os.environ["HG_DEMO_EXCERPT"] = str(a.excerpt)
+    if a.benchmark:
+        os.environ.setdefault("HG_YT_TIMEOUT", "120")
+        if other_jobs_running():
+            print("!! an analysis / pool-growing job is running: the timings will be slower than on the day.")
+        benchmark(a.benchmark)
+        return
     if a.check:
         marks = {"ok": "[ ok ]", "warn": "[warn]", "fail": "[FAIL]"}
         res = doctor(a.port)

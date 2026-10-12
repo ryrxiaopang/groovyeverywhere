@@ -1252,6 +1252,7 @@ def demo_server_test():
                 yield p
         def analyse(self, path):
             gate.wait(10)
+            self.last_timings = {"decode": 0.4, "effnet": 1.2, "rhythm": 0.01, "total": 1.61}
             return dict(f=1)
         def analyse_clip(self, wav_path):
             n = os.path.getsize(wav_path)
@@ -1370,6 +1371,7 @@ def demo_server_test():
         log = list(csv.DictReader(open(os.path.join(d, "log.csv"), encoding="utf-8-sig")))
         errs = [r["error"] for r in log if r["ok"] == "0"]
         assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" and r["kind"] == "link" for r in log) >= 4, errs
+        assert any("effnet 1.2" in r["detail"] and "decode 0.4" in r["detail"] and "rhythm" not in r["detail"] for r in log), [r["detail"] for r in log]
         assert sum(r["visitor"] == "v1x" for r in log) >= 2 and any(r["kind"] == "search" for r in log) and any(r["source"] == "stored" for r in log) and any(r["best_sound"] not in ("", None) for r in log), log[:3]
     finally:
         gate.set(); srv.shutdown(); srv.server_close()
@@ -1403,12 +1405,37 @@ def demo_server_test():
     assert "warn: yt-dlp 2025.01.01" in text and "fail: ffmpeg is missing" in text and "fail: 1.9 GB of memory free" in text and "warn: an analysis" in text, text
     assert "warn: YouTube would not answer" in text and "Sign in" in text and "http://172.20.1.2:" in text and "fail: results/ai_tags.csv is missing" in text, text
     # the rehearsal: a link per line, comments ignored, one line each, a CSV, the capture fallback counted
-    lp = os.path.join(fd, "links.txt"); open(lp, "w").write("# my links\naaaaaaaaaaa\nhttps://vimeo.com/123456789\nccccccccccc\n\n")
+    lp = os.path.join(fd, "links.txt"); open(lp, "w").write("# my links\naaaaaaaaaaa\nhttps://vimeo.com/123456789\nccccccccccc\nhello world\n\n")
     lines = []
     rd = ds.Demo(Fake(), k=4, log=os.path.join(fd, "rl.csv"), feedback=os.path.join(fd, "rf.csv"))
     rows = ds.rehearse(lp, rd, out_csv=os.path.join(fd, "reh.csv"), printer=lines.append)
-    assert [r["ok"] for r in rows] == [1, 0, 0] and rows[2]["error"] == "CAPTURE download_failed" and rows[1]["error"] == "not_youtube", rows
-    assert os.path.exists(os.path.join(fd, "reh.csv")) and "1 of 3 worked" in lines[-1] and "1 would need the tab capture" in lines[-1], lines
+    assert [r["ok"] for r in rows] == [1, 0, 0, 1] and rows[2]["error"] == "CAPTURE download_failed" and rows[1]["error"] == "not_youtube", rows
+    assert rows[3]["asked"] == "hello world" and rows[3]["title"].startswith("Known"), rows[3]              # a NAME is searched and its first candidate is used, like a visitor's tap
+    assert os.path.exists(os.path.join(fd, "reh.csv")) and "2 of 4 worked" in lines[-1] and "1 would need the tab capture" in lines[-1], lines
+    try:
+        ds.rehearse(os.path.join(fd, "nope.txt"), rd, out_csv=os.path.join(fd, "x.csv"), printer=lines.append)
+        raise AssertionError("a missing file must stop with a plain message")
+    except SystemExit as e:
+        assert "not found" in str(e) and "rehearsal_songs.txt" in str(e), str(e)
+    # the benchmark: four ways of analysing, each compared with the full analysis
+    class B2:
+        def search(self, q, n=5): return [dict(id="bbbbbbbbbbb", title="Song B")]
+        def warm(self): return 10
+        @contextlib.contextmanager
+        def download(self, vid): yield "/dev/null"
+        def analyse_full(self, path, fast=True, max_seconds=None):
+            time.sleep(0.01)
+            f = {(False, None): 0, (True, None): 0, (True, 90): 1, (True, 60): 2}[(fast, max_seconds)]
+            return dict(f=f), {"decode": 1.0, "effnet": 4.0 if not fast else 2.0, "total": 5.0}
+        def query(self, feats): return dict(whole=np.array([1.0, 0.5 + 0.05 * feats["f"]]), f=feats["f"])
+        def recommend(self, q, meta, k, features):
+            n_changed = {0: 0, 1: 2, 2: 5}[q["f"]]
+            return dict(A=[dict(key=f"k{i}" if i >= 10 - n_changed else f"k{i}") if False else dict(key=(f"new{i}" if i < n_changed else f"k{i}")) for i in range(10)])
+    lines2 = []
+    rows2 = ds.benchmark("hello", b=B2(), printer=lines2.append)
+    assert [r["same"] for r in rows2] == [10, 10, 8, 5], rows2
+    text2 = "\n".join(lines2)
+    assert "fast mode saves" in text2 and "acceptable if you need the speed (start the demo with --excerpt 90)" in text2 and "too much changes: keep whole songs" in text2, text2
     import io, contextlib as _cl
     buf = io.StringIO()
     with _cl.redirect_stdout(buf):
@@ -1474,6 +1501,84 @@ def mark_ai_out_test():
     print("   AI songs and blocked channels are marked out once (logged with the reason), kept artists and other marks are untouched, --restore undoes only its own marks, the filter speaks only when something is left to mark")
 
 
+def analysis_fast_test():
+    """analyze.analyse(fast=True) skips the models the app never reads and gives identical numbers for everything it does read; max_seconds keeps only the middle of a long song."""
+    print("\n22. FAST AND EXCERPT ANALYSIS (for the demo)")
+    import analyze, blind_test as bt
+    a16, a44 = np.arange(16000 * 100, dtype=np.float32), np.arange(44100 * 100, dtype=np.float32)
+    x16, x44, cut = analyze.centre_excerpt(a16, a44, 30)
+    assert cut and len(x16) == 30 * 16000 and len(x44) == 30 * 44100 and x16[0] == 35 * 16000 and x44[0] == 35 * 44100          # the middle 30 s of 100 s
+    assert analyze.centre_excerpt(a16, a44, 80)[2] is False and analyze.centre_excerpt(a16, a44, None)[2] is False                # up to 1.3x the limit: analysed whole
+    saved = (analyze.FAKE, analyze.load, analyze.rhythm_features, analyze._es)
+    try:
+        analyze.FAKE = True
+        rng = np.random.default_rng(1)
+        analyze.load = lambda path: ((0.1 * rng.normal(size=16000 * 200)).astype(np.float32), (0.1 * rng.normal(size=44100 * 200)).astype(np.float32))
+        analyze.rhythm_features = lambda a: (dict(bpm=100.0, confidence=3.0, steadiness=0.1, busyness=2.0, danceability=1.0, loudness_db=-20.0, n_beats=100), 0.1)
+        analyze._es = lambda: None
+        full, _ = analyze.analyse("/x/song.mp3")
+        fast, _ = analyze.analyse("/x/song.mp3", fast=True)
+        cut_, _ = analyze.analyse("/x/song.mp3", fast=True, max_seconds=60)
+        whole_len, _ = analyze.analyse("/x/song.mp3", fast=True, max_seconds=190)
+    finally:
+        analyze.FAKE, analyze.load, analyze.rhythm_features, analyze._es = saved
+    needed = ("effnet_whole", "effnet_parts", "instruments_whole", "instruments_parts", "emomusic_whole", "emomusic_parts", "cand_emomusic_vggish_whole",
+              "rhythm_bpm", "rhythm_confidence", "rhythm_steadiness", "rhythm_busyness")
+    for k in needed:
+        assert k in fast and np.allclose(full[k], fast[k], equal_nan=True), k                       # identical numbers for everything the app reads
+    for k in ("genre_top5_idx", "mood_happy_whole", "mood_aggressive_whole", "deam_whole", "cand_deam_vggish_whole", "cand_tempocnn_bpm", "cand_percival_bpm", "cand_danceability_whole"):
+        assert k in full and k not in fast, k                                                          # the models the app never reads are skipped
+    q1, q2 = bt.query_from_analysis(full), bt.query_from_analysis(fast)
+    assert all(np.allclose(np.asarray(q1[k], float), np.asarray(q2[k], float), equal_nan=True) for k in q1), "a fast analysis must give the same query"
+    assert "excerpt_seconds" not in fast and "excerpt_seconds" not in whole_len and cut_["excerpt_seconds"] == 60.0 and abs(cut_["trimmed_duration"] - 60) < 1.0, (cut_["trimmed_duration"])
+    print("   fast analysis = same query as the full analysis without the unused models; an excerpt keeps the middle of long songs only")
+
+
+def demo_bundle_test():
+    """make_demo_bundle.py: only pool songs with numbers, cut-down .npz files that give the same query, the lists and tags, nothing else."""
+    print("\n23. DEMO BUNDLE FOR THE BOOTH LAPTOP")
+    import make_demo_bundle as mb, blind_test as bt, zipfile, tempfile, csv, os, io
+    d = tempfile.mkdtemp(); res = os.path.join(d, "results"); os.makedirs(os.path.join(res, "meta"))
+    rng = np.random.default_rng(3)
+    def full_npz(path):
+        np.savez_compressed(path, effnet_whole=rng.normal(size=1280), effnet_parts=rng.normal(size=(3, 1280)), effnet_chunks=rng.normal(size=(200, 1280)).astype(np.float16),
+                            instruments_whole=rng.random(40), instruments_parts=rng.random((3, 40)), instruments_chunks=rng.random((200, 40)).astype(np.float16),
+                            emomusic_whole=np.array([5.0, 6.0]), emomusic_parts=rng.random((3, 2)) + 4, cand_emomusic_vggish_whole=np.array([5.5, 5.0]),
+                            rhythm_bpm=100.0, rhythm_confidence=3.0, rhythm_steadiness=0.1, rhythm_busyness=2.0, genre400_extra=rng.normal(size=400))
+    with open(os.path.join(res, "index.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["key", "status", "group", "artist", "title", "page", "listens"])
+        for k in ("a", "b", "c", "e"):
+            w.writerow([f"youtube_{k}", "done", "yt_pop", f"Artist {k}", f"Title {k}", f"https://www.youtube.com/watch?v={k}", 100])
+    for k in ("a", "b", "e"):                                           # c is listed in the pool but has no numbers file; e is marked out (i_agree = n)
+        full_npz(os.path.join(res, f"youtube_{k}.npz")); open(os.path.join(res, "meta", f"youtube_{k}.json"), "w").write('{"title": "T"}')
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["source", "track_id", "title", "artist", "group", "i_agree"])
+        for k in ("a", "b", "c", "e"):
+            w.writerow(["youtube", k, f"Title {k}", f"Artist {k}", "yt_pop", "n" if k == "e" else ""])
+    for n in ("ai_tags.csv",):
+        open(os.path.join(res, n), "w").write("key,status\n")
+    open(os.path.join(d, "ai_keep.txt"), "w").write("kanegi\n")
+    dry = mb.build(d, os.path.join(d, "out"), dry_run=True)
+    assert dry["zip"] is None and dry["songs"] == 2 and dry["listed"] == 3 and dry["missing"] == 1 and not os.path.exists(os.path.join(d, "out")), dry
+    r = mb.build(d, os.path.join(d, "out"), when="test")
+    assert r["songs"] == 2 and r["zip"].endswith("demo-bundle-test.zip"), r
+    with zipfile.ZipFile(r["zip"]) as z:
+        names = set(z.namelist())
+        assert {"results/youtube_a.npz", "results/youtube_b.npz", "results/index.csv", "results/meta/youtube_a.json", "pool_youtube.csv", "ai_keep.txt", "results/ai_tags.csv", "DEMO_BUNDLE_README.txt"} <= names, names
+        assert "results/youtube_e.npz" not in names and "results/youtube_c.npz" not in names                      # marked out / no numbers: not in the bundle
+        idx = list(csv.DictReader(io.StringIO(z.read("results/index.csv").decode("utf-8-sig"))))
+        assert sorted(x["key"] for x in idx) == ["youtube_a", "youtube_b"], idx
+        slim = np.load(io.BytesIO(z.read("results/youtube_a.npz")), allow_pickle=False)
+        assert set(slim.files) <= set(mb.KEEP_KEYS) and "effnet_chunks" not in slim.files and "genre400_extra" not in slim.files, slim.files
+        assert "DEMO_BUNDLE_README" in "".join(names) and b"python demo_server.py --check" in z.read("DEMO_BUNDLE_README.txt")
+        slim_dict = {k: slim[k] for k in slim.files}
+    with np.load(os.path.join(res, "youtube_a.npz"), allow_pickle=False) as fullz:
+        q_full, q_slim = bt.query_from_analysis({k: fullz[k] for k in fullz.files}), bt.query_from_analysis(slim_dict)
+    assert all(np.allclose(np.asarray(q_full[k], float), np.asarray(q_slim[k], float), equal_nan=True) for k in q_full), "a cut-down file must give the same query"
+    assert os.path.getsize(r["zip"]) < 0.5 * sum(os.path.getsize(os.path.join(res, f"youtube_{k}.npz")) for k in "abe") + 5000                          # and it is smaller
+    print("   the bundle holds only pool songs with numbers, in cut-down files that give the same query, plus the lists, tags and a README")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1497,3 +1602,5 @@ if __name__ == "__main__":
     ai_removal_test()
     demo_server_test()
     mark_ai_out_test()
+    analysis_fast_test()
+    demo_bundle_test()

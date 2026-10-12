@@ -1,0 +1,22 @@
+# One song per line: a name and artist as a visitor would type it, or a YouTube link. # starts a comment.
+#   cp rehearsal_songs.txt links.txt   then   python demo_server.py --rehearse links.txt
+# Mix of what visitors will bring: hits that are probably already stored, the pool's own styles, and songs OUTSIDE them (to see how it fails).
+Blinding Lights The Weeknd
+Another Love Tom Odell
+Mr Brightside The Killers
+Glue Song beabadoobee
+Heather Conan Gray
+Pluto Projector Rex Orange County
+Popo Yerin Baek
+Sofia Clairo
+Shinunoga E-Wa Fujii Kaze
+Jay Chou Rice Field
+Ditto NewJeans
+Fine Taeyeon
+Daylight David Kushner
+Vampire Olivia Rodrigo
+# outside the pool's styles: the page should say the matches are not very close
+Enter Sandman Metallica
+Moonlight Sonata Beethoven
+# a long song (over 5 minutes) and a very new release of your choice: add them here
+Comfortably Numb Pink Floyd

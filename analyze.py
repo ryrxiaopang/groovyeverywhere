@@ -124,8 +124,27 @@ def _fake(n, d, seed):
     return np.random.default_rng(seed).normal(size=(n, d)).astype(np.float32)
 
 
-def analyse(path, listed_duration=None):
-    """Return (features dict of numpy arrays/scalars, timings dict)."""
+def centre_excerpt(a16t, a44t, max_seconds):
+    """The middle `max_seconds` of a trimmed song at both sample rates (a song up to 1.3x that long is analysed whole: cutting a few seconds is not worth it)."""
+    dur = len(a16t) / SR_MODEL
+    if not max_seconds or dur <= 1.3 * max_seconds:
+        return a16t, a44t, False
+    n16, n44 = int(max_seconds * SR_MODEL), int(max_seconds * SR_RHYTHM)
+    s16, s44 = (len(a16t) - n16) // 2, (len(a44t) - n44) // 2
+    return a16t[s16:s16 + n16], a44t[s44:s44 + n44], True
+
+
+# The heads the demo never reads (the app uses Sound, Instruments, Mood = VGGish -> emoMusic (+ MusiCNN -> emoMusic for the parts) and bpm / confidence / steadiness / busyness):
+FAST_HEADS = ("instruments",)
+FAST_MOOD = ("emomusic",)
+FAST_CANDIDATES = ("emomusic_vggish",)
+
+
+def analyse(path, listed_duration=None, fast=False, max_seconds=None):
+    """Return (features dict of numpy arrays/scalars, timings dict).
+    fast=True (the live demo): skip the models the app never reads (genre400, the four mood yes/no heads, DEAM, danceability, TempoCNN, Percival, ...). Every number the app reads
+    is computed by the same code as before, so it is identical to a full analysis.
+    max_seconds: analyse only the middle part of a long song (faster, slightly different numbers: measure it first, demo_server.py --benchmark)."""
     T = {}
     t = time.time()
     a16, a44 = load(path)
@@ -134,9 +153,12 @@ def analyse(path, listed_duration=None):
     s, e = trim_bounds(a16)
     a16t = a16[int(s * SR_MODEL): int(e * SR_MODEL)]
     a44t = a44[int(s * SR_RHYTHM): int(e * SR_RHYTHM)]
+    a16t, a44t, cut = centre_excerpt(a16t, a44t, max_seconds)
     dur = len(a16t) / SR_MODEL
     out = dict(file_duration=file_dur, trim_start=s, trim_end=e, trimmed_duration=dur,
                full_length_ok=(abs(file_dur - listed_duration) <= 3.0) if listed_duration else np.nan)
+    if cut:
+        out["excerpt_seconds"] = float(max_seconds)
     seed = int(abs(hash(os.path.basename(path))) % 2**31)
 
     # ---- Sound: EffNet chunk embeddings
@@ -150,6 +172,8 @@ def analyse(path, listed_duration=None):
     heads = {}
     for k, d in (("instruments", 40), ("mood_happy", 2), ("mood_sad", 2), ("mood_aggressive", 2),
                  ("mood_relaxed", 2), ("genre400", 400)):
+        if fast and k not in FAST_HEADS:
+            continue
         heads[k] = (np.abs(_fake(len(emb), d, seed + d)) % 1) if FAKE else np.asarray(_model(k)(emb))
     T["effnet_heads"] = time.time() - t
 
@@ -159,6 +183,8 @@ def analyse(path, listed_duration=None):
     mc = chunk_centres(len(mcn), MUSICNN_HOP_S, MUSICNN_LEN_S)
     va = {}
     for k in ("emomusic", "deam"):
+        if fast and k not in FAST_MOOD:
+            continue
         va[k] = (5 + 2 * np.tanh(_fake(len(mcn), 2, seed + 7))) if FAKE else np.asarray(_model(k)(mcn))
     T["mood"] = time.time() - t
 
@@ -190,16 +216,16 @@ def analyse(path, listed_duration=None):
         out[f"rhythm_{k}"] = v
     # ---- candidates (tested, not yet used by the app). Each is optional and isolated.
     t = time.time()
-    out.update(candidates(a16t, a44t, emb, mcn, seed))
+    out.update(candidates(a16t, a44t, emb, mcn, seed, only=FAST_CANDIDATES if fast else None))
     T["candidates"] = time.time() - t
     out["analysis_version"] = ANALYSIS_VERSION
     T["total"] = sum(T.values())
     return out, T
 
 
-def candidates(a16t, a44t, emb, mcn, seed):
+def candidates(a16t, a44t, emb, mcn, seed, only=None):
     """Candidate Mood and Rhythm models, all on the same downloaded file.
-    Stored with a cand_ prefix. A model that is missing or fails is simply left out."""
+    Stored with a cand_ prefix. A model that is missing or fails is simply left out. only = a tuple of model names: run just those (the fast demo analysis)."""
     import models as M
     es = _es(); out = {}
     def ok(name):
@@ -217,11 +243,13 @@ def candidates(a16t, a44t, emb, mcn, seed):
                 vg = np.asarray(_cache["vggish"](a16t))
             out["cand_vggish_whole"] = vg.mean(axis=0)
             for k in ("emomusic_vggish", "deam_vggish"):
-                if ok(k):
+                if ok(k) and (only is None or k in only):
                     v = (5 + 2 * np.tanh(rngf.normal(size=(len(vg), 2)))) if FAKE else np.asarray(_model(k)(vg))
                     out[f"cand_{k}_whole"] = v.mean(axis=0)
     except Exception as ex:
         out["cand_error_vggish"] = str(ex)[:200]
+    if only is not None:                                   # the fast demo analysis: nothing below is read by the app
+        return out
     # Mood: yes/no happy & sad through MusiCNN
     for k in ("mood_happy_musicnn", "mood_sad_musicnn"):
         try:
