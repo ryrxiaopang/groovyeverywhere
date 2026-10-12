@@ -709,7 +709,7 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
             sk.bind(("127.0.0.1", port))
         add("ok", f"port {port} is free")
     except OSError:
-        add("fail", f"port {port} is in use (is the demo already running? try --port 8800)")
+        add("fail", f"port {port} is in use: a demo (maybe a practice-mode one, --fake) is still running in another terminal. Find it with  pgrep -af \"[d]emo_server\"  and stop it with  kill PID  (or start this one with --port 8800)")
     t = time.time()
     code, so, se = run(["yt-dlp", "-q", "--no-warnings", "--no-playlist", "--force-ipv4", "--skip-download", "--print", "%(title)s", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"], 45)
     if code == 0 and so.strip():
@@ -720,9 +720,9 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
     sp = os.path.join(here, "demo_samples.csv")
     if os.path.exists(sp):
         n = max(0, sum(1 for _ in open(sp, encoding="utf-8-sig")) - 1)
-        add("ok" if n >= 3 else "warn", f"demo_samples.csv has {n} song(s)")
+        add("ok", f"demo_samples.csv has {n} song(s) (only for the operator's safety net: http://localhost:{port or 8765}/?samples=1)")
     else:
-        add("warn", "no demo_samples.csv: the page will use the most-viewed song of each big style (choose six you like)")
+        add("ok", "no demo_samples.csv: fine, visitors never see samples (the operator's ?samples=1 view then uses automatic ones)")
     if os.environ.get("HG_YT_COOKIES_FILE"):
         add("ok" if os.path.exists(os.environ["HG_YT_COOKIES_FILE"]) else "fail", "HG_YT_COOKIES_FILE is set" + ("" if os.path.exists(os.environ["HG_YT_COOKIES_FILE"]) else " but the file does not exist"))
     code, so, _ = run(["hostname", "-I"], 5)
