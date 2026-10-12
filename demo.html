@@ -112,6 +112,11 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 .badge { font: 500 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 3px 8px; }
 .tip { margin-top: 10px; color: var(--muted); font-size: 14px; min-height: 22px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 6px; }
+.tab { padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass); color: var(--ink); font: 500 15px var(--f-body); cursor: pointer; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.tab.add { border-style: dashed; color: var(--muted); }
+.nomix { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
 .linkbtn { background: none; border: 0; color: var(--accent); font: 500 14px var(--f-body); cursor: pointer; padding: 4px 0; }
 </style>
 </head>
@@ -156,6 +161,8 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
   <section id="results">
     <div class="topbar"><div class="now" style="margin:0"><span class="eyebrow">your song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
       <button class="btn" id="next" type="button">next person</button></div>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Your songs"></div>
+    <p class="nomix" id="nomix">Each song gets its own matches. We never mix songs: blending different styles gives muddy results.</p>
     <div id="heard" class="heard"></div>
     <div id="warn"></div>
     <div class="cols">
@@ -183,6 +190,10 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 const $ = id => document.getElementById(id);
 const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let token = "", pollTimer = null, ready = false, busy = false, tipTimer = null, idleTimer = null;
+const MAX_SONGS = 3;                                       // one visitor can try up to three songs; each has its own tab and its own lists, never a mixed list
+let songs = [], active = -1;
+const newVisitor = () => Math.random().toString(36).slice(2, 10);
+let visitor = newVisitor();                                // anonymous: ties one person's songs and answers together in the log, nothing else
 const OPERATOR = new URLSearchParams(location.search).has("samples");           // ?samples=1: the operator's safety-net sample buttons (hidden from visitors)
 const TIPS = ["We turn the song into four sets of numbers: its overall sound, its mood, its beat and its instruments.",
               "The audio is thrown away as soon as the numbers exist. Only the numbers are kept.",
@@ -229,7 +240,7 @@ function message(text, kind) {
 async function run(path, body, raw) {
   message(""); $("fallback").classList.remove("on"); showBusy(true);
   try {
-    const r = await fetch(path, raw ? { method: "POST", body: raw } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(raw ? path + "?visitor=" + visitor : path, raw ? { method: "POST", body: raw } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, visitor }) });
     const d = await r.json();
     if (!r.ok || d.error) {
       message(d.message || "Something went wrong.", d.error === "busy" ? "warn" : "err");
@@ -244,6 +255,7 @@ function looksLikeLink(t) { return /youtu\.?be|youtube\.com/i.test(t) || /^[A-Za
 $("go").onclick = () => {
   const t = $("url").value.trim();
   if (!t) return;
+  if (songs.length >= MAX_SONGS) { message("That is " + MAX_SONGS + " songs. Press “next person” for a fresh start.", "warn"); return; }
   $("cands").classList.remove("on"); $("cands").innerHTML = "";
   if (looksLikeLink(t)) run("/api/link", { url: t }); else search(t);
 };
@@ -251,7 +263,7 @@ $("go").onclick = () => {
 async function search(q) {
   message(""); $("fallback").classList.remove("on"); showBusy(true, "searching YouTube…");
   try {
-    const r = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q }) });
+    const r = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q, visitor }) });
     const d = await r.json();
     if (!r.ok || d.ok === false) { message(d.message || "The search did not work.", "err"); }
     else showCandidates(d.results, q);
@@ -277,6 +289,7 @@ function resetAll() {
   if (busy) return;
   $("url").value = ""; $("cands").classList.remove("on"); $("cands").innerHTML = ""; message(""); $("fallback").classList.remove("on");
   $("results").classList.remove("on"); $("listA").innerHTML = ""; $("listB").innerHTML = ""; $("heard").innerHTML = ""; $("warn").innerHTML = ""; token = "";
+  songs = []; active = -1; $("tabs").innerHTML = ""; visitor = newVisitor();
   window.scrollTo({ top: 0, behavior: "smooth" }); $("url").focus();
 }
 $("next").onclick = resetAll;
@@ -334,19 +347,36 @@ document.querySelectorAll("#chips button").forEach(b => b.onclick = async () => 
   try {
     const r = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, features: chosenFeatures() }) });
     const d = await r.json();
-    if (d.ok) renderList("listB", d.results.B, "B");
+    if (d.ok) { renderList("listB", d.results.B, "B"); if (songs[active]) { songs[active].results.B = d.results.B; songs[active].features = chosenFeatures().split("+"); } }
   } catch (e) { message("Could not update the list: " + e.message, "err"); }
   showBusy(false);
 });
 
-function render(d) {
-  token = d.token;
+function render(d) {                                       // a new result: either a new song for this visitor (a new tab) or the tab of a song they already tried
+  const dup = d.input.kind === "capture" ? -1 : songs.findIndex(x => x.input.id === d.input.id);
+  if (dup >= 0) { showSong(dup); return; }
+  songs.push({ token: d.token, input: d.input, results: d.results, heard: d.heard, warning: d.warning, features: ["mood", "rhythm", "instruments"] });
+  showSong(songs.length - 1);
+}
+
+function showSong(i) {
+  active = i; const d = songs[i]; token = d.token;
   $("nowTitle").textContent = d.input.title || d.input.id; $("nowArtist").textContent = d.input.artist || "";
   $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : "";
-  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", "true"));
+  document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", d.features.includes(b.dataset.f) ? "true" : "false"));
   renderHeard(d.heard);
   renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B");
+  renderTabs();
   $("results").classList.add("on"); $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderTabs() {
+  const el = $("tabs");
+  el.innerHTML = songs.map((s, i) => `<button class="tab" type="button" role="tab" data-i="${i}" aria-pressed="${i === active}" title="${esc(s.input.title)}">${i + 1} · ${esc((s.input.title || s.input.id).slice(0, 28))}</button>`).join("")
+    + (songs.length < MAX_SONGS ? '<button class="tab add" type="button" id="addSong">+ another song</button>' : "");
+  el.querySelectorAll(".tab[data-i]").forEach(b => b.onclick = () => showSong(+b.dataset.i));
+  const add = $("addSong");
+  if (add) add.onclick = () => { $("cands").classList.remove("on"); message(""); window.scrollTo({ top: 0, behavior: "smooth" }); $("url").value = ""; $("url").focus(); };
 }
 
 function renderHeard(h) {
@@ -393,7 +423,7 @@ function renderList(id, items, which) {
     card.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
       card.querySelectorAll("[data-add]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
       fetch("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, list: which, rec_key: r.key, rec_title: r.title, would_add: b.dataset.add }) });
+        body: JSON.stringify({ token, visitor, list: which, rec_key: r.key, rec_title: r.title, would_add: b.dataset.add }) });
     });
   });
 }

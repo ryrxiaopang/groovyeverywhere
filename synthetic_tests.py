@@ -1342,17 +1342,21 @@ def demo_server_test():
         assert code == 200 and seen["features"][-1] == "mood+instruments"
         assert J(call("/api/refine", dict(token=token, features="bogus")))[0] == 400 and J(call("/api/refine", dict(token="x", features="mood")))[0] == 400
         # ratings are saved with the song they belong to; bad ones are refused
-        assert J(call("/api/rate", dict(token=token, list="A", rec_key="youtube_x0a", rec_title="Rec 0", would_add="yes")))[0] == 200
+        assert J(call("/api/rate", dict(token=token, visitor="v1x", list="A", rec_key="youtube_x0a", rec_title="Rec 0", would_add="yes")))[0] == 200
         assert J(call("/api/rate", dict(token=token, list="Z", would_add="yes")))[0] == 400 and J(call("/api/rate", dict(token="x", list="A")))[0] == 400
         fb = list(csv.DictReader(open(os.path.join(d, "fb.csv"), encoding="utf-8-sig")))
-        assert len(fb) == 1 and fb[0]["rec_key"] == "youtube_x0a" and fb[0]["would_add"] == "yes" and fb[0]["input"] == "aaaaaaaaaaa", fb
+        assert len(fb) == 1 and fb[0]["rec_key"] == "youtube_x0a" and fb[0]["would_add"] == "yes" and fb[0]["input"] == "aaaaaaaaaaa" and fb[0]["visitor"] == "v1x", fb
         # booth: a typed song name finds candidates (each says whether its numbers are stored), and a stored song needs no YouTube, no download, no analysis
         code, b = J(call("/api/search", dict(q="  hello   world ")))
         assert code == 200 and b["ok"] and b["query"] == "hello world" and len(b["results"]) == 5 and b["results"][0]["instant"] is True and b["results"][1]["instant"] is False, b
         assert J(call("/api/search", dict(q="boom")))[1]["ok"] is False and J(call("/api/search", dict(q="a")))[0] == 400
         n_paths = len(seen["paths"])
-        code, b = J(call("/api/link", dict(url="kkkkkkkkkkk")))
+        code, b = J(call("/api/link", dict(url="kkkkkkkkkkk", visitor="v 1;x")))                       # the visitor id is cleaned to letters and digits
         assert code == 200 and b["source"] == "stored" and b["input"]["title"] == "Known kkk" and len(seen["paths"]) == n_paths, b
+        assert ds.clean_visitor("v 1;x") == "v1x" and ds.clean_visitor(None) == "" and len(ds.clean_visitor("a" * 40)) == 12
+        # one visitor, several songs: every song is its own result with its own token and its own lists (the server never combines songs)
+        code, b2 = J(call("/api/link", dict(url="aaaaaaaaaaa", visitor="v1x")))
+        assert b2["token"] != b["token"] and b2["results"]["A"] != [] and "blend" not in json.dumps(b2).lower(), b2
         # a new song's numbers are kept after its first analysis (never the audio), so the next visitor with the same song is served at once
         assert "aaaaaaaaaaa" in seen["cached"] and seen["cache_meta"]["title"].startswith("Song")
         code, b = J(call("/api/link", dict(url="aaaaaaaaaaa")))
@@ -1366,7 +1370,7 @@ def demo_server_test():
         log = list(csv.DictReader(open(os.path.join(d, "log.csv"), encoding="utf-8-sig")))
         errs = [r["error"] for r in log if r["ok"] == "0"]
         assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" and r["kind"] == "link" for r in log) >= 4, errs
-        assert any(r["kind"] == "search" for r in log) and any(r["source"] == "stored" for r in log) and any(r["best_sound"] not in ("", None) for r in log), log[:3]
+        assert sum(r["visitor"] == "v1x" for r in log) >= 2 and any(r["kind"] == "search" for r in log) and any(r["source"] == "stored" for r in log) and any(r["best_sound"] not in ("", None) for r in log), log[:3]
     finally:
         gate.set(); srv.shutdown(); srv.server_close()
     # "what we heard": plain words, never more than the models know
@@ -1410,7 +1414,7 @@ def demo_server_test():
     with _cl.redirect_stdout(buf):
         ds.summary(os.path.join(d, "log.csv"), os.path.join(d, "fb.csv"))
     out = buf.getvalue()
-    assert "runs:" in out and "download_failed" in out and "link: median" in out and "would add 1 of 1" in out, out
+    assert "runs:" in out and "download_failed" in out and "link: median" in out and "would add 1 of 1" in out and "1 visitors with at least one song" in out and "never blended" in out, out
     print("   links are checked, one job at a time, every failure offers the tab capture, audio is deleted, ratings and runs are logged")
 
 

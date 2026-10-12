@@ -18,6 +18,7 @@ The demo runs **on your laptop only**, at a **booth**: visitors sit at the lapto
 
 Two lists come back, as in the friends' test: **closest in sound**, and **sound plus the features you tick** (mood / rhythm / instruments, each in the top 35%). A **"what we heard"** strip shows the mood, tempo and main instruments. Each match shows the % match, four scores, a play button
 (embedded YouTube) and "would add" / "skip". If nothing in the pool is really close (a metal or classical song, say) the page says so instead of presenting weak matches as good.
+**Several songs per visitor, never blended (user decision, 12 Oct).** A visitor can try up to 3 songs ("+ another song"). Each song gets its **own tab with its own two lists**; there is no combined list, on purpose: mixing songs of different styles averages their numbers into a sound that belongs to neither and recommends muddy matches. The page says so under the tabs (a line you can repeat). The limit is `MAX_SONGS` in `demo.html`. The log ties one person's songs and answers together with an anonymous visitor id, nothing else (`python demo_server.py --summary` shows songs per visitor).
 **Next person** clears the screen; the page also resets itself after 3 minutes without activity, so the next visitor never sees the last visitor's songs.
 
 What is saved on the laptop (anonymous, no names, no audio): `results/demo_log.csv` (what was searched / picked, seconds per stage, whether it was served from stored numbers, how close the best match was), `results/demo_feedback.csv` ("would add" / "skip" per match),
@@ -60,6 +61,7 @@ The page also shows a **"what we heard"** strip under the starting song: the moo
 1. **Hook (sign or you say it):** "Tell us a song you love. We'll find songs that sound like it." Point at the box.
 2. **Visitor types** the song and artist, taps the right candidate (the INSTANT badge = served at once). While a new song is analysed (about 30 s) the page explains what it is doing; you can say it too: "it turns the song into numbers for the sound, mood, beat and instruments; the audio is thrown away; only numbers stay."
 3. **Read the results together.** "What we heard" (is the mood right?), the left list (closest in sound), the right list (also matching what you care about: untick "the rhythm" and the list changes). Play one match.
+3b. **Offer a second song** ("+ another song", up to 3): "Got another one you love?" It gets its own tab; the songs are never mixed.
 4. **Ask:** "Would you add this to a playlist?" and tap **would add** / **skip** for them on two or three matches. That is the feedback you collect.
 5. Press **next person**.
 

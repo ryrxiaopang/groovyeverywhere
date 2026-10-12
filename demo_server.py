@@ -25,12 +25,12 @@ RES = os.path.join(HERE, "results")
 LOG = os.path.join(RES, "demo_log.csv")
 FEEDBACK = os.path.join(RES, "demo_feedback.csv")
 SAMPLES_CSV = os.path.join(HERE, "demo_samples.csv")        # optional: key,title,artist of the sample songs you want on the page
-LOG_COLS = ["time", "kind", "input", "title", "ok", "error", "source", "best_sound", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match"]
+LOG_COLS = ["time", "visitor", "kind", "input", "title", "ok", "error", "source", "best_sound", "seconds_total", "seconds_lookup", "seconds_download", "seconds_analyse", "seconds_match"]
 DEMO_CACHE = os.path.join(RES, "demo_cache")        # the NUMBERS of songs visitors brought (never audio): a repeat is instant and does not touch YouTube again
 POOL_MSG = ("This is the closest we have, but it is not very close: our pool is mostly pop, R&B, indie and Asian pop, so songs from other styles "
             "(metal, classical, Latin, ...) find few real neighbours.")
 CAPTURE_MSG = "The recording does not sound much like music (noise or a very quiet tab), so these matches may be weak."
-FEEDBACK_COLS = ["time", "token", "kind", "input", "list", "rec_key", "rec_title", "rating", "would_add"]
+FEEDBACK_COLS = ["time", "visitor", "token", "kind", "input", "list", "rec_key", "rec_title", "rating", "would_add"]
 MAX_SECONDS = 600                       # a song, not a mix or a live stream
 MAX_CLIP_BYTES = 25 * 1024 * 1024
 VALID_FEATURES = ("mood", "rhythm", "instruments")
@@ -44,6 +44,11 @@ class DemoError(Exception):
     def __init__(self, code, message, fallback=None, status=200):
         super().__init__(message)
         self.code, self.message, self.fallback, self.status = code, message, fallback, status
+
+
+def clean_visitor(x):
+    """The anonymous visitor id the page makes up for each person at the booth (letters and digits only, 12 at most): it ties one person's songs and answers together, nothing else."""
+    return re.sub(r"[^A-Za-z0-9]", "", str(x or ""))[:12]
 
 
 def video_id(text):
@@ -388,7 +393,7 @@ class Demo:
         self.stage = s
 
     # ---- one job at a time
-    def _job(self, kind, ident, fn):
+    def _job(self, kind, ident, fn, visitor=""):
         """Run fn(times) under the lock; returns (http status, body dict). Every run is logged."""
         if not self.ready:
             return 503, dict(error="warming_up", message=self.warm_error or "The song pool is still loading: wait for the green light at the top of the page.")
@@ -410,7 +415,7 @@ class Demo:
         finally:
             self.stage = ""
             self.lock.release()
-            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), kind=kind, input=ident, title=title, ok=int(not err),
+            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(visitor), kind=kind, input=ident, title=title, ok=int(not err),
                                                 error=err, source=src, best_sound=best if best == "" else round(float(best), 3), seconds_total=round(time.time() - t0, 1),
                                                 **{f"seconds_{k}": round(v, 1) for k, v in times.items()}))
 
@@ -435,7 +440,7 @@ class Demo:
         return body
 
     # ---- the three ways in
-    def from_link(self, text):
+    def from_link(self, text, visitor=""):
         vid = video_id(text)
         if not vid:
             return 400, dict(error="not_youtube", message="That does not look like a YouTube link. Paste the address of a video (youtube.com/watch?v=... or youtu.be/...).")
@@ -474,9 +479,9 @@ class Demo:
             q = self.b.query(feats)
             return self._finish("link", vid, q, dict(title=info["title"], artist=info["channel"]), DEFAULT_FEATURES, times,
                                 dict(title=info["title"], artist=info["channel"], seconds=info["duration"]))
-        return self._job("link", vid, run)
+        return self._job("link", vid, run, visitor)
 
-    def search(self, text):
+    def search(self, text, visitor=""):
         """Candidates for a typed song name (not a 'job': it only reads YouTube's search page). Each candidate says whether its numbers are stored already."""
         q = re.sub(r"\s+", " ", (text or "").strip())[:90]
         if len(q) < 2:
@@ -497,10 +502,10 @@ class Demo:
             err = f"internal: {type(e).__name__}"
             return 200, dict(ok=False, error="search_failed", message="YouTube search did not answer. Paste the song's link instead.", query=q, results=[])
         finally:
-            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), kind="search", input=q, title=f"{len(res)} results", ok=int(not err), error=err,
+            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(visitor), kind="search", input=q, title=f"{len(res)} results", ok=int(not err), error=err,
                                                 seconds_total=round(time.time() - t0, 1)))
 
-    def from_clip(self, wav_bytes, seconds=30):
+    def from_clip(self, wav_bytes, seconds=30, visitor=""):
         if not wav_bytes or len(wav_bytes) > MAX_CLIP_BYTES or wav_bytes[:4] != b"RIFF":
             return 400, dict(error="bad_clip", message="The recording did not arrive as a WAV file. Try the capture again.")
 
@@ -516,7 +521,7 @@ class Demo:
                 raise DemoError("silent", "The recording was (almost) silent. In the sharing window choose the tab with the song and tick \"Also share tab audio\".")
             q = self.b.query(feats)
             return self._finish("capture", "tab", q, {}, DEFAULT_FEATURES, times, dict(title="your recording", artist="", seconds=seconds))
-        return self._job("capture", "tab", run)
+        return self._job("capture", "tab", run, visitor)
 
     def get_samples(self):
         if not self.ready:
@@ -528,7 +533,7 @@ class Demo:
                 self.samples_cache = []
         return self.samples_cache
 
-    def from_sample(self, key):
+    def from_sample(self, key, visitor=""):
         known = {s["key"]: s for s in self.get_samples()}
         if key not in known:
             return 400, dict(error="unknown_sample", message="That sample song is not on the list.")
@@ -539,7 +544,7 @@ class Demo:
             times["lookup"] = time.time() - t
             s = known[key]
             return self._finish("sample", key, q, meta, DEFAULT_FEATURES, times, dict(title=s["title"], artist=s["artist"]))
-        return self._job("sample", key, run)
+        return self._job("sample", key, run, visitor)
 
     def refine(self, token, features):
         feats = [f for f in (features or "").split("+") if f in VALID_FEATURES]
@@ -558,7 +563,7 @@ class Demo:
         if token not in self.last or which not in ("A", "B") or add not in ("yes", "no", "") or not (rating in (None, "") or rating in (1, 2, 3, 4, 5)):
             return 400, dict(error="bad_request", message="Could not save that answer.")
         inp = self.last[token][2]
-        append_row(self.feedback, FEEDBACK_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), token=token, kind=inp["kind"], input=inp["id"], list=which,
+        append_row(self.feedback, FEEDBACK_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(data.get("visitor")), token=token, kind=inp["kind"], input=inp["id"], list=which,
                                                        rec_key=str(data.get("rec_key", ""))[:60], rec_title=str(data.get("rec_title", ""))[:120],
                                                        rating=rating if rating is not None else "", would_add=add))
         return 200, dict(ok=True)
@@ -602,15 +607,15 @@ def make_handler(demo, html_path):
                     n = int(self.headers.get("Content-Length") or 0)
                     if n > MAX_CLIP_BYTES:
                         raise DemoError("too_big", "Recording too large.", status=413)
-                    code, body = demo.from_clip(self.rfile.read(n))
+                    code, body = demo.from_clip(self.rfile.read(n), visitor=(parse_qs(u.query).get("visitor") or [""])[0])
                 else:
                     d = self._json_body()
                     if u.path == "/api/link":
-                        code, body = demo.from_link(d.get("url"))
+                        code, body = demo.from_link(d.get("url"), d.get("visitor"))
                     elif u.path == "/api/search":
-                        code, body = demo.search(d.get("q"))
+                        code, body = demo.search(d.get("q"), d.get("visitor"))
                     elif u.path == "/api/sample":
-                        code, body = demo.from_sample(str(d.get("key", "")))
+                        code, body = demo.from_sample(str(d.get("key", "")), d.get("visitor"))
                     elif u.path == "/api/refine":
                         code, body = demo.refine(str(d.get("token", "")), str(d.get("features", "")))
                     elif u.path == "/api/rate":
@@ -636,6 +641,12 @@ def summary(log=LOG, feedback=FEEDBACK):
     rows = list(csv.DictReader(open(log, encoding="utf-8-sig")))
     runs = [r for r in rows if r["kind"] in ("link", "capture", "sample")]
     print(f"{len(runs)} runs: " + ", ".join(f"{k} {sum(r['kind'] == k for r in runs)}" for k in ("link", "capture", "sample")))
+    vis = collections.defaultdict(list)
+    for r in runs:
+        if r.get("visitor") and r["ok"] == "1":
+            vis[r["visitor"]].append(r)
+    if vis:
+        print(f"{len(vis)} visitors with at least one song, {sum(len(v) for v in vis.values()) / len(vis):.1f} songs each on average (each song gets its own lists: songs are never blended)")
     bad = collections.Counter(r["error"] for r in runs if r["ok"] == "0")
     print("failures: " + (", ".join(f"{k} x{v}" for k, v in bad.most_common()) if bad else "none"))
     for kind in ("link", "capture", "sample"):
