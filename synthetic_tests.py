@@ -1670,6 +1670,52 @@ def demo_hardening_test():
     print("   formulas neutralised, log failures harmless, cache entries atomic, live streams refused, analysis errors named correctly, bad lengths refused")
 
 
+def data_safety_test():
+    """Fixes from the 12 Oct review of scripts that rewrite user files: replacements without a usable new song, block-list append, proposals sheet, AI tags merge."""
+    print("\n25. DATA SAFETY OF THE POOL TOOLS")
+    import contextlib, csv, io, json, os, tempfile
+    import replace_songs as rs, ai_channels as ac, find_official_versions as fo
+    d = tempfile.mkdtemp()
+    # (a) the old song leaves only when its replacement really exists
+    cols = ["source", "track_id", "title", "artist", "duration", "listens", "licence", "listen", "site_genre", "group", "i_agree"]
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(cols)
+        for vid in ("oldAAAAAAAA", "oldBBBBBBBB", "oldCCCCCCCC"):
+            w.writerow(["youtube", vid, "Song " + vid, "Art", 200, 100, "youtube-standard", "u", "pop", "yt_pop", ""])
+        w.writerow(["youtube", "newBBBBBBBB", "Song B official", "Art", 200, 100, "youtube-standard", "u", "pop", "yt_pop", "n"])          # replacement already there, but marked out
+    lists = rs.load_lists(d)
+    pairs = [("1", "oldAAAAAAAA", "newAAAAAAAA", "t"), ("2", "oldBBBBBBBB", "newBBBBBBBB", "t"), ("3", "oldCCCCCCCC", "newCCCCCCCC", "t")]
+    details = {"newBBBBBBBB": dict(title="B", channel="Art", duration=200, views=5, licence="youtube-standard"),
+               "newCCCCCCCC": dict(title="C", channel="Art", duration=200, views=5, licence="youtube-standard")}       # newAAAAAAAA: the API found nothing
+    acts = rs.plan(pairs, lists, details)
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        done = rs.apply_plan(acts, lists, d, os.path.join(d, "audit.csv"))
+    assert done == (1, 1) and out.getvalue().count("left alone") == 2, (done, out.getvalue())
+    rows = {r["track_id"]: r for r in csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig"))}
+    assert rows["oldAAAAAAAA"]["i_agree"] == "" and rows["oldBBBBBBBB"]["i_agree"] == "" and rows["oldCCCCCCCC"]["i_agree"] == "n" and "newCCCCCCCC" in rows
+    # (b) a block list that ends without a newline does not swallow the first new channel
+    bf = os.path.join(d, "ai_block.txt"); open(bf, "w", encoding="utf-8").write("# comment without newline at the end")
+    assert ac.write_block(["Some Channel"], bf) == 1
+    assert open(bf, encoding="utf-8").read().splitlines() == ["# comment without newline at the end", "Some Channel"]
+    # (c) a re-run of the proposals search keeps your approvals and the earlier sheet
+    path = os.path.join(d, "official_proposals.csv")
+    def cand(key): return dict(key=key, kind="cover", title="t " + key, channel="c", views=1, link="l", duration=100, pool_artist="a")
+    def found(key, vid): return (cand(key), dict(entry=dict(id=vid, title="n", channel="x", view_count=5, duration=100), official=False, artist="a", song="s", note="", fallback=False))
+    fo.write_proposals(path, [cand("youtube_1")], [found("youtube_1", "vidAAAAAAAA")])
+    text = open(path, encoding="utf-8-sig").read().replace("\n" + "," , "\n,", 1)
+    rows = list(csv.reader(open(path, encoding="utf-8-sig"))); rows[1][0] = "y"
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        csv.writer(f).writerows(rows)                                                                                           # the user approves the row
+    fo.write_proposals(path, [cand("youtube_1"), cand("youtube_2")], [found("youtube_1", "vidAAAAAAAA"), found("youtube_2", "vidBBBBBBBB")])
+    new = {r["old_key"]: r for r in csv.DictReader(open(path, encoding="utf-8-sig"))}
+    assert new["youtube_1"]["approve"] == "y" and new["youtube_2"]["approve"] == "", new                                       # same proposal: approval kept
+    fo.write_proposals(path, [cand("youtube_1")], [found("youtube_1", "vidCHANGED00")])
+    new = {r["old_key"]: r for r in csv.DictReader(open(path, encoding="utf-8-sig"))}
+    assert new["youtube_1"]["approve"] == "", new                                                                              # a different link: not approved any more
+    assert len([n for n in os.listdir(d) if n.startswith("official_proposals.csv.") and n.endswith(".bak")]) >= 1
+    print("   old songs leave only with a real replacement, the block list stays intact, proposals approvals and earlier sheets are kept")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1696,3 +1742,4 @@ if __name__ == "__main__":
     analysis_fast_test()
     demo_bundle_test()
     demo_hardening_test()
+    data_safety_test()

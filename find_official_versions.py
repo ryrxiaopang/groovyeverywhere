@@ -342,17 +342,34 @@ def write_unresolved(path, cands, found):
 
 
 def write_proposals(path, cands, found):
+    """Write the proposals sheet. An earlier sheet is never lost: it is copied to <name>.<time>.bak first, an approval you gave stays on a row whose proposed link is
+    unchanged, and earlier rows you approved that this run did not search again are kept at the end."""
     cols = ["approve", "kind", "old_key", "old_title", "old_channel", "old_views", "old_link", "artist", "song",
             "new_link", "new_title", "new_channel", "new_views", "new_seconds", "old_seconds", "official_channel", "note"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    earlier = {}
+    if os.path.exists(path):
+        import shutil, time
+        shutil.copy2(path, f"{path}.{time.strftime('%Y%m%d-%H%M%S')}.bak")
+        with open(path, encoding="utf-8-sig") as f:
+            earlier = {r.get("old_key") or "": r for r in csv.DictReader(f)}
+    seen = set()
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f); w.writerow(cols)
         for c, g in found:
             e = g["entry"]
+            link = f"https://www.youtube.com/watch?v={e['id']}"
             pre = "y" if (g["official"] and c["kind"] == "fan lyric video" and not g.get("fallback")) else ""
+            old = earlier.get(c["key"])
+            if old and (old.get("approve") or "").strip() and old.get("new_link") == link:
+                pre = old["approve"].strip()                         # your answer on this very proposal is kept
+            seen.add(c["key"])
             w.writerow([pre, c["kind"], c["key"], c["title"], c["channel"], c["views"], c["link"], g["artist"], g["song"],
-                        f"https://www.youtube.com/watch?v={e['id']}", e.get("title"), e.get("channel") or e.get("uploader"),
+                        link, e.get("title"), e.get("channel") or e.get("uploader"),
                         e.get("view_count") or "", int(e.get("duration") or 0), c["duration"], "yes" if g["official"] else "no", g["note"]])
+        for k, old in earlier.items():
+            if k and k not in seen and (old.get("approve") or "").strip():
+                w.writerow([old.get(c, "") for c in cols])
 
 
 def main():

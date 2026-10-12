@@ -18,6 +18,8 @@ OUT = os.path.join(HERE, "backups")
 DB = os.environ.get("HG_DB", "postgresql://hg:hg@localhost:5432/hiddengems")
 FILES = ["edge_cases.csv", "bigpass.csv", "pool_list.csv", "pool_audius.csv", "pool_korean.csv",
          "pool_audius_more.csv", "pool_vocal.csv", "pool_fma.csv", "pool_youtube.csv", "test_split.csv", "test_split_freeze.json", "taps.csv", "own_mood.npz", "catalogue.csv", "evidence_summary.json"]
+HAND_MADE = ["pool_*.csv", "pool_audit_log.csv", "ai_keep.txt", "ai_block.txt", "deezer_skip.txt", "deezer_genres.txt", "ai_check_sheet*.csv", "friends_inputs.csv",
+             "friends_songs.csv", "spotify_artists*.json", "spotify_tracks.json", "underrated_*.csv", "pending_artists.md", "youtube_listen_sheet*.csv", "demo_samples.csv"]
 RESTORE = """How to restore this backup (inside Ubuntu, in ~/hidden-gems-tests with the test kit unzipped):
   1. unzip -o hidden-gems-<date>.zip          # puts back results/ and the lists
   2. sudo service postgresql start
@@ -58,8 +60,11 @@ def main(argv=None):
             if not fn.endswith((".tmp", ".tmp.npz")):
                 members.append(os.path.join(root, fn))
     members += [os.path.join(HERE, f) for f in FILES if os.path.exists(os.path.join(HERE, f))]
-    members += glob.glob(os.path.join(HERE, "blind_sheets", "*.csv"))          # friends' filled-in sheets
+    members += glob.glob(os.path.join(HERE, "blind_sheets", "*.csv*"))         # friends' filled-in sheets (and the .orig copies)
+    for pat in HAND_MADE:                                                       # lists and files made by hand: not in git, not rebuildable
+        members += glob.glob(os.path.join(HERE, pat))
     members += glob.glob(os.path.join(HERE, "fma", "*.csv"))                   # FMA song list + credit links
+    members = list(dict.fromkeys(members))                                      # a file matched twice (FILES and a pattern) is stored once
     n_songs = len(glob.glob(os.path.join(HERE, "results", "*.npz")))
     manifest = dict(created=time.strftime("%Y-%m-%d %H:%M"), songs_with_numbers=n_songs, files=len(members),
                     database_dump=has_db)

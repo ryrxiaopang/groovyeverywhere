@@ -10,7 +10,7 @@
 Spotify is not used: searching it needs a developer key, and a wrong guess would send a friend to the wrong song.
 Reads the song key from results/blind/key.csv ONLY to find the song's length; it never prints or stores which list a song is in.
 """
-import csv, glob, json, os, re, unicodedata
+import csv, glob, json, os, re, shutil, unicodedata
 import yt_dlp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -84,6 +84,8 @@ def main():
             out.append(r2)
         cols = ["item", "your_song", "listen_here", "also_on", "title", "artist", "note",
                 "would_add (y/n)", "heard_before (y/n)", "rating (1-5)"]
+        if not os.path.exists(sheet + ".orig"):                     # the sheet as it was before the first rewrite is kept once
+            shutil.copy2(sheet, sheet + ".orig")
         with open(sheet, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
             w.writeheader(); w.writerows(out)

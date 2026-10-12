@@ -94,8 +94,13 @@ def write_block(names, path=BLOCK):
     have = tag_ai.load_name_list(os.path.basename(path), os.path.dirname(path))
     add = [n for n in names if norm_name(n) not in have]
     if add:
+        glue = ""
+        if os.path.exists(path) and os.path.getsize(path):
+            with open(path, "rb") as f:
+                f.seek(-1, os.SEEK_END)
+                glue = "" if f.read(1) == b"\n" else "\n"                  # a hand-edited file may end without a newline: the first new name would stick to the last line
         with open(path, "a", encoding="utf-8") as f:
-            f.write("".join(f"{n}\n" for n in add))
+            f.write(glue + "".join(f"{n}\n" for n in add))
     return len(add)
 
 

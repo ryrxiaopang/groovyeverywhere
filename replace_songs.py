@@ -111,8 +111,16 @@ def apply_plan(actions, lists, here=HERE, log=LOG):
     """Write the changes. Returns (replaced, added). Old songs are marked i_agree = n; the new row goes into the old song's list."""
     added = replaced = 0
     logrows, changed = [], set()
+
+    def live(key):
+        """Is this song in a list and not marked out? (the replacement must be, or the old song would leave the pool for nothing)"""
+        return any(list_key(r) == key and (r.get("i_agree") or "").strip().lower() not in ("n", "no") for rows, _ in lists.values() for r in rows)
+
     for a in actions:
         if not a["list"]:
+            continue
+        if not (a["row"] and not a["new_already"]) and not live(f"youtube_{a['new']}"):
+            print(f"  !! left alone: {a['old']} -> {a['new']} (the new video's details could not be read, or it is already in the pool but marked out): the old song stays")
             continue
         rows, cols = lists[a["list"]]
         for r in rows:

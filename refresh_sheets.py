@@ -8,7 +8,7 @@ original page is gone); also_on = the original page when different (and for FMA 
 note = 'likely AI-generated' / 'AI-generated (confirmed)' / '' (only with HG_AI_NOTE=1; otherwise there is no note column). A song with no working link anywhere is marked 'LINK DEAD' so it
 is not rated.
 """
-import argparse, csv, glob, os, re, sys
+import argparse, csv, glob, os, re, shutil, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -81,6 +81,8 @@ def main():
     for p in sorted(glob.glob(os.path.join(HERE, "blind_sheets", "sheet_*.csv"))):
         if p.endswith("_rerate.csv"):
             continue
+        if not os.path.exists(p + ".orig"):                         # the sheet as it was before the first rewrite (answers included) is kept once
+            shutil.copy2(p, p + ".orig")
         rows = [fix_row(r, key, links, alts, tags) for r in csv.DictReader(open(p, encoding="utf-8-sig"))]
         dead = sum(1 for r in rows if r["listen_here"].startswith("LINK DEAD"))
         ai = sum(1 for r in rows if tags.get(key.get(r["item"], ""), ("none",))[0] != "none")

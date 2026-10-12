@@ -88,12 +88,28 @@ def fetch_all_api():
         for it in call("channels", part="statistics", id=",".join(ch[i:i + 50])).get("items", []):
             st = it.get("statistics", {})
             subs[it["id"]] = None if st.get("hiddenSubscriberCount") else int(st.get("subscriberCount") or 0)
-    with open(META, "w", encoding="utf-8") as out:
-        for r in recs.values():
-            if r.get("channel_id") in subs:
-                r["followers"] = subs[r["channel_id"]]
+    for r in recs.values():
+        if r.get("channel_id") in subs:
+            r["followers"] = subs[r["channel_id"]]
+    # Merge with what is stored: songs marked out of the pool (AI, duplicates) are not read again, but their tags and channel names must stay (the sheet scoring and
+    # mark_ai_out --restore rely on them), and a video that was deleted since keeps the last good record instead of an empty one.
+    old = {}
+    if os.path.exists(META):
+        for line in open(META, encoding="utf-8"):
+            try:
+                o = json.loads(line)
+                old[o["key"]] = o
+            except Exception:
+                pass
+    for k, r in recs.items():
+        if not r.get("title") and old.get(k, {}).get("title"):
+            continue
+        old[k] = r
+    with open(META + ".tmp", "w", encoding="utf-8") as out:
+        for r in old.values():
             out.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"read {sum(1 for r in recs.values() if r.get('title'))} songs, {sum(1 for r in recs.values() if not r.get('title'))} not returned", flush=True)
+    os.replace(META + ".tmp", META)
+    print(f"read {sum(1 for r in recs.values() if r.get('title'))} songs, {sum(1 for r in recs.values() if not r.get('title'))} not returned; {len(old)} records kept in all", flush=True)
 
 
 def fetch_all(threads):
@@ -176,8 +192,9 @@ def tag():
         st, why = classify(rec)
         rows.append(dict(key=rec["key"], status=st, reasons=why, views=rec.get("views") or 0, likes=rec.get("likes") or 0,
                          followers=rec.get("followers") if rec.get("followers") is not None else "", channel=rec.get("channel") or ""))
-    with open(OUT, "w", newline="", encoding="utf-8-sig") as f:
+    with open(OUT + ".tmp", "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS); w.writeheader(); w.writerows(rows)
+    os.replace(OUT + ".tmp", OUT)
     from collections import Counter
     print("tags:", dict(Counter(r["status"] for r in rows)), "->", OUT)
 
