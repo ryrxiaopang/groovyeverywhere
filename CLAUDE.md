@@ -185,7 +185,7 @@ keeps the old rule), `build_youtube.py --ytdlp --relevance` takes songs in YouTu
 Pool quality audits (7 Oct): ~75 non-songs excluded by hand (news, recaps, reviews, listicles, "guess the song" games, karaoke,
 type beats, test uploads, ads); `NOT_A_SONG` is now much stricter. Re-run an audit after every big pool addition: titles with
 top N / best / guess / quiz / review / recap / news / compilation / playlist, and channel names with news / radio / tv.
-Queued after the pool analysis (each waits for the previous): `style_boost.sh` (Japanese soul / piano pop / city pop inside jpop,
+Queued after the pool analysis (each waits for the previous; these one-shot scripts are now in `archive/`): `style_boost.sh` (Japanese soul / piano pop / city pop inside jpop,
 jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist page in `spotify_tracks.json` + Ruel, jupiterkid,
 2hollis). Spotify playlists are read from the public embed pages (first 50-100 tracks only, no login or key needed).
 

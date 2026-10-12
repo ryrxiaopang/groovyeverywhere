@@ -1,5 +1,10 @@
 > **Note (11 Oct 2026):** this README describes the first test kit (160 songs, Jamendo/FMA/Audius). The project has moved on: the current state, decisions and next steps are in `CLAUDE.md` (start at "START HERE"), the plain-language overview is the Claude doc "groovyeverywhere: Project Guide", and the round-2 success rule is `SUCCESS_RULE.md`.
 
+**Where things are now (12 Oct 2026):** `CLAUDE.md` (state, decisions, file map), `TODO.md` (what is waiting), `SUCCESS_RULE.md` (how round 2 is judged), `DEMO.md` (booth demo run sheet), `VOICE_PIPELINE.md` (Voice, dropped from version 1), `archive/` (finished one-shot scripts, kept for history).
+Main tools added since the first kit: `build_youtube.py`, `deezer_discover.py`, `boost_artists.sh`, `grow_more.sh` (pool growth); `tag_ai.py`, `mark_ai_out.py`, `ai_channels.py` (AI music); `find_official_versions.py`, `replace_songs.py`, `review_proposals.py`, `pool_duplicates.py`, `pool_summary.py` (pool quality);
+`blind_test.py`, `build_friend_lists.py` (friends' lists and scoring); `recommend_song.py`, `demo_server.py` + `demo.html`, `make_demo_bundle.py` (recommendations and the demo).
+
+
 # Hidden Gems – first tests with Essentia's models
 
 ## Quick setup on a new machine (desktop)
