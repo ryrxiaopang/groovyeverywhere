@@ -224,7 +224,13 @@ function loadSamples() {
 function showBusy(on, label) {
   busy = on;
   clearInterval(tipTimer);
-  if (on) { let i = 0; $("tip").textContent = TIPS[0]; tipTimer = setInterval(() => { i = (i + 1) % TIPS.length; $("tip").textContent = TIPS[i]; }, 6000); }
+  if (on) {
+    let i = 0; const t0 = Date.now(); $("tip").textContent = TIPS[0];
+    tipTimer = setInterval(() => {                         // after a while, say that a NEW song really does take a while (the whole song is analysed, for accuracy)
+      i = (i + 1) % TIPS.length;
+      $("tip").textContent = (Date.now() - t0 > 25000 && i % 2 === 0) ? "Still listening: we analyse the whole song so the matches are accurate, which takes a minute or so for a new song. Songs with the INSTANT badge are immediate." : TIPS[i];
+    }, 6000);
+  }
   if (on && label) $("stageTxt").textContent = label;
   $("progress").classList.toggle("on", on);
   $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;

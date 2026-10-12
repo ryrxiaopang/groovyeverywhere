@@ -185,7 +185,9 @@ class Backends:
         return analyze.analyse(path, fast=fast, max_seconds=max_seconds)
 
     def analyse(self, path):
-        feats, self.last_timings = self.analyse_full(path, True, int(os.environ.get("HG_DEMO_EXCERPT", "0") or 0) or None)
+        """The live analysis. DEFAULT = the full pipeline on the whole song, exactly as the pool songs were analysed (user decision 12 Oct: accuracy first, a longer wait is fine).
+        --fast (skip the unread models: same numbers, quicker) and --excerpt N (only the middle of a long song: slightly different numbers) are opt-in."""
+        feats, self.last_timings = self.analyse_full(path, os.environ.get("HG_DEMO_FAST") == "1", int(os.environ.get("HG_DEMO_EXCERPT", "0") or 0) or None)
         return feats
 
     def analyse_clip(self, wav_path):
@@ -707,7 +709,8 @@ def benchmark(text, b=None, printer=print):
     full, fast = rows[0], rows[1]
     full = dict(full, seconds=max(full['seconds'], 1e-9))
     printer(f"\nfast mode saves {100 * (1 - fast['seconds'] / full['seconds']):.0f}% and should give the SAME top 10 ({fast['same']} of 10 here)"
-            + ("" if fast["same"] >= 9 else "  !! it should be identical: tell me about this output"))
+            + ("" if fast["same"] >= 9 else "  !! it should be identical: tell me about this output")
+            + "\nThe demo uses the FULL analysis unless you start it with --fast or --excerpt (you chose accuracy over speed): the rows below are for information.")
     for r in rows[2:]:
         ok = r["same"] >= 8
         printer(f"{r['mode']}: saves {100 * (1 - r['seconds'] / full['seconds']):.0f}% but keeps {r['same']} of 10 matches: " + ("acceptable if you need the speed (start the demo with --excerpt "
@@ -859,13 +862,16 @@ def main():
     ap.add_argument("--check", action="store_true", help="pre-flight check of everything the demo needs (yt-dlp, ffmpeg, memory, port, YouTube, ...), then exit")
     ap.add_argument("--fake", action="store_true", help="PRACTICE MODE: canned matches (no models, no pool); the page shows a banner. For testing the page and the browser on a busy machine")
     ap.add_argument("--benchmark", metavar="SONG", help="time the analysis on THIS machine and compare the speed-ups with the full analysis: a song name or a YouTube link, then exit")
-    ap.add_argument("--excerpt", type=int, default=0, metavar="SECONDS", help="analyse only the middle SECONDS of songs longer than that (faster; check with --benchmark first). Default: whole songs")
+    ap.add_argument("--excerpt", type=int, default=0, metavar="SECONDS", help="analyse only the middle SECONDS of songs longer than that (faster, slightly different numbers; check with --benchmark first). Default: whole songs")
+    ap.add_argument("--fast", action="store_true", help="skip the models the app never reads (same numbers for what it reads, quicker). Default: the full analysis, exactly as the pool songs were analysed")
     ap.add_argument("--rehearse", metavar="LINKS.txt", help="run the links of this file (one per line) through the real pipeline and print the timings, then exit")
     a = ap.parse_args()
     if a.summary:
         return summary()
     if a.excerpt:
         os.environ["HG_DEMO_EXCERPT"] = str(a.excerpt)
+    if a.fast:
+        os.environ["HG_DEMO_FAST"] = "1"
     if a.benchmark:
         os.environ.setdefault("HG_YT_TIMEOUT", "120")
         if other_jobs_running():
