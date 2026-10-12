@@ -26,7 +26,7 @@ Everything fetched is cached in results/deezer_cache.json, so a rerun (or a chan
 import argparse, csv, glob, json, os, re, time, unicodedata
 import requests
 
-from results_index import POOL_LISTS, HERE, RES, genre_of, OFF_POOL_GENRES
+from results_index import POOL_LISTS, HERE, RES, OFF_POOL_GENRES
 
 API = "https://api.deezer.com"
 CACHE = os.path.join(RES, "deezer_cache.json")

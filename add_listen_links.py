@@ -10,7 +10,7 @@
 Spotify is not used: searching it needs a developer key, and a wrong guess would send a friend to the wrong song.
 Reads the song key from results/blind/key.csv ONLY to find the song's length; it never prints or stores which list a song is in.
 """
-import csv, glob, json, os, re, sys, unicodedata
+import csv, glob, json, os, re, unicodedata
 import yt_dlp
 
 HERE = os.path.dirname(os.path.abspath(__file__))

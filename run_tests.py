@@ -10,7 +10,7 @@ Results go to results/<source>_<id>.npz (numbers only) + results/index.csv.
 Songs already in results/ are skipped, so you can stop and restart any time.
 Then run:  python evaluate.py
 """
-import argparse, csv, glob, json, os, sys, time, traceback
+import argparse, csv, glob, json, os, time, traceback
 import numpy as np
 
 import analyze, sources

@@ -12,7 +12,7 @@ Per source (checked the way that source can really be checked):
 Columns: key, source, original, link (the best working link, https), audio_url, status (ok / gone / no_audio / error), detail.
 Songs that fail get a YouTube alternative from find_youtube_alternatives.py.
 """
-import argparse, csv, json, os, re, sys, threading, time, urllib.error, urllib.parse, urllib.request
+import argparse, csv, os, re, sys, threading, time, urllib.error, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))

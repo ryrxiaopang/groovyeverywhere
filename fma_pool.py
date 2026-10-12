@@ -174,7 +174,6 @@ def check():
         names = z.namelist()
         mp3 = [n for n in names if n.endswith(".mp3")]
         print(f"  ok: {len(mp3)} songs listed")
-        info = z.getinfo(mp3[0])
         data = z.read(mp3[0])
         print(f"  read one song on its own: {mp3[0]}, {len(data) / 1e6:.1f} MB (nothing kept)")
         if member_name(int(os.path.basename(mp3[0])[:-4])) != mp3[0]:

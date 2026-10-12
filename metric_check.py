@@ -112,7 +112,7 @@ def paired(a, b, n=2000, seed=0):
 
 
 def row(name, hit, mrr, gen, base):
-    h, m, g = ci(hit), ci(mrr), ci(gen)
+    h, g = ci(hit), ci(gen)
     dh = paired(hit, base[0]); dg = paired(gen, base[2])
     def flag(lo_hi, v):
         return " *" if lo_hi[0] > 0 else (" ↓" if lo_hi[1] < 0 else "")

@@ -280,7 +280,7 @@ class Backends:
     def samples(self):
         """[{key, title, artist}] of already analysed songs for the sample buttons: demo_samples.csv if it exists, else the most viewed pool song
         of each of the biggest style groups."""
-        import numpy as np, blind_test as bt
+        import blind_test as bt
         P = bt.pool()
         have = {k: (t, a) for k, t, a in zip(P["key"], P["title"], P["artist_name"])}
         if os.path.exists(SAMPLES_CSV):

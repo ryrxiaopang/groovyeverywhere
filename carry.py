@@ -11,7 +11,7 @@ Unpacking MERGES, it never replaces: taps filled on either machine are kept, cap
 log rows are added once. Every desktop file it changes is first copied to <name>.before-carry.
 Song analysis (results/*.npz) is NOT carried: the desktop does the analysing.
 """
-import argparse, csv, glob, io, os, shutil, sys, time, zipfile
+import argparse, csv, glob, io, os, shutil, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")

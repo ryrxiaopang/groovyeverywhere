@@ -233,10 +233,6 @@ def ai_reason(status, views, chan, artist, policy, keep, block):
     return None
 
 
-def note_for(status):
-    return {"confirmed": "AI-generated (confirmed)", "likely": "likely AI-generated"}.get(status, "")
-
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--retag", action="store_true")

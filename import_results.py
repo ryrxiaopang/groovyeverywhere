@@ -6,7 +6,7 @@
 Connection: environment variable HG_DB (setup_db.sh sets it), default
 postgresql://hg:hg@localhost:5432/hiddengems
 """
-import csv, json, os, sys, time
+import json, os, time
 import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector

@@ -7,7 +7,7 @@ the artist), popularity and its rank, what it was used for, whether it was analy
 it was tested against, and a few of the numbers the models produced.
 Also prints a short summary (songs per source, per use, per status).
 """
-import csv, glob, json, os, re
+import csv, glob, os, re
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))

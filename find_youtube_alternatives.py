@@ -48,7 +48,7 @@ def main():
                     if e.get("id") != k.split("_", 1)[1] and good_match(e, title, artist, dur):
                         hit, matched = f"https://www.youtube.com/watch?v={e['id']}", e.get("title") or ""
                         break
-        except Exception as ex:
+        except Exception:
             pass
         with lock:
             done[k] = dict(key=k, youtube_link=hit, matched_title=matched)

@@ -22,7 +22,7 @@ Quota: each genre costs ~100 units per page of results (search.list); the free k
 listed or already analysed - so if the quota runs out, just run it again tomorrow. Marks you make in the
 i_agree column (n = "wrong genre, drop it") are carried over, like every other pool list.
 """
-import argparse, os, re, sys, time
+import argparse, os, re, time
 import requests
 import sources
 from results_index import write_list, pool_keys, latest_rows, HERE

@@ -48,7 +48,7 @@ def main():
             q = bt.query_from_analysis(dict(d))
         lists = bt.make_lists(q, feature, seed=a.seed, start_title=r["song"], start_artist=r["artist"], exclude=seen.get(r["friend"]))
         sizes = {k: len(lists[k]) for k in bt.LISTS if lists.get(k) is not None and (k != "D" or bt.LIST_D)}
-        fn = bt.save_capture(r["friend"], f"{r['song']} - {r['artist']}", feature, q, lists, signal="full song, YouTube")
+        bt.save_capture(r["friend"], f"{r['song']} - {r['artist']}", feature, q, lists, signal="full song, YouTube")
         flag = []
         if lists["weak_capture"]:
             flag.append("weak match")

@@ -11,7 +11,7 @@ backups are kept in backups/ and in the --to folder (--keep-to N or HG_BACKUP_KE
 Only older backup ZIPS are removed, never the results themselves, and only after the new copy is checked.
 To restore on any machine, see RESTORE.txt inside the zip.
 """
-import argparse, glob, json, os, shutil, subprocess, sys, time, zipfile
+import argparse, glob, json, os, shutil, subprocess, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "backups")

@@ -8,7 +8,7 @@ It is then scored by evaluate.py on validation songs it never saw (different spl
 Method: logistic regression (a weighted sum of the numbers, squashed to a 0-1 'how happy' score)
 with a penalty against over-fitting, picked by 5-fold cross-validation grouped by artist.
 """
-import csv, os
+import os
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))

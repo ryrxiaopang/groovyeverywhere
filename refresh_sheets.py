@@ -36,7 +36,6 @@ def fix_row(r, key, links, alts, tags):
     if not k:
         return r
     L = links.get(k)
-    orig = (r.get("also_on") or "") if "youtube.com" in (r.get("listen_here") or "") and r.get("also_on") else r.get("listen_here", "")
     primary, also = r.get("listen_here", ""), ""
     if L is not None:
         if L["status"] == "ok":

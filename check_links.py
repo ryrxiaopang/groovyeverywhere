@@ -21,7 +21,7 @@ If the song's own link is broken, the best working alternative is used, in this 
 Results: results/links.csv. Other scripts (blind_test.py, export_catalogue.py) use its best_link automatically.
 YouTube's rules allow keeping API results for 30 days, so API-found video links are re-checked after 30 days.
 """
-import argparse, csv, datetime as dt, glob, os, re, sys, time
+import argparse, csv, datetime as dt, glob, os, re, time
 from urllib.parse import quote_plus, urlparse
 import requests
 from results_index import latest_rows, pool_keys, read_meta, RES, HERE, POOL_LISTS

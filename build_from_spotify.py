@@ -16,7 +16,7 @@ import yt_dlp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from build_youtube import NOT_A_SONG, _clean_artist
+from build_youtube import NOT_A_SONG
 from results_index import pool_keys, latest_rows, write_list, RES
 
 SOURCES = os.path.join(HERE, "spotify_tracks.json")

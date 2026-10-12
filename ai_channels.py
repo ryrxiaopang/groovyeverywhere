@@ -12,7 +12,7 @@ Nothing is deleted: the stored numbers stay, and a song comes back by taking the
 A channel is blocked as a whole: if you answered y for one song of a channel, all its songs go (unless the artist is in ai_keep.txt). The preview warns when
 you also answered n for a song of the same channel, so you can decide.
 """
-import argparse, collections, csv, os, sys
+import argparse, csv, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)

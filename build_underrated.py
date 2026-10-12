@@ -15,7 +15,6 @@ Per genre the --top artists with the highest median like rate win; up to --songs
 Everything fetched is cached in results/underrated_cache.json, so a stopped run resumes.
 """
 import argparse, csv, json, os, re, statistics, sys, time, unicodedata
-import numpy as np
 import yt_dlp
 
 HERE = os.path.dirname(os.path.abspath(__file__))

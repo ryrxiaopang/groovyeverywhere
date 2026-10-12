@@ -6,7 +6,7 @@
 
   python synthetic_tests.py
 """
-import os, tempfile
+import os
 import numpy as np
 import scoring, analyze
 
@@ -230,7 +230,7 @@ def audio_and_safety_tests():
     """No network: stand-ins for the sites and for yt-dlp. Proves the audio folder is gone after the analysis
     block, whether it ends normally or with an error, for every source; plus the key-redaction and zip guards."""
     print("\n5. NO AUDIO KEPT, and safety helpers")
-    import contextlib, glob, io, subprocess, tempfile, time
+    import glob, io, subprocess, tempfile, time
     import requests, sources, carry
     tmp_before = set(glob.glob(os.path.join(tempfile.gettempdir(), "hg_*")))
     seen = []
@@ -561,7 +561,7 @@ def round2_test():
     """Round 2 settings (10 Oct 2026): only YouTube songs are recommended, lists are best-match-first, and the AI note stays off
     the friends' sheets unless HG_AI_NOTE=1."""
     print("\n9. ROUND 2 SETTINGS: YouTube-only pool, best match first, no AI note")
-    import blind_test as bt, csv, importlib, os, tempfile
+    import blind_test as bt, importlib, os
     # (a) site filter: FMA / Jamendo / Audius songs are left out, YouTube songs stay, whichever store the numbers came from
     keys = ["youtube_a", "fma_1", "jamendo_2", "audius_3", "youtube_b"]
     P = dict(key=list(keys), source=[k.split("_")[0] for k in keys], link=["l"] * 5, listens=np.arange(5.0), whole=np.zeros((5, 2)))
@@ -924,7 +924,6 @@ def ai_tag_check_test():
     """ai_tag_check.py: stratified blind sample, answers read back per group, estimates scaled to the pool, pass marks."""
     print("\n16. AI-TAGGER CHECK")
     import ai_tag_check as ai, tempfile, os, csv, io, contextlib
-    rng = np.random.default_rng(2)
     frame, n = [], 0
     for status, views, count in (("confirmed", 500, 20), ("confirmed", 50000, 10), ("likely", 300, 120), ("likely", 40000, 30),
                                  ("none", 800, 250), ("none", 90000, 140)):
@@ -1430,7 +1429,7 @@ def demo_server_test():
         def query(self, feats): return dict(whole=np.array([1.0, 0.5 + 0.05 * feats["f"]]), f=feats["f"])
         def recommend(self, q, meta, k, features):
             n_changed = {0: 0, 1: 2, 2: 5}[q["f"]]
-            return dict(A=[dict(key=f"k{i}" if i >= 10 - n_changed else f"k{i}") if False else dict(key=(f"new{i}" if i < n_changed else f"k{i}")) for i in range(10)])
+            return dict(A=[dict(key=(f"new{i}" if i < n_changed else f"k{i}")) for i in range(10)])
     lines2 = []
     rows2 = ds.benchmark("hello", b=B2(), printer=lines2.append)
     assert [r["same"] for r in rows2] == [10, 10, 8, 5], rows2

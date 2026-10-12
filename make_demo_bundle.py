@@ -13,7 +13,7 @@ What goes in (everything is NUMBERS and text: no audio exists anywhere in this p
   * the pool lists (pool_*.csv etc.: they say which songs are in the pool), ai_keep.txt, ai_block.txt, demo_samples.csv if it exists
 Not in it: the code (git pull on the laptop), the models (python models.py on the laptop, about 60 MB), the Sound scale (refitted on the laptop at the first start, a few seconds).
 """
-import argparse, csv, io, json, os, sys, time, zipfile
+import argparse, csv, io, os, sys, time, zipfile
 
 import numpy as np
 

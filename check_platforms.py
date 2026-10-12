@@ -13,7 +13,7 @@ A song counts as found only if the ARTIST matches, the TITLE is nearly the same,
 the length is within 5 seconds, so a different song with the same name isn't counted.
 Results: results/platform_links.csv (resumable: songs already checked are skipped) and a printed summary.
 """
-import argparse, base64, csv, difflib, json, os, re, time
+import argparse, base64, csv, difflib, os, re, time
 import requests
 from results_index import latest_rows, RES
 

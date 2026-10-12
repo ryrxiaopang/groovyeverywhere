@@ -7,11 +7,11 @@ The starting song must already be analysed (results/<key>.npz). Same rules as th
 (blind_test.make_lists): the song itself, copies of it and other songs by the same artist are never recommended,
 the least-played 10% of each site are skipped, up to ceil(k/4) songs per artist (HG_MAX_PER_ARTIST), best match first.
 """
-import argparse, csv, os
+import argparse, os
 import numpy as np
 import blind_test as bt
 import scoring
-from results_index import latest_rows, RES
+from results_index import RES
 
 
 pick_best = scoring.pick_best      # moved to scoring.py so blind_test.make_lists can use it too

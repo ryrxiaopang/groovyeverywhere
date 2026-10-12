@@ -596,7 +596,7 @@ def rule_verdict(rows):
         for L in r["lists"]:
             if r["add"] is not None:
                 grp[L][r["friend"]].append(r["add"])
-    print(f"\n=== PRE-SET SUCCESS RULE (SUCCESS_RULE.md): primary outcome = would add, all rated songs")
+    print("\n=== PRE-SET SUCCESS RULE (SUCCESS_RULE.md): primary outcome = would add, all rated songs")
     for tag, x, y, text in RULE_CLAIMS:
         both = [f for f in grp[x] if f in grp[y]]
         nx, ny = sum(len(v) for v in grp[x].values()), sum(len(v) for v in grp[y].values())
