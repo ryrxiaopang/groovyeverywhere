@@ -221,6 +221,18 @@ def ai_policy(status, views, policy):
     return views >= HIGH_VIEWS          # hide-low
 
 
+def ai_reason(status, views, chan, artist, policy, keep, block):
+    """Why a song leaves the pool as AI music, or None. chan / artist are norm_name()d; keep / block are the sets from ai_keep.txt / ai_block.txt.
+    ai_keep.txt wins over everything; then a blocked channel; then the AI tag under the policy ('confirmed' / 'likely')."""
+    if keep & ({chan, artist} - {""}):
+        return None
+    if chan and chan in block:
+        return "blocked channel"
+    if not ai_policy(status, views, policy):
+        return status
+    return None
+
+
 def note_for(status):
     return {"confirmed": "AI-generated (confirmed)", "likely": "likely AI-generated"}.get(status, "")
 

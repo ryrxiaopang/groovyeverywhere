@@ -125,13 +125,13 @@ def apply_quality(P):
             best[i] = alts[k]
         st, _, views = tags.get(k, ("none", "", 0.0))
         ai[i] = st
-        chan = tag_ai.norm_name(channels.get(k, ""))
-        if keep_names & {chan, tag_ai.norm_name(artist_names[i])} - {""}:   # ai_keep.txt: an artist or channel the user chose to keep always stays
+        chan, art = tag_ai.norm_name(channels.get(k, "")), tag_ai.norm_name(artist_names[i])
+        why = tag_ai.ai_reason(st, views, chan, art, policy, keep_names, block_names)     # ai_keep.txt wins, then ai_block.txt (the whole channel), then the AI tag
+        if keep_names & {chan, art} - {""}:
             n_kept += int(st != "none" or chan in block_names)
-            continue
-        if chan and chan in block_names:                                     # ai_block.txt: a channel the user flagged as AI: all its songs go
+        elif why == "blocked channel":
             keep[i] = False; n_block += 1
-        elif not tag_ai.ai_policy(st, views, policy):
+        elif why:
             keep[i] = False; n_ai += 1
     P["link"], P["ai"] = best, ai
     for key_, v in list(P.items()):
@@ -139,10 +139,13 @@ def apply_quality(P):
             P[key_] = v[keep]
         elif isinstance(v, list) and len(v) == n:
             P[key_] = [x for x, m in zip(v, keep) if m]
-    if no_link or n_ai or wrong_site or n_block:
-        print(f"  quality filter: {wrong_site} songs left out (not from {', '.join(POOL_SOURCES)}), {no_link} songs left out "
-              f"(no working link anywhere), {n_ai} AI-generated songs left out (policy {policy}), {n_block} left out because their channel is in ai_block.txt"
-              + (f", {n_kept} AI-looking songs kept because the artist is in ai_keep.txt" if n_kept else "") + f"; {int(keep.sum())} kept")
+    msg = (f"  quality filter: {wrong_site} songs left out (not from {', '.join(POOL_SOURCES)}), {no_link} songs left out "
+           f"(no working link anywhere), {n_ai} AI-generated songs left out (policy {policy}), {n_block} left out because their channel is in ai_block.txt"
+           + (f", {n_kept} AI-looking songs kept because the artist is in ai_keep.txt" if n_kept else "") + f"; {int(keep.sum())} kept")
+    if n_ai or n_block:                                    # AI songs that are not marked out of the lists yet (new ones): say so once, with the fix
+        print(msg + f"\n  !! {n_ai + n_block} AI / blocked-channel songs are still in the pool lists: run  python mark_ai_out.py --apply  to mark them out for good")
+    elif os.environ.get("HG_QUALITY_VERBOSE"):
+        print(msg)
     return P
 
 

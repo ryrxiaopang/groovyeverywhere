@@ -1210,29 +1210,6 @@ def ai_removal_test():
     print("   all tagged AI songs leave by default; a blocked channel loses every song, tagged or not; kept artists stay; the tool previews, warns about mixed answers and writes the list")
 
 
-if __name__ == "__main__":
-    rhythm_tests()
-    trim_and_parts_tests()
-    scoring_tests()
-    sound_scale_test()
-    blind_pairing_test()
-    audio_and_safety_tests()
-    split_filter_test()
-    failure_handling_tests()
-    near_copy_test()
-    round2_test()
-    deezer_discover_test()
-    seen_songs_test()
-    youtube_scale_test()
-    clustered_range_test()
-    list_d_and_rule_test()
-    pool_duplicates_test()
-    ai_tag_check_test()
-    replace_songs_test()
-    official_versions_test()
-    ai_removal_test()
-
-
 def demo_server_test():
     """demo_server.py: link parsing, one job at a time, every failure route offers the tab-capture fallback, audio is deleted, answers are logged."""
     print("\n20. LIVE DEMO SERVER")
@@ -1374,3 +1351,84 @@ def demo_server_test():
     out = buf.getvalue()
     assert "runs:" in out and "download_failed" in out and "link: median" in out and "would add 1 of 1" in out, out
     print("   links are checked, one job at a time, every failure offers the tab capture, audio is deleted, ratings and runs are logged")
+
+
+def mark_ai_out_test():
+    """mark_ai_out.py: AI-tagged songs and blocked channels are marked out of the lists for good; ai_keep wins; other marks are never touched or restored; --restore undoes only its own marks;
+    the pool filter stays quiet unless un-marked AI songs are still in the lists."""
+    print("\n21. MARKING AI SONGS OUT OF THE LISTS")
+    import blind_test as bt, tag_ai, mark_ai_out as mo, replace_songs as rs, csv, io, contextlib, os, tempfile
+    assert tag_ai.ai_reason("confirmed", 5.0, "x", "y", "hide", set(), set()) == "confirmed" and tag_ai.ai_reason("none", 5.0, "x", "y", "hide", set(), set()) is None
+    assert tag_ai.ai_reason("likely", 5.0, "kanegi", "y", "hide", {"kanegi"}, set()) is None and tag_ai.ai_reason("none", 5.0, "bad", "y", "hide", set(), {"bad"}) == "blocked channel"
+    assert tag_ai.ai_reason("likely", 50000.0, "x", "y", "hide-low", set(), set()) is None and tag_ai.ai_reason("likely", 50000.0, "x", "y", "hide", set(), set()) == "likely"
+    d = tempfile.mkdtemp(); log = os.path.join(d, "audit.csv")
+    ids = ["a", "b", "c", "d", "e"]
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["source", "track_id", "title", "artist", "i_agree"])
+        for i in ids:
+            w.writerow(["youtube", i, f"title {i}", {"a": "Real Band", "d": "kanegi"}.get(i, "Someone"), "n" if i == "e" else ""])
+        w.writerow(["fma", "9", "an fma song", "Old Band", ""])
+    chans = {f"youtube_{i}": c for i, c in zip(ids, ["Real Band", "Real Radio", "Suno Radio", "kanegi.", "Real Radio"])}
+    tags = {"youtube_b": ("confirmed", "", 10.0), "youtube_d": ("likely", "", 3.0), "youtube_e": ("likely", "", 3.0), "fma_9": ("confirmed", "", 1.0)}
+    keep, block = {"kanegi"}, {"suno radio"}
+    lists = rs.load_lists(d)
+    plan = mo.plan_mark(lists, tags, chans, keep, block, "hide")
+    got = {r["track_id"]: why for _, r, why in plan}
+    assert got == {"b": "AI: confirmed", "c": "AI: blocked channel (Suno Radio)"}, got            # a real, d kept (kanegi), e already marked, the fma song is not looked at
+    assert mo.apply_mark(lists, plan, d, log) == 2
+    after = {r["track_id"]: r["i_agree"] for r in csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig"))}
+    assert after == {"a": "", "b": "n", "c": "n", "d": "", "e": "n", "9": ""} and os.path.exists(os.path.join(d, "pool_youtube.csv.bak")), after
+    assert "AI: blocked channel (Suno Radio)" in open(log, encoding="utf-8-sig").read()
+    assert mo.plan_mark(rs.load_lists(d), tags, chans, keep, block, "hide") == []                    # a second run changes nothing
+    # restore: the channel is unblocked -> c comes back; b is still tagged; e was marked for another reason (written in the log as a duplicate) and is never restored
+    with open(log, "a", newline="", encoding="utf-8-sig") as f:
+        csv.writer(f).writerow(["2026-10-12", "youtube_e", "title e", "Someone", "duplicate upload of youtube_x"])
+    lists = rs.load_lists(d)
+    pr = mo.plan_restore(lists, tags, chans, keep, set(), "hide", log)
+    assert [r["track_id"] for _, r in pr] == ["c"], pr
+    assert mo.apply_restore(lists, pr, d, log) == 1
+    after = {r["track_id"]: r["i_agree"] for r in csv.DictReader(open(os.path.join(d, "pool_youtube.csv"), encoding="utf-8-sig"))}
+    assert after["c"] == "" and after["b"] == "n" and after["e"] == "n"
+    assert "AI mark removed" in open(log, encoding="utf-8-sig").read()
+    # the pool filter: silent when nothing un-marked is left, one clear line (with the fix) when it is
+    keys = [f"youtube_{c}" for c in "abc"]
+    def P():
+        return dict(key=list(keys), source=["youtube"] * 3, link=["l"] * 3, listens=np.arange(3.0), artist_name=["x", "y", "z"])
+    saved = (tag_ai.load_tags, tag_ai.load_channels, tag_ai.load_name_list)
+    try:
+        tag_ai.load_channels, tag_ai.load_name_list = (lambda res=None: {k: "c" for k in keys}), (lambda name, here=None: set())
+        for tg, loud in (({k: ("none", "", 1.0) for k in keys}, False), ({**{k: ("none", "", 1.0) for k in keys}, "youtube_b": ("likely", "", 1.0)}, True)):
+            tag_ai.load_tags = lambda tg=tg: tg
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                out = bt.apply_quality(P())
+            assert ("mark_ai_out.py --apply" in buf.getvalue()) == loud and (buf.getvalue() == "" or loud), repr(buf.getvalue())
+            assert out["key"] == (["youtube_a", "youtube_c"] if loud else keys)
+    finally:
+        tag_ai.load_tags, tag_ai.load_channels, tag_ai.load_name_list = saved
+    print("   AI songs and blocked channels are marked out once (logged with the reason), kept artists and other marks are untouched, --restore undoes only its own marks, the filter speaks only when something is left to mark")
+
+
+if __name__ == "__main__":
+    rhythm_tests()
+    trim_and_parts_tests()
+    scoring_tests()
+    sound_scale_test()
+    blind_pairing_test()
+    audio_and_safety_tests()
+    split_filter_test()
+    failure_handling_tests()
+    near_copy_test()
+    round2_test()
+    deezer_discover_test()
+    seen_songs_test()
+    youtube_scale_test()
+    clustered_range_test()
+    list_d_and_rule_test()
+    pool_duplicates_test()
+    ai_tag_check_test()
+    replace_songs_test()
+    official_versions_test()
+    ai_removal_test()
+    demo_server_test()
+    mark_ai_out_test()
