@@ -87,6 +87,47 @@ def shape(res, k):
     return out
 
 
+# ---- the short "what we heard" strip under the starting song
+SKIP_INSTRUMENTS = {"voice", "beat", "computer", "sampler"}              # not instruments a listener would name (scoring.py: left out for the same reason)
+_NICE = {"acousticguitar": "acoustic guitar", "electricguitar": "electric guitar", "classicalguitar": "classical guitar", "electricpiano": "electric piano",
+         "drummachine": "drum machine", "doublebass": "double bass", "bongo": "bongos", "synthesizer": "synth"}
+
+
+def mood_label(valence, arousal):
+    """Plain words for the emoMusic happiness / energy pair (each 1-9). '' when either is missing."""
+    if valence is None or arousal is None or valence != valence or arousal != arousal:
+        return ""
+    lvl = lambda x: "high" if x >= 5.5 else "low" if x <= 4.5 else "mid"
+    return {("high", "high"): "upbeat and energetic", ("low", "high"): "intense and dark", ("mid", "high"): "driving",
+            ("high", "low"): "warm and relaxed", ("low", "low"): "sad and calm", ("mid", "low"): "calm and mellow",
+            ("high", "mid"): "bright", ("low", "mid"): "melancholy", ("mid", "mid"): "balanced"}[(lvl(valence), lvl(arousal))]
+
+
+def tempo_text(bpm, confidence):
+    """'about 92 BPM', or 'tempo unclear' when the beat detector is not sure (rhythm is the weakest feature: never claim more than it knows)."""
+    try:
+        bpm, confidence = float(bpm), float(confidence)
+    except (TypeError, ValueError):
+        return "tempo unclear"
+    return f"about {round(bpm)} BPM" if bpm == bpm and 40 <= bpm <= 220 and confidence >= 2.0 else "tempo unclear"
+
+
+def top_instruments(inst, names, n=3):
+    """The n strongest instruments by name (singing, beats and samplers left out)."""
+    pairs = sorted(zip(inst, names), key=lambda x: -float(x[0]))
+    return [_NICE.get(nm, nm.replace("_", " ")) for _, nm in pairs if nm not in SKIP_INSTRUMENTS][:n]
+
+
+def build_heard(q, names):
+    """What the models heard in a query (from blind_test.query_from_analysis): mood words, the two mood numbers, tempo, main instruments."""
+    v, a = (q.get("va_vg") if q.get("va_vg") is not None else [float("nan")] * 2)
+    if v != v or a != a:
+        v, a = q["va_mc"]
+    v, a = float(v), float(a)
+    return dict(mood=mood_label(v, a), happiness=round(v, 1), energy=round(a, 1), tempo=tempo_text(q.get("bpm"), q.get("confidence")),
+                instruments=top_instruments(q["inst"], names))
+
+
 def append_row(path, cols, row):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     new = not os.path.exists(path)
@@ -141,6 +182,12 @@ class Backends:
         import blind_test as bt
         return bt.query_from_analysis(feats)
 
+    def heard(self, q):
+        if not hasattr(self, "_names"):
+            import evaluate
+            self._names = evaluate.class_names("instruments", 40)
+        return build_heard(q, self._names)
+
     def sample_query(self, key):
         import numpy as np, blind_test as bt
         from results_index import read_meta
@@ -162,6 +209,59 @@ class Backends:
                 rows = [r for r in csv.DictReader(f) if r.get("key") in have and os.path.exists(os.path.join(RES, f"{r['key']}.npz"))]
             return [dict(key=r["key"], title=r.get("title") or have[r["key"]][0], artist=r.get("artist") or have[r["key"]][1]) for r in rows]
         return auto_samples(P["key"], P["title"], P["artist_name"], P["group"], P["listens"])
+
+
+class FakeBackends:
+    """PRACTICE MODE (python demo_server.py --fake): canned matches, no models, no pool, no YouTube. Use it to test the page, Chrome reaching localhost inside WSL, and the
+    tab-capture window while the machine is busy. The page shows an orange banner, because these matches are made up and must never be shown as real results."""
+
+    def warm(self):
+        time.sleep(1.0)
+        return 8000
+
+    def weak_cosine(self):
+        return 0.45
+
+    def info(self, vid):
+        time.sleep(0.5)
+        return dict(title=f"Practice song {vid[:4]}", channel="Practice channel", duration=200.0)
+
+    def download(self, vid):
+        import contextlib
+
+        @contextlib.contextmanager
+        def cm():
+            time.sleep(1.0)
+            yield "/dev/null"
+        return cm()
+
+    def analyse(self, path):
+        time.sleep(1.5)
+        return dict(fake=1)
+
+    def analyse_clip(self, wav_path):
+        time.sleep(1.0)
+        return dict(rms_db=-20.0, silent_share=0.0), (None if os.path.getsize(wav_path) < 2000 else dict(fake=2))
+
+    def query(self, feats):
+        return dict(fake=feats)
+
+    def sample_query(self, key):
+        return dict(fake=3), dict(title="Practice sample", artist="Nobody")
+
+    def heard(self, q):
+        return dict(mood="warm and relaxed", happiness=6.4, energy=4.1, tempo="about 96 BPM", instruments=["piano", "acoustic guitar", "strings"])
+
+    def recommend(self, q, meta, k, features):
+        n_b = 2 + len([f for f in features.split("+") if f])
+        def row(i, w):
+            return dict(key=f"practice_{w}{i}", title=f"Practice match {i + 1}", artist=f"Practice artist {i + 1}", link="", sound=88 - 3 * i, mood=72 + i, rhythm=61,
+                        instruments=77, match=92 - 2 * i, popularity="few plays", ai="")
+        return dict(A=[row(i, "a") for i in range(max(k, 6))], B=[row(i, "b") for i in range(n_b)], features=["sound"] + features.split("+"), pool=8000,
+                    best_sound=0.9, A_bar=70.0, B_bar=65.0)
+
+    def samples(self):
+        return [dict(key="practice_s1", title="Practice sample one", artist="Nobody"), dict(key="practice_s2", title="Practice sample two", artist="Nobody")]
 
 
 def auto_samples(keys, titles, artists, groups, listens, n=6):
@@ -191,6 +291,7 @@ class Demo:
         self.last = collections.OrderedDict()                # token -> (query, meta, input description): kept for "refine"
         self.counter = 0
         self.samples_cache = None
+        self.fake = False                                     # practice mode (canned matches): the page shows a banner so it can never be mistaken for the real thing
 
     # ---- start-up
     def warm(self):
@@ -202,7 +303,7 @@ class Demo:
 
     def status(self):
         busy = self.lock.locked()
-        return dict(ready=self.ready, pool=self.pool_size, error=self.warm_error, busy=busy, stage=self.stage if busy else "",
+        return dict(ready=self.ready, pool=self.pool_size, error=self.warm_error, busy=busy, stage=self.stage if busy else "", fake=self.fake,
                     elapsed=round(time.time() - self.since, 1) if busy else 0)
 
     def _stage(self, s):
@@ -239,12 +340,16 @@ class Demo:
         self._stage("finding matches")
         res = shape(self.b.recommend(q, meta, self.k, features), self.k)
         times["match"] = time.time() - t
+        try:
+            heard = self.b.heard(q)
+        except BaseException:                                # the strip is a bonus: never let it break a result
+            heard = {}
         self.counter += 1
         token = f"{int(time.time())}-{self.counter}"
         self.last[token] = (q, meta, dict(kind=kind, id=ident))
         while len(self.last) > 8:
             self.last.popitem(last=False)
-        return dict(ok=True, token=token, input=dict(kind=kind, id=ident, **extra_input), results=res)
+        return dict(ok=True, token=token, input=dict(kind=kind, id=ident, **extra_input), results=res, heard=heard)
 
     # ---- the three ways in
     def from_link(self, text):
@@ -430,6 +535,102 @@ def summary(log=LOG, feedback=FEEDBACK):
                 print(f"  '{name}': would add {sum(r['would_add'] == 'yes' for r in sub)} of {len(sub)} ({100 * sum(r['would_add'] == 'yes' for r in sub) / len(sub):.0f}%)")
 
 
+def _run(cmd, timeout=45):
+    """(return code, stdout, stderr) of a command, never raising: (-1, '', reason) when it could not run."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        return p.returncode, p.stdout.decode("utf-8", "replace"), p.stderr.decode("utf-8", "replace")
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return -1, "", f"{type(e).__name__}"
+
+
+def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, jobs=None):
+    """The pre-flight check for the demo: a list of (level, text), level 'ok' / 'warn' / 'fail'. Everything that can fail on the day is checked here, in a minute."""
+    import shutil, socket, datetime, importlib.util
+    which = which or shutil.which
+    out, add = [], (lambda lvl, t: out.append((lvl, t)))
+    add("ok", f"Python {sys.version.split()[0]}")
+    code, so, _ = run(["yt-dlp", "--version"], 20)
+    if code != 0:
+        add("fail", "yt-dlp is not installed or does not run: pip install -U yt-dlp")
+    else:
+        ver = so.strip()
+        try:
+            age = (datetime.date.today() - datetime.datetime.strptime(ver[:10], "%Y.%m.%d").date()).days
+        except ValueError:
+            age = None
+        add("warn" if age is not None and age > 60 else "ok", f"yt-dlp {ver}" + (f" ({age} days old: pip install -U yt-dlp, an old one is the most common reason for a blocked download)" if age and age > 60 else ""))
+    add("ok" if which("ffmpeg") else "fail", "ffmpeg found" if which("ffmpeg") else "ffmpeg is missing: yt-dlp cannot make the audio file without it")
+    add("ok" if importlib.util.find_spec("essentia") else "fail", "Essentia is installed" if importlib.util.find_spec("essentia") else "Essentia is not importable here: activate the project venv (source .venv/bin/activate)")
+    for name, why in (("results/ai_tags.csv", "the AI filter has no tags"), ("results/index.csv", "no analysed songs are listed")):
+        add("ok" if os.path.exists(os.path.join(here, name)) else "fail", f"{name} exists" if os.path.exists(os.path.join(here, name)) else f"{name} is missing: {why}")
+    lists = [fn for fn in __import__("results_index").POOL_LISTS if os.path.exists(os.path.join(here, fn))]
+    add("ok" if lists else "fail", f"{len(lists)} pool list file(s) found" if lists else "no pool_*.csv list found")
+    try:
+        avail = next(int(l.split()[1]) for l in open(meminfo) if l.startswith("MemAvailable")) / 1024 / 1024
+        add("ok" if avail >= 8 else "warn" if avail >= 4 else "fail", f"{avail:.1f} GB of memory free" + ("" if avail >= 8 else ": close other programs and stop analysis jobs; the pool and models need about 6 GB"))
+    except (OSError, StopIteration, ValueError):
+        add("warn", "could not read the free memory")
+    running = other_jobs_running() if jobs is None else jobs
+    add("warn" if running else "ok", "an analysis / pool-growing job is running: the demo will be slow (stop it first)" if running else "no analysis job is running")
+    try:
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", port))
+        add("ok", f"port {port} is free")
+    except OSError:
+        add("fail", f"port {port} is in use (is the demo already running? try --port 8800)")
+    t = time.time()
+    code, so, se = run(["yt-dlp", "-q", "--no-warnings", "--no-playlist", "--force-ipv4", "--skip-download", "--print", "%(title)s", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"], 45)
+    if code == 0 and so.strip():
+        add("ok", f"YouTube answered in {time.time() - t:.0f} s ({so.strip().splitlines()[0][:40]})")
+    else:
+        reason = (se.strip().splitlines() or ["no answer"])[-1][:110]
+        add("warn", f"YouTube would not answer ({reason}): the paste-a-link route may fail; the tab capture and the samples still work")
+    sp = os.path.join(here, "demo_samples.csv")
+    if os.path.exists(sp):
+        n = max(0, sum(1 for _ in open(sp, encoding="utf-8-sig")) - 1)
+        add("ok" if n >= 3 else "warn", f"demo_samples.csv has {n} song(s)")
+    else:
+        add("warn", "no demo_samples.csv: the page will use the most-viewed song of each big style (choose six you like)")
+    if os.environ.get("HG_YT_COOKIES_FILE"):
+        add("ok" if os.path.exists(os.environ["HG_YT_COOKIES_FILE"]) else "fail", "HG_YT_COOKIES_FILE is set" + ("" if os.path.exists(os.environ["HG_YT_COOKIES_FILE"]) else " but the file does not exist"))
+    code, so, _ = run(["hostname", "-I"], 5)
+    if code == 0 and so.split():
+        add("ok", f"from a phone or another laptop (same Wi-Fi): http://{so.split()[0]}:{port}  (start with --host 0.0.0.0)")
+    return out
+
+
+def rehearse(links_path, demo, out_csv=os.path.join(RES, "demo_rehearsal.csv"), printer=print):
+    """Run every link of a text file (one per line, # = comment) through the real pipeline, without the browser, and print one line each with the seconds it took.
+    Returns the rows. A failure that would show the tab-capture box is marked CAPTURE."""
+    with open(links_path, encoding="utf-8-sig") as f:
+        links = [l.strip() for l in f if l.strip() and not l.strip().startswith("#")]
+    if not demo.ready:
+        demo.warm()
+    if not demo.ready:
+        raise SystemExit(f"the pool did not load: {demo.warm_error}")
+    rows = []
+    for i, url in enumerate(links, 1):
+        t = time.time()
+        code, body = demo.from_link(url)
+        ok = code == 200 and body.get("ok")
+        title = (body.get("input") or {}).get("title", "")
+        top = ((body.get("results") or {}).get("A") or [{}])[0].get("title", "") if ok else ""
+        why = "" if ok else ("CAPTURE " if body.get("fallback") == "capture" else "") + str(body.get("error", ""))
+        secs = round(time.time() - t, 1)
+        rows.append(dict(n=i, url=url, ok=int(bool(ok)), error=why, title=title, seconds=secs, top1=top))
+        printer(f"{i:2d} {'OK  ' if ok else 'FAIL'} {secs:5.1f}s  {(title or url)[:38]:38s} -> {top[:34]:34s} {why}")
+    if rows:
+        os.makedirs(os.path.dirname(out_csv), exist_ok=True)
+        with open(out_csv, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]))
+            w.writeheader(); w.writerows(rows)
+        good = [r["seconds"] for r in rows if r["ok"]]
+        printer(f"\n{len(good)} of {len(rows)} worked" + (f"; median {sorted(good)[len(good) // 2]:.0f} s, slowest {max(good):.0f} s" if good else "")
+                + f"; {sum(r['error'].startswith('CAPTURE') for r in rows)} would need the tab capture. Saved {out_csv}")
+    return rows
+
+
 def other_jobs_running():
     """True when an analysis or a pool-growing job is running (it would make the demo slow)."""
     try:
@@ -445,9 +646,37 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="127.0.0.1 = this computer only; 0.0.0.0 = other devices on the network too")
     ap.add_argument("--k", type=int, default=6, help="songs per list")
     ap.add_argument("--summary", action="store_true", help="print what the logged runs and answers show, then exit")
+    ap.add_argument("--check", action="store_true", help="pre-flight check of everything the demo needs (yt-dlp, ffmpeg, memory, port, YouTube, ...), then exit")
+    ap.add_argument("--fake", action="store_true", help="PRACTICE MODE: canned matches (no models, no pool); the page shows a banner. For testing the page and the browser on a busy machine")
+    ap.add_argument("--rehearse", metavar="LINKS.txt", help="run the links of this file (one per line) through the real pipeline and print the timings, then exit")
     a = ap.parse_args()
     if a.summary:
         return summary()
+    if a.check:
+        marks = {"ok": "[ ok ]", "warn": "[warn]", "fail": "[FAIL]"}
+        res = doctor(a.port)
+        for lvl, text in res:
+            print(f"{marks[lvl]} {text}")
+        print(f"\n{sum(l == 'fail' for l, _ in res)} to fix, {sum(l == 'warn' for l, _ in res)} to look at")
+        return
+    if a.rehearse:
+        os.environ.setdefault("HG_YT_TIMEOUT", "120")
+        if other_jobs_running():
+            print("!! an analysis / pool-growing job is running: the timings will be slower than on the day.")
+        rehearse(a.rehearse, Demo(k=a.k))
+        return
+    if a.fake:
+        d = tempfile.mkdtemp(prefix="hg_fake_")
+        demo = Demo(FakeBackends(), k=a.k, log=os.path.join(d, "log.csv"), feedback=os.path.join(d, "fb.csv"))
+        demo.fake = True
+        srv = make_server(demo, a.host, a.port)
+        threading.Thread(target=demo.warm, daemon=True).start()
+        print(f"PRACTICE MODE on http://localhost:{a.port}: the matches are canned, not real. Ctrl+C stops it.")
+        try:
+            srv.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped")
+        return
     os.environ.setdefault("HG_YT_TIMEOUT", "120")                  # a download that takes longer than this fails over to the tab capture
     if other_jobs_running():
         print("!! an analysis / pool-growing job is running: the demo will be slow and may run out of memory. Stop it before the demo day.")

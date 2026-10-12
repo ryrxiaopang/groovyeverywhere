@@ -16,21 +16,29 @@ Each match shows the % match, the four scores, a play button (embedded YouTube) 
 
 ## 2. A week before: get ready and rehearse
 
-1. `git pull origin claude/brave-rubin-xs7hbb`, finish all analysis and pool-growing jobs, run `python pool_duplicates.py --apply`, **freeze the pool**. (A changed pool changes the results the audience sees.)
+**Practice first, while the machine is busy (no models needed):** `python demo_server.py --fake` starts the page with CANNED matches (an orange banner says so). Use it to check that Chrome on Windows can open
+`http://localhost:8765`, that the page looks right on the projector, and that the tab-capture window opens (pick a tab, tick "Also share tab audio"). It never shows real results, so do not use it for the actual demo.
+
+**Real rehearsal (needs the machine free: stop analysis and pool-growing jobs first):**
+1. `git pull origin claude/brave-rubin-xs7hbb`, finish all analysis and pool-growing jobs, `python mark_ai_out.py --apply`, `python pool_duplicates.py --apply`, **freeze the pool**. (A changed pool changes the results the audience sees.)
 2. `source .venv/bin/activate && source env_keys.sh && python -m pip install -U yt-dlp` (an old yt-dlp is the most common reason for a blocked download).
-3. Start it: `python demo_server.py`. It prints a warning if an analysis job is still running. Open **http://localhost:8765** in Chrome on Windows. The light at the top turns green ("ready · N songs") after about a minute.
+3. **`python demo_server.py --check`**: one line per thing that can fail on the day (yt-dlp age, ffmpeg, Essentia, memory, running jobs, the port, whether YouTube answers, the sample list, the address for a phone). Fix every `[FAIL]`, look at every `[warn]`.
+4. Put **10 or more links** in a text file, one per line (different genres, languages, an old song, a very new one, a long one, a song outside the pool's styles) and run `python demo_server.py --rehearse links.txt`. It runs each link through the real
+   pipeline without the browser and prints one line each (OK / FAIL, seconds, the song, its top match, and CAPTURE where the tab-capture box would have appeared). `python demo_server.py --summary` then gives the median seconds per stage. Write the real numbers on your run sheet.
+5. Start it for real: `python demo_server.py` (it warns if a job is still running). Open **http://localhost:8765** in Chrome. The light at the top turns green ("ready · N songs") after about a minute. Paste one link yourself and read the results aloud.
    * If Chrome cannot open `localhost`: in WSL run `hostname -I` and open `http://THAT-ADDRESS:8765`, and start the server with `--host 0.0.0.0`.
-4. Rehearse with **at least 10 links**: different genres, languages, an old song, a very new one, one that is long, one that is not in English, one that is NOT in the pool's styles (to see how it fails). Then `python demo_server.py --summary` shows the median seconds per stage and what failed. Write the real numbers on your run sheet.
-5. **Choose the sample songs** (Plan C): put 6 songs in `demo_samples.csv` (columns `key,title,artist`, keys like `youtube_XXXXXXXXXXX` from the pool) whose recommendations you have listened to and like. Without the file the page uses the most-viewed song of the six biggest styles. Say out loud that samples are chosen, not random.
-6. **Record a backup video** (screen recording, 2 minutes) of a clean run. If everything fails you still have something to show.
-7. If YouTube blocks downloads on the venue Wi-Fi: export a `cookies.txt` from a browser that is signed in to YouTube and start with `HG_YT_COOKIES_FILE=/path/cookies.txt python demo_server.py`. Test it at home first.
-8. Test the tab capture once: open a song in another tab, press "capture a browser tab instead", choose that tab, tick "Also share tab audio".
+6. **Choose the sample songs** (Plan C): put 6 songs in `demo_samples.csv` (columns `key,title,artist`, keys like `youtube_XXXXXXXXXXX` from the pool) whose recommendations you have listened to and like. Without the file the page uses the most-viewed song of each of the six biggest styles. Say out loud that samples are chosen, not random.
+7. **Record a backup video** (screen recording, 2 minutes) of a clean run. If everything fails you still have something to show.
+8. If YouTube blocks downloads on the venue Wi-Fi: export a `cookies.txt` from a browser that is signed in to YouTube and start with `HG_YT_COOKIES_FILE=/path/cookies.txt python demo_server.py`. Test it at home first.
+9. Test the tab capture once for real: open a song in another tab, press "capture a browser tab instead", choose that tab, tick "Also share tab audio".
+
+The page also shows a **"what we heard"** strip under the starting song: the mood in plain words (from the happiness and energy scores, 1-9), the tempo (only when the beat detector is sure, otherwise "tempo unclear": rhythm is the weakest feature) and the main instruments (singing and beats left out).
 
 ## 3. On the day: 30 minutes before
 
 - [ ] Laptop plugged in; sleep and screen-off set to "never" (Windows power settings); notifications off; other apps closed.
 - [ ] No analysis or boost job running: `pgrep -af "[r]un_tests|[b]oost"` prints nothing (they make the demo slow).
-- [ ] Open the WSL window and **leave it open** (closing it stops the server). `python demo_server.py`, wait for the green light.
+- [ ] `python demo_server.py --check` (nothing marked FAIL). Then open the WSL window and **leave it open** (closing it stops the server). `python demo_server.py`, wait for the green light (no orange PRACTICE banner!).
 - [ ] Chrome full screen on the page. Test: one sample (instant), then one real link (time it).
 - [ ] Sound out of the laptop works (the play buttons use embedded YouTube, which needs internet).
 - [ ] Phone hotspot ready as a second internet connection.

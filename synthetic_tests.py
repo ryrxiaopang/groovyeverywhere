@@ -1344,6 +1344,42 @@ def demo_server_test():
         assert {"download_failed", "lookup_failed", "too_long", "silent"} <= set(errs) and sum(r["ok"] == "1" for r in log) >= 4, errs
     finally:
         gate.set(); srv.shutdown(); srv.server_close()
+    # "what we heard": plain words, never more than the models know
+    assert ds.mood_label(7.0, 7.0) == "upbeat and energetic" and ds.mood_label(3.0, 3.0) == "sad and calm" and ds.mood_label(5.0, 5.0) == "balanced" and ds.mood_label(float("nan"), 5) == ""
+    assert ds.tempo_text(92.4, 3.1) == "about 92 BPM" and ds.tempo_text(92.4, 0.5) == "tempo unclear" and ds.tempo_text(300, 4) == "tempo unclear" and ds.tempo_text(None, None) == "tempo unclear"
+    names = ["voice", "drums", "acousticguitar", "piano", "beat", "strings"]
+    assert ds.top_instruments([0.99, 0.5, 0.9, 0.8, 0.95, 0.1], names) == ["acoustic guitar", "piano", "drums"]            # voice and beat are not instruments
+    h = ds.build_heard(dict(va_vg=np.array([np.nan, np.nan]), va_mc=np.array([6.0, 3.0]), inst=np.array([0.1, 0.2, 0.9, 0.8, 0.1, 0.3]), bpm=100.0, confidence=3.0), names)
+    assert h["mood"] == "warm and relaxed" and h["instruments"][0] == "acoustic guitar" and h["tempo"] == "about 100 BPM" and h["energy"] == 3.0, h      # falls back to the other mood model when VGGish has no output
+    # practice mode: the fake backend answers everything the page asks, flags itself on the status, and its numbers never reach the real logs
+    fd = tempfile.mkdtemp()
+    fake = ds.Demo(ds.FakeBackends(), k=3, log=os.path.join(fd, "l.csv"), feedback=os.path.join(fd, "f.csv"))
+    fake.fake = True; fake.warm()
+    assert fake.status()["fake"] is True and fake.status()["ready"]
+    code, b = fake.from_link("dQw4w9WgXcQ")
+    assert code == 200 and len(b["results"]["A"]) == 3 and b["heard"]["mood"] and b["results"]["A"][0]["title"].startswith("Practice"), b
+    assert fake.from_sample("practice_s1")[0] == 200 and fake.refine(b["token"], "mood")[0] == 200
+    # the pre-flight check: one line per thing that can fail on the day, with a plain fix
+    memfile = os.path.join(fd, "meminfo"); open(memfile, "w").write("MemTotal: 16000000 kB\nMemAvailable: 2000000 kB\n")
+    def run(cmd, timeout=45):
+        if cmd[0] == "yt-dlp" and "--version" in cmd:
+            return 0, "2025.01.01\n", ""
+        if cmd[0] == "yt-dlp":
+            return 1, "", "ERROR: Sign in to confirm you are not a bot\n"
+        if cmd[0] == "hostname":
+            return 0, "172.20.1.2 \n", ""
+        return -1, "", ""
+    res = ds.doctor(port=0, run=run, which=lambda x: None, meminfo=memfile, here=fd, jobs=["123"])
+    text = "\n".join(f"{l}: {t}" for l, t in res)
+    assert "warn: yt-dlp 2025.01.01" in text and "fail: ffmpeg is missing" in text and "fail: 1.9 GB of memory free" in text and "warn: an analysis" in text, text
+    assert "warn: YouTube would not answer" in text and "Sign in" in text and "http://172.20.1.2:" in text and "fail: results/ai_tags.csv is missing" in text, text
+    # the rehearsal: a link per line, comments ignored, one line each, a CSV, the capture fallback counted
+    lp = os.path.join(fd, "links.txt"); open(lp, "w").write("# my links\naaaaaaaaaaa\nhttps://vimeo.com/123456789\nccccccccccc\n\n")
+    lines = []
+    rd = ds.Demo(Fake(), k=4, log=os.path.join(fd, "rl.csv"), feedback=os.path.join(fd, "rf.csv"))
+    rows = ds.rehearse(lp, rd, out_csv=os.path.join(fd, "reh.csv"), printer=lines.append)
+    assert [r["ok"] for r in rows] == [1, 0, 0] and rows[2]["error"] == "CAPTURE download_failed" and rows[1]["error"] == "not_youtube", rows
+    assert os.path.exists(os.path.join(fd, "reh.csv")) and "1 of 3 worked" in lines[-1] and "1 would need the tab capture" in lines[-1], lines
     import io, contextlib as _cl
     buf = io.StringIO()
     with _cl.redirect_stdout(buf):

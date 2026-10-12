@@ -65,6 +65,11 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(
 @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
 .mono { font-family: var(--f-mono); }
 #elapsed { margin-left: 10px; }
+.banner { background: var(--warn); color: #1b0f1e; text-align: center; font: 600 14px var(--f-body); padding: 8px 12px; }
+.heard { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.heard .hchip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass); font-size: 14px; }
+.heard .hchip b { font: 500 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.heard .hchip i { color: var(--muted); font-style: normal; font-size: 12px; }
 .msg { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--glass); }
 .msg.err { border-color: var(--bad); }
 .msg.warn { border-color: var(--warn); }
@@ -99,6 +104,7 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 </style>
 </head>
 <body>
+<div class="banner" id="banner" hidden>PRACTICE MODE: the matches below are made up, not real results</div>
 <header>
   <div class="brand">groovyeverywhere</div>
   <div class="light"><span class="dot" id="dot"></span><span id="lightTxt">loading the song pool…</span></div>
@@ -136,6 +142,7 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 
   <section id="results">
     <div class="now"><span class="eyebrow">starting song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
+    <div id="heard" class="heard"></div>
     <div id="warn"></div>
     <div class="cols">
       <div class="col">
@@ -165,7 +172,7 @@ let token = "", pollTimer = null, ready = false, busy = false;
 
 function setLight() {
   fetch("/api/status").then(r => r.json()).then(s => {
-    ready = s.ready;
+    ready = s.ready; $("banner").hidden = !s.fake;
     $("dot").className = "dot " + (s.busy ? "busy" : s.ready ? "ready" : "");
     $("lightTxt").textContent = s.error ? "the pool did not load: " + s.error : s.busy ? "working…" : s.ready ? `ready · ${s.pool.toLocaleString()} songs` : "loading the song pool…";
     if (!busy) { $("go").disabled = !s.ready || s.busy; }
@@ -267,8 +274,18 @@ function render(d) {
   $("nowTitle").textContent = d.input.title || d.input.id; $("nowArtist").textContent = d.input.artist || "";
   $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : "";
   document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", "true"));
+  renderHeard(d.heard);
   renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B");
   $("results").classList.add("on"); $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderHeard(h) {
+  const el = $("heard");
+  if (!h || !h.mood) { el.innerHTML = ""; return; }
+  const chips = [`<span class="hchip"><b>mood</b>${esc(h.mood)} <i>(happiness ${esc(h.happiness)} · energy ${esc(h.energy)} of 9)</i></span>`,
+                 `<span class="hchip"><b>tempo</b>${esc(h.tempo)}</span>`];
+  if (h.instruments && h.instruments.length) chips.push(`<span class="hchip"><b>instruments</b>${h.instruments.map(esc).join(", ")}</span>`);
+  el.innerHTML = '<span class="hchip" style="border:0;background:none;padding-left:0"><b>what we heard</b></span>' + chips.join("");
 }
 
 function bar(label, v) {
