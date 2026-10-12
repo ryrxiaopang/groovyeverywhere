@@ -34,10 +34,14 @@ _OFFICIAL = re.compile(r"official|\bm/?v\b|music video|audio\)", re.I)
 _LYRIC = re.compile(r"lyrics?|lyric video|visuali[sz]er|vietsub|engsub|sub\)|\bsped\b|\bslowed\b|8d|\u6b4c\u8a5e|\u6b4c\u8bcd|\u52d5\u614b|\uac00\uc0ac|\u65e5\u672c\u8a9e", re.I)
 
 
+# a live / stage / performance / extended / acoustic / dance-practice video is a different recording or cut, never the copy to keep over the plain song
+_ALTERED = re.compile(r"\b(performance|perf|live|stage|dance|choreography|extended|acoustic|unplugged|session|concert|fancam|remix|sped|slowed|8d|nightcore|reaction|behind)\b|\u73fe\u5834|\u73b0\u573a|\ub77c\uc774\ube0c", re.I)
+
+
 def keep_rank(title, views):
-    """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, then views."""
+    """Sort key for the copy to keep (bigger = better): official title +1, lyric / visualiser / subtitled upload -1, live / stage / performance / extended cut -1, then views."""
     t = title or ""
-    return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0), views)
+    return ((1 if _OFFICIAL.search(t) else 0) - (1 if _LYRIC.search(t) else 0) - (1 if _ALTERED.search(t) else 0), views)
 
 
 def _left_names(titles):

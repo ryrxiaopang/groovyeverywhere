@@ -876,6 +876,8 @@ def pool_duplicates_test():
     assert not any(p["a"] >= 5 or p["b"] >= 5 for p in pairs)                                         # the unrelated songs are in no pair
     assert pdp.keep_rank("Hold On (Official Audio)", 1) > pdp.keep_rank("Hold On", 999) > pdp.keep_rank("Hold On (Lyrics)", 10 ** 9)
     assert pdp.keep_rank("LEE HI - M/V", 1) > pdp.keep_rank("LEE HI - Lyrics", 5) and pdp.keep_rank("Song - Visualizer", 5) < pdp.keep_rank("Song", 1)
+    assert pdp.keep_rank("CHUNG HA - 'I'm Ready' Extended Performance Video (Official)", 10 ** 8) < pdp.keep_rank("I'm Ready", 100)        # a performance cut never beats the plain song
+    assert pdp.keep_rank("Song (Live)", 5) < pdp.keep_rank("Song", 1) and pdp.keep_rank("Song (Official Audio)", 1) > pdp.keep_rank("Song (Acoustic)", 10 ** 9)
     assert pdp.title_share("Hold On (Official Audio)", "Artist - Hold On") == 1.0 and pdp.title_share("x", "") == 0.0
     # the artist's own channel beats a curator channel with more views (11 Oct: "Malcolm Todd - Earrings" kept from "Minimal Sounds")
     w2 = np.stack([base, base + 0.01 * rng.normal(size=64), base + 0.01 * rng.normal(size=64)])
