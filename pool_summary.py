@@ -19,7 +19,8 @@ GROUP_LANGUAGE = {
     "kpop": "Korean", "krnb": "Korean", "khiphop": "Korean", "kindie": "Korean", "kballad": "Korean", "klofi": "Korean",
     "cpop": "Mandarin", "mrnb": "Mandarin", "chiphop": "Mandarin", "twindie": "Mandarin",
     "cantopop": "Cantonese",
-    "jpop": "Japanese", "jrnb": "Japanese", "citypop": "Japanese",
+    "jpop": "Japanese", "jrnb": "Japanese", "citypop": "Japanese", "jindie": "Japanese", "jrock": "Japanese", "jhiphop": "Japanese",
+    "mrock": "Mandarin",
 }
 
 

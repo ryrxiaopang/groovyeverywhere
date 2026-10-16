@@ -115,6 +115,8 @@ GENRE_NAME = {"pop": "pop", "vocal_pop": "pop",
               "kindie": "indie", "twindie": "indie", "indiepop": "indie", "indierock": "indie", "altrock": "alternative",
               "kballad": "pop", "citypop": "pop", "klofi": "hiphop", "chiphop": "hiphop", "mrnb": "rnb", "jrnb": "rnb",
               "indiefolk": "folk", "electro": "electronic", "playlist": "playlist",
+              # 16 Oct: language-specific groups for the gaps (Japanese indie / rock / rap, Mandarin bands), so the language guess and the style groups stay right
+              "jindie": "indie", "jrock": "rock", "jhiphop": "hiphop", "mrock": "rock",
               "electronic": "electronic"}
 
 

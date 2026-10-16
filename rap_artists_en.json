@@ -1,0 +1,154 @@
+[
+ {
+  "kind": "artist",
+  "id": "name:kendrick_lamar",
+  "name": "Kendrick Lamar",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:tyler,_the_creator",
+  "name": "Tyler, The Creator",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:j._cole",
+  "name": "J. Cole",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:travis_scott",
+  "name": "Travis Scott",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:drake",
+  "name": "Drake",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:juice_wrld",
+  "name": "Juice WRLD",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:mac_miller",
+  "name": "Mac Miller",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:childish_gambino",
+  "name": "Childish Gambino",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:jack_harlow",
+  "name": "Jack Harlow",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:jid",
+  "name": "JID",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:joey_bada$$",
+  "name": "Joey Bada$$",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:denzel_curry",
+  "name": "Denzel Curry",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:saba",
+  "name": "Saba",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:smino",
+  "name": "Smino",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:aminé",
+  "name": "Aminé",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:loyle_carner",
+  "name": "Loyle Carner",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:little_simz",
+  "name": "Little Simz",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:dave",
+  "name": "Dave",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ },
+ {
+  "kind": "artist",
+  "id": "name:central_cee",
+  "name": "Central Cee",
+  "genre": "hiphop",
+  "more": 15,
+  "tracks": []
+ }
+]
