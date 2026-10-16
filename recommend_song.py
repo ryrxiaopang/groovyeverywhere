@@ -60,10 +60,10 @@ def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="mat
             bp = pair_pct[best_pair[i]] if name == "B" else pct
             out.append(dict(key=P["key"][i], title=P["title"][i], artist=P["artist_name"][i], link=P["link"][i],
                             ai=bt.ai_note(P["ai"][i]) if "ai" in P else "",
-                            sound=round(float(bp["sound"][i])), mood=round(float(bp.get("mood", pct["mood"])[i])),
-                            rhythm=round(float(bp.get("rhythm", pct["rhythm"])[i])),
-                            instruments=round(float(bp.get("instruments", pct["instruments"])[i])),
-                            match=round(float(match[i] if name == "B" else pct["sound"][i])),
+                            sound=round(float(bp["sound"][i]), 1), mood=round(float(bp.get("mood", pct["mood"])[i]), 1),     # percentiles against the pool, 1 decimal
+                            rhythm=round(float(bp.get("rhythm", pct["rhythm"])[i]), 1),                                       # (the top matches all round to 100 otherwise)
+                            instruments=round(float(bp.get("instruments", pct["instruments"])[i]), 1),
+                            match=round(float(match[i] if name == "B" else pct["sound"][i]), 1),
                             popularity=("rarely played" if P["obscurity"][i] >= 80 else "few plays" if P["obscurity"][i] >= 50 else "well played")))
         return out
     return dict(A=rows(a_idx, "A"), B=rows(b_idx, "B"), A_bar=a_bar, B_bar=b_bar, features=chosen, pool=n,
