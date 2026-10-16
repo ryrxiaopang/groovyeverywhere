@@ -1401,7 +1401,7 @@ def demo_server_test():
         return -1, "", ""
     res = ds.doctor(port=0, run=run, which=lambda x: None, meminfo=memfile, here=fd, jobs=["123"])
     text = "\n".join(f"{l}: {t}" for l, t in res)
-    assert "warn: yt-dlp 2025.01.01" in text and "fail: ffmpeg is missing" in text and "fail: 1.9 GB of memory free" in text and "warn: an analysis" in text, text
+    assert "warn: yt-dlp 2025.01.01" in text and "fail: ffmpeg is missing" in text and "fail: deno is missing" in text and "fail: 1.9 GB of memory free" in text and "warn: an analysis" in text, text
     assert "warn: YouTube would not answer" in text and "Sign in" in text and "http://172.20.1.2:" in text and "fail: results/ai_tags.csv is missing" in text, text
     # the rehearsal: a link per line, comments ignored, one line each, a CSV, the capture fallback counted
     lp = os.path.join(fd, "links.txt"); open(lp, "w").write("# my links\naaaaaaaaaaa\nhttps://vimeo.com/123456789\nccccccccccc\nhello world\n\n")

@@ -787,6 +787,9 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
             age = None
         add("warn" if age is not None and age > 60 else "ok", f"yt-dlp {ver}" + (f" ({age} days old: pip install -U yt-dlp, an old one is the most common reason for a blocked download)" if age and age > 60 else ""))
     add("ok" if which("ffmpeg") else "fail", "ffmpeg found" if which("ffmpeg") else "ffmpeg is missing: yt-dlp cannot make the audio file without it")
+    js = which("deno")                                         # yt-dlp needs a JavaScript runtime to unlock YouTube's audio links; without one many downloads end in "HTTP Error 403"
+    add("ok" if js else "fail", "deno found (yt-dlp can unlock YouTube's audio)" if js else
+        "deno is missing: YouTube downloads fail with HTTP 403. Install it:  curl -fsSL https://deno.land/install.sh | sh  then open a new terminal, and run  pip install -U \"yt-dlp[default]\"")
     add("ok" if importlib.util.find_spec("essentia") else "fail", "Essentia is installed" if importlib.util.find_spec("essentia") else "Essentia is not importable here: activate the project venv (source .venv/bin/activate)")
     for name, why in (("results/ai_tags.csv", "the AI filter has no tags"), ("results/index.csv", "no analysed songs are listed")):
         add("ok" if os.path.exists(os.path.join(here, name)) else "fail", f"{name} exists" if os.path.exists(os.path.join(here, name)) else f"{name} is missing: {why}")
