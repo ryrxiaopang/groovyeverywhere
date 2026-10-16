@@ -10,7 +10,7 @@ How a song is labelled, in this order (the first rule that applies wins):
   1. the writing in the TITLE: Hangul = Korean, kana = Japanese, Chinese characters = Chinese, Thai / Cyrillic / Arabic / ... = other;
   2. the search group it came from (kpop, khiphop ... = Korean; cpop, mrnb, chiphop, twindie, mrock, cantopop = Chinese; jpop, jrock ... = Japanese);
   3. the writing in the ARTIST name (same as 1);
-  4. Latin-script titles: the detector (English, Spanish, Portuguese, French, Italian, German, Vietnamese, Indonesian) reads the SONG NAME only
+  4. Latin-script titles: the detector (English, Spanish, Portuguese, French, Italian, German, Vietnamese) reads the SONG NAME only
      (brackets, "feat. ...", the artist's name and stock words such as "official video" taken out). "Other" only when fairly sure: another language
      at least 0.6 and 0.3 ahead of English, never from a one-word name alone; letters such as ñ ¿ ã or Vietnamese ones, and phrases such as
      "clip officiel" or "letra", also count. When the name only leans that way, the song's own YouTube description (link lines, hashtags, stock
@@ -88,8 +88,8 @@ def make_detector():
         from lingua import Language, LanguageDetectorBuilder
     except ImportError:
         raise SystemExit("the language detector is not installed: run  pip install lingua-language-detector  (desktop only), then try again")
-    names = ("ENGLISH", "SPANISH", "PORTUGUESE", "FRENCH", "ITALIAN", "GERMAN", "VIETNAMESE", "INDONESIAN")   # 16 Oct: Latin, Tagalog, Dutch, Swedish ...
-                                                                                                               # were mostly false alarms on English titles
+    names = ("ENGLISH", "SPANISH", "PORTUGUESE", "FRENCH", "ITALIAN", "GERMAN", "VIETNAMESE")   # 16 Oct: Latin, Tagalog, Dutch, Swedish, Indonesian
+                                                                                                 # were mostly false alarms on English titles ("Rainy Day" = Indonesian)
     langs = [getattr(Language, n) for n in names if hasattr(Language, n)]
     det = LanguageDetectorBuilder.from_languages(*langs).build()
 
