@@ -21,6 +21,7 @@ from results_index import pool_keys, POOL_LISTS, list_key, RES
 
 META = os.path.join(RES, "youtube_meta.jsonl")
 OUT = os.path.join(RES, "ai_tags.csv")
+AUDIT = os.path.join(HERE, "pool_audit_log.csv")      # mark_ai_out.py logs every song it marks out, with the reason
 FIELDS = ["key", "status", "reasons", "views", "likes", "followers", "channel"]
 HIGH_VIEWS = 10_000          # hide-low keeps AI songs at or above this many views
 
@@ -199,11 +200,30 @@ def tag():
     print("tags:", dict(Counter(r["status"] for r in rows)), "->", OUT)
 
 
-def load_tags():
-    """key -> (status, reasons, views); {} if tag_ai.py has not been run."""
-    if not os.path.exists(OUT):
-        return {}
-    return {r["key"]: (r["status"], r["reasons"], float(r["views"] or 0)) for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
+def audit_reasons(path=None):
+    """{key: its LATEST reason in pool_audit_log.csv} ({} if there is no log)."""
+    path = path or AUDIT
+    out = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                out[r.get("key") or ""] = r.get("reason") or ""
+    return out
+
+
+def load_tags(audit=None):
+    """key -> (status, reasons, views); {} if tag_ai.py has not been run.
+    Songs marked out as AI whose tag record is gone (tag_ai.py before 12 Oct rewrote its files with the pool songs only, so the tags of songs that had
+    left the pool were dropped) get their status back from pool_audit_log.csv; without that, mark_ai_out --restore and the round-2 scoring would
+    treat them as not AI."""
+    out = {}
+    if os.path.exists(OUT):
+        out = {r["key"]: (r["status"], r["reasons"], float(r["views"] or 0)) for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
+    for k, why in audit_reasons(audit).items():
+        m = re.match(r"AI: (confirmed|likely)\b", why)
+        if m and k not in out:
+            out[k] = (m.group(1), "from pool_audit_log.csv (tag record lost)", 0.0)
+    return out
 
 
 def norm_name(s):
@@ -222,11 +242,17 @@ def load_name_list(name, here=HERE):
         return {norm_name(l.split("#")[0]) for l in f if l.split("#")[0].strip()} - {""}
 
 
-def load_channels(res=RES):
-    """key -> channel name, from results/ai_tags.csv ({} if tag_ai.py has not been run)."""
-    if not os.path.exists(OUT):
-        return {}
-    return {r["key"]: r.get("channel") or "" for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
+def load_channels(res=RES, audit=None):
+    """key -> channel name, from results/ai_tags.csv ({} if tag_ai.py has not been run); a song marked out for its blocked channel whose tag record is
+    gone gets the channel name back from pool_audit_log.csv (see load_tags)."""
+    out = {}
+    if os.path.exists(OUT):
+        out = {r["key"]: r.get("channel") or "" for r in csv.DictReader(open(OUT, encoding="utf-8-sig"))}
+    for k, why in audit_reasons(audit).items():
+        m = re.match(r"AI: blocked channel \((.*)\)$", why)
+        if m and not out.get(k):
+            out[k] = m.group(1)
+    return out
 
 
 def ai_policy(status, views, policy):

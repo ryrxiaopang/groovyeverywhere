@@ -1829,6 +1829,36 @@ def language_filter_test():
     print("   songs are labelled by script, group and (fairly sure) detector; the demo starts with English / Chinese / Korean and the chips pass the choice on")
 
 
+def lost_tags_test():
+    """Tags dropped by the old tag_ai.py come back from pool_audit_log.csv, so mark_ai_out --restore never puts those AI songs back."""
+    print("\n30. LOST AI TAGS RECOVERED FROM THE AUDIT LOG")
+    import tag_ai, mark_ai_out as mo, tempfile, os, csv
+    d = tempfile.mkdtemp()
+    tags_csv, log = os.path.join(d, "ai_tags.csv"), os.path.join(d, "audit.csv")
+    with open(tags_csv, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(tag_ai.FIELDS)
+        w.writerow([("youtube_new" if c == "key" else "none" if c == "status" else "Real Artist" if c == "channel" else "0" if c in ("views", "likes") else "") for c in tag_ai.FIELDS])
+    with open(log, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["date", "key", "title", "artist", "reason"])
+        w.writerow(["2026-10-12", "youtube_ai1", "t", "a", "AI: likely"])
+        w.writerow(["2026-10-12", "youtube_blk", "t", "a", "AI: blocked channel (Some Mill)"])
+        w.writerow(["2026-10-12", "youtube_back", "t", "a", "AI: confirmed"])
+        w.writerow(["2026-10-13", "youtube_back", "t", "a", "AI mark removed: no longer matches the AI rules"])
+    old = tag_ai.OUT
+    tag_ai.OUT = tags_csv
+    try:
+        tags, chans = tag_ai.load_tags(audit=log), tag_ai.load_channels(audit=log)
+    finally:
+        tag_ai.OUT = old
+    assert tags["youtube_ai1"][0] == "likely" and tags["youtube_new"][0] == "none" and "youtube_back" not in tags, tags
+    assert chans["youtube_blk"] == "Some Mill" and chans["youtube_new"] == "Real Artist", chans
+    rows = [dict(source="youtube", track_id=k, title="t", artist="a", i_agree="n") for k in ("ai1", "blk")]
+    lists = {"pool_youtube.csv": (rows, list(rows[0].keys()))}
+    plan = mo.plan_restore(lists, tags, chans, set(), {tag_ai.norm_name("Some Mill")}, "hide", log=log)
+    assert plan == [], plan                                                         # neither the lost-tag AI song nor the blocked-channel song comes back
+    print("   songs marked out as AI keep their status even when their tag record was lost; --restore leaves them out")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1859,3 +1889,4 @@ if __name__ == "__main__":
     add_song_test()
     ai_names_check_test()
     language_filter_test()
+    lost_tags_test()
