@@ -701,14 +701,15 @@ def summary(log=LOG, feedback=FEEDBACK):
         print(f"{len(vis)} visitors with at least one song, {sum(len(v) for v in vis.values()) / len(vis):.1f} songs each on average (each song gets its own lists: songs are never blended)")
     bad = collections.Counter(r["error"] for r in runs if r["ok"] == "0")
     print("failures: " + (", ".join(f"{k} x{v}" for k, v in bad.most_common()) if bad else "none"))
-    for kind in ("link", "capture", "sample"):
-        ok = [r for r in runs if r["kind"] == kind and r["ok"] == "1"]
+    groups = [("link", "new", "link, new song (downloaded and analysed)"), ("link", "stored", "link, stored song (INSTANT)"), ("capture", None, "capture"), ("sample", None, "sample")]
+    for kind, src, label in groups:                                # new and stored songs apart: mixed together, the many quick stored songs hide how long a new song takes
+        ok = [r for r in runs if r["kind"] == kind and r["ok"] == "1" and (src is None or (r.get("source") or "new") == src)]
         if ok:
             def med(col):
                 v = [float(r[col]) for r in ok if r.get(col) not in (None, "")]
-                return f"{statistics.median(v):.0f}" if v else "-"
+                return (f"{statistics.median(v):.1f}" if statistics.median(v) < 10 else f"{statistics.median(v):.0f}") if v else "-"
             slow = max(float(r["seconds_total"] or 0) for r in ok)
-            print(f"  {kind}: median {med('seconds_total')} s in total (lookup {med('seconds_lookup')}, download {med('seconds_download')}, "
+            print(f"  {label}: median {med('seconds_total')} s in total (lookup {med('seconds_lookup')}, download {med('seconds_download')}, "
                   f"analyse {med('seconds_analyse')}, match {med('seconds_match')}); slowest {slow:.0f} s; {len(ok)} worked")
     if os.path.exists(feedback):
         fb = list(csv.DictReader(open(feedback, encoding="utf-8-sig")))

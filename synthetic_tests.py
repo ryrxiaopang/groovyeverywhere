@@ -1440,7 +1440,7 @@ def demo_server_test():
     with _cl.redirect_stdout(buf):
         ds.summary(os.path.join(d, "log.csv"), os.path.join(d, "fb.csv"))
     out = buf.getvalue()
-    assert "runs:" in out and "download_failed" in out and "link: median" in out and "would add 1 of 1" in out and "1 visitors with at least one song" in out and "never blended" in out, out
+    assert "runs:" in out and "download_failed" in out and "link, new song (downloaded and analysed): median" in out and "would add 1 of 1" in out and "1 visitors with at least one song" in out and "never blended" in out, out
     print("   links are checked, one job at a time, every failure offers the tab capture, audio is deleted, ratings and runs are logged")
 
 
