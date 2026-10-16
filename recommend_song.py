@@ -25,9 +25,10 @@ def recommend(key, k=10, features="mood+rhythm+instruments", rank="match", only=
     return recommend_query(q, read_meta(key) or {}, k, features, rank, only)   # its own title / artist: re-uploads, covers and the artist are not recommended
 
 
-def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="match", only=None):
+def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="match", only=None, languages=None):
     """Recommendations for a query made by bt.query_from_analysis (a stored song, a pasted link or a captured clip).
-    meta = {'title': ..., 'artist': ...} of the starting song if known ({} otherwise)."""
+    meta = {'title': ..., 'artist': ...} of the starting song if known ({} otherwise).
+    languages = labels to keep (english, chinese, korean, japanese, other; song_languages.py); None = every song. Songs without a label are always kept."""
     P = bt.pool()
     n = len(P["key"]); artists = np.array(P["artist"])
     skip = scoring.least_played(P["listens"], P["source"], scoring.SKIP_LEAST_PLAYED)
@@ -42,6 +43,10 @@ def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="mat
     if only:                                # only songs from these pool groups (e.g. yt_jpop yt_jrnb yt_citypop): the rest is left out
         none = none | ~np.isin(np.array(P["group"]), list(only))
         print(f"  only {', '.join(only)}: {int((~none).sum())} candidate songs")
+    if languages:                           # the language filter (16 Oct): leave out songs whose label is not chosen; unlabelled songs stay
+        import song_languages
+        lab, allowed = song_languages.load(), set(languages) | {"unknown"}
+        none = none | ~np.array([lab.get(k, "unknown") in allowed for k in P["key"]], bool)
     # a recommendation must not be the song's own artist even when the copy is not in the pool: also match by artist name
     chosen = ["sound"] + [f for f in features.split("+") if f != "sound"]
     match, _, best_pair, passes = scoring.combine([{f: pp[f] for f in chosen} for pp in pair_pct], chosen)
@@ -66,7 +71,7 @@ def recommend_query(q, meta, k=10, features="mood+rhythm+instruments", rank="mat
                             match=round(float(match[i] if name == "B" else pct["sound"][i]), 1),
                             popularity=("rarely played" if P["obscurity"][i] >= 80 else "few plays" if P["obscurity"][i] >= 50 else "well played")))
         return out
-    return dict(A=rows(a_idx, "A"), B=rows(b_idx, "B"), A_bar=a_bar, B_bar=b_bar, features=chosen, pool=n,
+    return dict(A=rows(a_idx, "A"), B=rows(b_idx, "B"), A_bar=a_bar, B_bar=b_bar, features=chosen, pool=n, languages=list(languages) if languages else None,
                 best_sound=round(float(np.max(np.where(none, -np.inf, plain))), 2))
 
 

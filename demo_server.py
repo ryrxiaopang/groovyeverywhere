@@ -36,6 +36,8 @@ MAX_SECONDS = 600                       # a song, not a mix or a live stream
 MAX_CLIP_BYTES = 25 * 1024 * 1024
 VALID_FEATURES = ("mood", "rhythm", "instruments")
 DEFAULT_FEATURES = "mood+rhythm+instruments"
+VALID_LANGUAGES = ("english", "chinese", "korean", "japanese", "other")   # labels from song_languages.py (results/song_languages.csv)
+DEFAULT_LANGUAGES = ("english", "chinese", "korean")                     # user decision 16 Oct: Japanese and other languages are opt-in chips
 YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
 _ID = r"[A-Za-z0-9_-]{11}"
 
@@ -91,7 +93,7 @@ def _plain(o):
 def shape(res, k):
     """The recommendation result as the page needs it: the first k of each list, with the YouTube id of every song."""
     out = dict(features=res.get("features", []), pool=res.get("pool"), best_sound=res.get("best_sound"),
-               A_bar=res.get("A_bar"), B_bar=res.get("B_bar"))
+               A_bar=res.get("A_bar"), B_bar=res.get("B_bar"), languages=res.get("languages"))
     for name in ("A", "B"):
         out[name] = [dict(r, yt=yt_id_of(r.get("link"))) for r in (res.get(name) or [])[:k]]
     return out
@@ -296,9 +298,9 @@ class Backends:
         with np.load(os.path.join(RES, f"{key}.npz")) as d:
             return bt.query_from_analysis(dict(d)), read_meta(key) or {}
 
-    def recommend(self, q, meta, k, features):
+    def recommend(self, q, meta, k, features, languages=None):
         import recommend_song
-        return recommend_song.recommend_query(q, meta, k, features)
+        return recommend_song.recommend_query(q, meta, k, features, languages=languages)
 
     def samples(self):
         """[{key, title, artist}] of already analysed songs for the sample buttons: demo_samples.csv if it exists, else the most viewed pool song
@@ -365,13 +367,13 @@ class FakeBackends:
     def heard(self, q):
         return dict(mood="warm and relaxed", happiness=6.4, energy=4.1, tempo="about 96 BPM", instruments=["piano", "acoustic guitar", "strings"])
 
-    def recommend(self, q, meta, k, features):
-        n_b = 2 + len([f for f in features.split("+") if f])
+    def recommend(self, q, meta, k, features, languages=None):
+        n_b = 2 + len([f for f in features.split("+") if f]) + (2 if languages and "other" in languages else 0)
         def row(i, w):
             return dict(key=f"practice_{w}{i}", title=f"Practice match {i + 1}", artist=f"Practice artist {i + 1}", link="", sound=88 - 3 * i, mood=72 + i, rhythm=61,
                         instruments=77, match=92 - 2 * i, popularity="few plays", ai="")
         return dict(A=[row(i, "a") for i in range(max(k, 6))], B=[row(i, "b") for i in range(n_b)], features=["sound"] + features.split("+"), pool=8000,
-                    best_sound=0.9, A_bar=70.0, B_bar=65.0)
+                    best_sound=0.9, A_bar=70.0, B_bar=65.0, languages=list(languages) if languages else None)
 
     def samples(self):
         return [dict(key="practice_s1", title="Practice sample one", artist="Nobody"), dict(key="practice_s2", title="Practice sample two", artist="Nobody")]
@@ -453,7 +455,7 @@ class Demo:
     def _finish(self, kind, ident, q, meta, features, times, extra_input, source="new"):
         t = time.time()
         self._stage("finding matches")
-        res = shape(self.b.recommend(q, meta, self.k, features), self.k)
+        res = shape(self.b.recommend(q, meta, self.k, features, languages=list(DEFAULT_LANGUAGES)), self.k)
         times["match"] = time.time() - t
         try:
             heard = self.b.heard(q)
@@ -590,14 +592,16 @@ class Demo:
             return self._finish("sample", key, q, meta, DEFAULT_FEATURES, times, dict(title=s["title"], artist=s["artist"]))
         return self._job("sample", key, run, visitor)
 
-    def refine(self, token, features):
+    def refine(self, token, features, languages=None):
+        """New lists for a result already shown: other features and / or other languages (no new analysis)."""
         feats = [f for f in (features or "").split("+") if f in VALID_FEATURES]
-        if token not in self.last or not feats:
-            return 400, dict(error="bad_request", message="Unknown result or no feature chosen.")
+        langs = [l for l in str(languages or "+".join(DEFAULT_LANGUAGES)).split("+") if l in VALID_LANGUAGES]
+        if token not in self.last or not feats or not langs:
+            return 400, dict(error="bad_request", message="Unknown result, or no feature or language chosen.")
         q, meta, inp = self.last[token]
 
         def run(times):
-            res = shape(self.b.recommend(q, meta, self.k, "+".join(feats)), self.k)
+            res = shape(self.b.recommend(q, meta, self.k, "+".join(feats), languages=langs), self.k)
             return dict(ok=True, token=token, input=dict(inp), results=res)
         return self._job("refine", token, run)
 
@@ -669,7 +673,7 @@ def make_handler(demo, html_path):
                     elif u.path == "/api/sample":
                         code, body = demo.from_sample(str(d.get("key", "")), d.get("visitor"))
                     elif u.path == "/api/refine":
-                        code, body = demo.refine(str(d.get("token", "")), str(d.get("features", "")))
+                        code, body = demo.refine(str(d.get("token", "")), str(d.get("features", "")), d.get("languages"))
                     elif u.path == "/api/rate":
                         code, body = demo.rate(d)
                     else:
@@ -794,6 +798,9 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
     add("ok" if importlib.util.find_spec("essentia") else "fail", "Essentia is installed" if importlib.util.find_spec("essentia") else "Essentia is not importable here: activate the project venv (source .venv/bin/activate)")
     for name, why in (("results/ai_tags.csv", "the AI filter has no tags"), ("results/index.csv", "no analysed songs are listed")):
         add("ok" if os.path.exists(os.path.join(here, name)) else "fail", f"{name} exists" if os.path.exists(os.path.join(here, name)) else f"{name} is missing: {why}")
+    sl = os.path.join(here, "results", "song_languages.csv")
+    add("ok" if os.path.exists(sl) else "warn", "results/song_languages.csv exists (the language chips work)" if os.path.exists(sl) else
+        "results/song_languages.csv is missing: the language chips change nothing (on the desktop: pip install lingua-language-detector, python song_languages.py)")
     lists = [fn for fn in __import__("results_index").POOL_LISTS if os.path.exists(os.path.join(here, fn))]
     add("ok" if lists else "fail", f"{len(lists)} pool list file(s) found" if lists else "no pool_*.csv list found")
     try:

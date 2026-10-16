@@ -24,7 +24,7 @@ from results_index import POOL_LISTS, latest_rows, pool_keys
 
 KEEP_KEYS = ("effnet_whole", "effnet_parts", "instruments_whole", "instruments_parts", "emomusic_whole", "emomusic_parts", "cand_emomusic_vggish_whole",
              "rhythm_bpm", "rhythm_confidence", "rhythm_steadiness", "rhythm_busyness")
-RES_FILES = ("ai_tags.csv", "pool_links.csv", "link_alternatives.csv")
+RES_FILES = ("ai_tags.csv", "pool_links.csv", "link_alternatives.csv", "song_languages.csv")     # song_languages.csv: the language filter's labels
 TOP_FILES = ("ai_keep.txt", "ai_block.txt", "demo_samples.csv")
 README = """DEMO BUNDLE (made {when}, {songs} pool songs)
 

@@ -86,6 +86,8 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(
 .col h3 { font: 400 26px var(--f-display); margin: 0 0 4px; }
 .col .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.langrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 16px; }
+.langrow .chips { margin-bottom: 0; }
 .rec { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); }
 .thumb { width: 96px; height: 72px; border-radius: 10px; background: var(--glass-strong) center/cover; position: relative; cursor: pointer; border: 0; padding: 0; color: #fff; }
 .thumb::after { content: "\25B6"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
@@ -166,6 +168,15 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
     <div id="heard" class="heard"></div>
     <div id="warn"></div>
     <p class="nomix" id="pctNote">How to read the numbers: each one is a <b>ranking against the whole pool</b>. "Closer than 99.6% of the songs" means only 0.4% of the pool is closer to your song; it does not mean the two songs are 99.6% the same.</p>
+    <div class="langrow"><span class="eyebrow">languages</span>
+      <div class="chips" id="langs" role="group" aria-label="Languages of the recommended songs">
+        <button class="chipbtn" data-l="english" aria-pressed="true" type="button">English</button>
+        <button class="chipbtn" data-l="chinese" aria-pressed="true" type="button">Chinese</button>
+        <button class="chipbtn" data-l="korean" aria-pressed="true" type="button">Korean</button>
+        <button class="chipbtn" data-l="japanese" aria-pressed="false" type="button">Japanese</button>
+        <button class="chipbtn" data-l="other" aria-pressed="false" type="button">Other languages</button>
+      </div>
+    </div>
     <div class="cols">
       <div class="col">
         <h3>closest in sound</h3>
@@ -235,7 +246,7 @@ function showBusy(on, label) {
   if (on && label) $("stageTxt").textContent = label;
   $("progress").classList.toggle("on", on);
   $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;
-  document.querySelectorAll("#chips button").forEach(b => b.disabled = on);
+  document.querySelectorAll("#chips button, #langs button").forEach(b => b.disabled = on);
   document.querySelectorAll("#samples button").forEach(b => b.disabled = on);
   if (on && !label) { $("stageTxt").textContent = "starting…"; $("elapsed").textContent = ""; }
   if (on) $("elapsed").textContent = "";
@@ -350,28 +361,33 @@ $("capGo").onclick = async () => {
   }
 };
 
-function chosenFeatures() { return [...document.querySelectorAll("#chips [aria-pressed=true]")].map(b => b.dataset.f).join("+"); }
-document.querySelectorAll("#chips button").forEach(b => b.onclick = async () => {
+const DEFAULT_LANGS = ["english", "chinese", "korean"];
+function chosen(sel, attr) { return [...document.querySelectorAll(sel + " [aria-pressed=true]")].map(b => b.dataset[attr]); }
+function chosenFeatures() { return chosen("#chips", "f").join("+"); }
+function chosenLangs() { return chosen("#langs", "l").join("+"); }
+async function toggleChip(b, sel) {                       // a feature or a language chip: new lists for the song in this tab, without a new analysis
   if (busy) return;
   const on = b.getAttribute("aria-pressed") === "true", idx = active;
-  if (on && document.querySelectorAll("#chips [aria-pressed=true]").length === 1) return;       // at least one feature stays chosen
+  if (on && document.querySelectorAll(sel + " [aria-pressed=true]").length === 1) return;       // at least one feature and one language stay chosen
   b.setAttribute("aria-pressed", on ? "false" : "true");
   showBusy(true);
   try {
-    const r = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, features: chosenFeatures() }) });
+    const r = await fetch("/api/refine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, features: chosenFeatures(), languages: chosenLangs() }) });
     const d = await r.json();
     if (d.ok) {
-      if (songs[idx]) { songs[idx].results.B = d.results.B; songs[idx].features = chosenFeatures().split("+"); }
-      if (active === idx) renderList("listB", d.results.B, "B");
-    } else { b.setAttribute("aria-pressed", on ? "true" : "false"); message(d.message || "Could not update the list.", "err"); }
-  } catch (e) { b.setAttribute("aria-pressed", on ? "true" : "false"); message("Could not update the list: " + e.message, "err"); }
+      if (songs[idx]) { songs[idx].results = d.results; songs[idx].features = chosenFeatures().split("+"); songs[idx].languages = chosenLangs().split("+"); }
+      if (active === idx) { renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B"); }
+    } else { b.setAttribute("aria-pressed", on ? "true" : "false"); message(d.message || "Could not update the lists.", "err"); }
+  } catch (e) { b.setAttribute("aria-pressed", on ? "true" : "false"); message("Could not update the lists: " + e.message, "err"); }
   showBusy(false);
-});
+}
+document.querySelectorAll("#chips button").forEach(b => b.onclick = () => toggleChip(b, "#chips"));
+document.querySelectorAll("#langs button").forEach(b => b.onclick = () => toggleChip(b, "#langs"));
 
 function render(d) {                                       // a new result: either a new song for this visitor (a new tab) or the tab of a song they already tried
   const dup = d.input.kind === "capture" ? -1 : songs.findIndex(x => x.input.id === d.input.id);
   if (dup >= 0) { showSong(dup); return; }
-  songs.push({ token: d.token, input: d.input, results: d.results, heard: d.heard, warning: d.warning, features: ["mood", "rhythm", "instruments"] });
+  songs.push({ token: d.token, input: d.input, results: d.results, heard: d.heard, warning: d.warning, features: ["mood", "rhythm", "instruments"], languages: (d.results && d.results.languages) || DEFAULT_LANGS });
   showSong(songs.length - 1);
 }
 
@@ -380,6 +396,7 @@ function showSong(i) {
   $("nowTitle").textContent = d.input.title || d.input.id; $("nowArtist").textContent = d.input.artist || "";
   $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : "";
   document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", d.features.includes(b.dataset.f) ? "true" : "false"));
+  document.querySelectorAll("#langs button").forEach(b => b.setAttribute("aria-pressed", (d.languages || DEFAULT_LANGS).includes(b.dataset.l) ? "true" : "false"));
   renderHeard(d.heard);
   renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B");
   renderTabs();

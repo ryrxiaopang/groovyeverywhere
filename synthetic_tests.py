@@ -1266,7 +1266,7 @@ def demo_server_test():
         def known_query(self, vid): return dict(f=7), dict(title="Known " + vid[:3], artist="Pool Artist", duration=181)
         def cache_put(self, vid, feats, meta):
             seen.setdefault("cached", set()).add(vid); seen["cache_meta"] = meta
-        def recommend(self, q, meta, k, features):
+        def recommend(self, q, meta, k, features, languages=None):
             seen["features"].append(features)
             best = 0.3 if seen.get("weak") else 0.9
             row = lambda i, w: dict(key=f"youtube_x{i}{w}", title=f"Rec {i}", artist="Art", link=f"https://www.youtube.com/watch?v=xxxxxxxxx{i}{w}",
@@ -1427,7 +1427,7 @@ def demo_server_test():
             f = {(False, None): 0, (True, None): 0, (True, 90): 1, (True, 60): 2}[(fast, max_seconds)]
             return dict(f=f), {"decode": 1.0, "effnet": 4.0 if not fast else 2.0, "total": 5.0}
         def query(self, feats): return dict(whole=np.array([1.0, 0.5 + 0.05 * feats["f"]]), f=feats["f"])
-        def recommend(self, q, meta, k, features):
+        def recommend(self, q, meta, k, features, languages=None):
             n_changed = {0: 0, 1: 2, 2: 5}[q["f"]]
             return dict(A=[dict(key=(f"new{i}" if i < n_changed else f"k{i}")) for i in range(10)])
     lines2 = []
@@ -1646,7 +1646,7 @@ def demo_hardening_test():
                 raise RuntimeError("model crashed")
             return dict(f=1)
         def query(self, feats): return feats
-        def recommend(self, q, meta, k, features):
+        def recommend(self, q, meta, k, features, languages=None):
             return dict(A=[], B=[], features=["sound"], pool=1, best_sound=0.9, A_bar=1.0, B_bar=1.0)
     demo = ds.Demo(Fake(), k=3, log=os.path.join(d, "l.csv"), feedback=os.path.join(d, "f.csv"))
     demo.warm()
@@ -1771,6 +1771,50 @@ def ai_names_check_test():
     print("   exact names can be blocked, near matches and ? names are only shown, mood / lofi / AI mill names are listed for reading")
 
 
+def language_filter_test():
+    """song_languages.py labels (script, group, detector rules) and the demo's language chips: defaults English / Chinese / Korean, refine passes the choice on."""
+    print("\n29. LANGUAGE FILTER")
+    import song_languages as sl, demo_server as ds, tempfile, os, csv
+    fake = {"Despacito": [("spanish", 0.94), ("english", 0.01)], "Le bruit des vagues": [("french", 0.45), ("english", 0.16)],
+            "La Di Da": [("malay", 0.14), ("english", 0.03)], "Heather": [("english", 0.51)], "Glue Song": [("tagalog", 0.2), ("english", 0.17)]}
+    det = lambda text: next((v for k, v in fake.items() if k in text), [("english", 0.5)])
+    cases = {("稻香", "Jay", "yt_pop"): "chinese", ("Lazy", "WOOSUNG", "yt_kindie"): "korean", ("Hello", "x", "yt_jrock"): "japanese",
+             ("ยังไม่ชิน (NOT USED TO)", "x", "yt_pop"): "other", ("MƯA VỘI PHÓNG", "HYO", "yt_pop"): "other", ("Mañana", "x", "yt_pop"): "other",
+             ("Despacito (Official Video)", "Luis Fonsi", "yt_pop"): "other", ("Le bruit des vagues", "R", "yt_hiphop"): "other",
+             ("La Di Da", "Lennon Stella", "yt_pop"): "english", ("Heather", "Conan Gray", "yt_pop"): "english", ("Glue Song", "beabadoobee", "yt_indie"): "english",
+             ("Song", "周杰倫", "yt_pop"): "chinese", ("A45S", "Andos", "yt_hiphop"): "unknown", ("Lydia", "F.I.R.", "yt_mrock"): "chinese"}
+    for (t, a, g), want in cases.items():
+        got = sl.label_song(t, a, g, "", det)[0]
+        assert got == want, (t, got, want)
+    assert sl.clean_description("Provided to YouTube by X\nhttps://x.y\nSí, sabes que ya llevo un rato\n#tag") == "Sí, sabes que ya llevo un rato"
+    p = os.path.join(tempfile.mkdtemp(), "song_languages.csv")
+    rows = [dict(key="youtube_a", title="稻香"), dict(key="youtube_b", title="Heather")]
+    sl.write({"youtube_a": ("chinese", "title script"), "youtube_b": ("english", "english 0.51")}, rows, p)
+    assert sl.load(p) == {"youtube_a": "chinese", "youtube_b": "english"} and sl.load(os.path.join(os.path.dirname(p), "none.csv")) == {}
+    # the demo: first lists use the defaults, refine passes the chosen languages on, a choice with no language is refused
+    seen = []
+
+    class Fake:
+        def warm(self): return 1
+        def weak_cosine(self): return 0.45
+        def sample_query(self, key): return dict(f=1), dict(title="T", artist="A")
+        def samples(self): return [dict(key="youtube_s", title="S", artist="A")]
+        def recommend(self, q, meta, k, features, languages=None):
+            seen.append(languages)
+            return dict(A=[], B=[], features=["sound"], pool=1, best_sound=0.9, A_bar=1.0, B_bar=1.0, languages=languages)
+    d = tempfile.mkdtemp()
+    demo = ds.Demo(Fake(), k=3, log=os.path.join(d, "l.csv"), feedback=os.path.join(d, "f.csv")); demo.warm()
+    code, body = demo.from_sample("youtube_s")
+    assert code == 200 and seen[-1] == ["english", "chinese", "korean"] and body["results"]["languages"] == ["english", "chinese", "korean"], (code, body, seen)
+    code, b2 = demo.refine(body["token"], "mood", "english+japanese+other+klingon")
+    assert code == 200 and seen[-1] == ["english", "japanese", "other"], (code, b2, seen)
+    assert demo.refine(body["token"], "mood", "klingon")[0] == 400
+    assert demo.refine(body["token"], "mood", None)[0] == 200 and seen[-1] == ["english", "chinese", "korean"]
+    import make_demo_bundle as mb
+    assert "song_languages.csv" in mb.RES_FILES
+    print("   songs are labelled by script, group and (fairly sure) detector; the demo starts with English / Chinese / Korean and the chips pass the choice on")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1800,3 +1844,4 @@ if __name__ == "__main__":
     data_safety_test()
     add_song_test()
     ai_names_check_test()
+    language_filter_test()
