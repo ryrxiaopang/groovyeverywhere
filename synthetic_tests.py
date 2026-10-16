@@ -1753,6 +1753,24 @@ def add_song_test():
     print("   hand-picked songs go into pool_handpicked.csv; pool songs, marked-out songs and live streams are skipped")
 
 
+def ai_names_check_test():
+    """ai_channels.py --check / --patterns: given channel names are matched to pool channels (exact = blockable, near = check by hand, ? = look only)."""
+    print("\n28. CHECKING GIVEN AI CHANNEL NAMES")
+    import ai_channels as ac, tag_ai, tempfile, os
+    p = os.path.join(tempfile.mkdtemp(), "names.txt")
+    open(p, "w", encoding="utf-8").write("# comment\nEchoMuse AI\nRainyCityPop\nLo Fi Study Chill\n?L.Dre\nNot There\n")
+    names = ac.read_names(p)
+    assert names == [("EchoMuse AI", True), ("RainyCityPop", True), ("Lo Fi Study Chill", True), ("L.Dre", False), ("Not There", True)], names
+    pool = {tag_ai.norm_name(n): dict(name=n, keys=["k"] * c) for n, c in [("EchoMuse AI", 5), ("RainyCityPop", 3), ("Lo Fi Study Chill Beats", 2), ("L.Dre", 4), ("Taylor Swift", 9)]}
+    lines = []
+    found = ac.check(names, pool, set(), {tag_ai.norm_name("RainyCityPop")}, printer=lines.append)
+    text = "\n".join(lines)
+    assert found == ["EchoMuse AI"], found                                              # blocked already, near match and look-only names are never added
+    assert "NEAR MATCH" in text and "look only" in text and "already in ai_block.txt" in text and "not in the pool" in text, text
+    assert [n for n, _ in ac.mill_channels(pool, set(), set())] == ["EchoMuse AI", "Lo Fi Study Chill Beats"]
+    print("   exact names can be blocked, near matches and ? names are only shown, mood / lofi / AI mill names are listed for reading")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1781,3 +1799,4 @@ if __name__ == "__main__":
     demo_hardening_test()
     data_safety_test()
     add_song_test()
+    ai_names_check_test()

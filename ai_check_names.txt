@@ -1,0 +1,41 @@
+# Channel names given on 16 Oct as AI music / mood mills (ai_channels.py --check ai_check_names.txt; --write adds the ones found to ai_block.txt).
+# A leading ? = look it up only, never block it (a real artist, or a channel that also carries real songs: decide by ear).
+# AI music and synth generators
+EchoMuse AI
+Eternal Melody AI
+Novatune ai
+VelaSongMusicAI
+Runic Spellwaves
+AI Chunes
+# mood, city pop and lofi generators
+Chinese Jazz-Hop & Guofeng Lo-Fi
+Cassette Nights
+Chic City Synthpop
+City Synthpop Prime
+City Synthpop Romance
+Comfortable City Synthpop
+Feel Good City Synthpop
+RainyCityPop
+RetroPulse Radio
+Tokyo Slow Motion
+Tokyo Femme
+Velour Rhythm Room
+V3NARA | 80s VIBES
+Valkyrie Strike Synth
+SynthTerra
+LowBatteryFM
+Anime Lofi
+Lo Fi Study Chill
+LoFi_no_Mori
+LoFiMeari
+mune lofi
+Phaiya Lofi
+# auto-curated mood channels
+Mellow Mandopop Ballad
+Smooth MoonLit R&B Soul
+Alternative Reality Radio
+87 Avenue
+# look only: L.Dre is a human lofi producer; "Various Artists - Topic" and "Release" are YouTube's automatic channels that also carry real label releases
+?L.Dre
+?Various Artists - Topic
+?Release
