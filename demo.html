@@ -120,6 +120,25 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
 .tab.add { border-style: dashed; color: var(--muted); }
 .nomix { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
 .linkbtn { background: none; border: 0; color: var(--accent); font: 500 14px var(--f-body); cursor: pointer; padding: 4px 0; }
+/* 17 Oct, for the booth and the screen recording: a smaller title once results are showing, the four steps of a search, larger text on the cards */
+body.has-results h1 { font-size: clamp(30px, 4vw, 42px); margin: 0 0 14px; }
+body.has-results .lede { display: none; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 10px; padding: 0; list-style: none; }
+.steps li { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+.steps li b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 600 12px var(--f-body); background: var(--glass-strong); color: var(--muted); }
+.steps li.now { border-color: var(--accent); color: var(--ink); }
+.steps li.now b { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); animation: pulse 1s infinite; }
+.steps li.done { color: var(--ink); }
+.steps li.done b { background: var(--accent-soft); color: var(--accent); }
+.steps li.skip { opacity: .45; text-decoration: line-through; }
+.howto { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+.col h3 .num { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-right: 8px; border-radius: 50%; font: 600 15px var(--f-body); vertical-align: 4px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); }
+.rec h4 { font-size: 17px; }
+.rec .artist { font-size: 15px; }
+.match { font: 600 14px var(--f-body); }
+.bars { font-size: 13px; gap: 3px 10px; }
+.bars .track { height: 6px; }
 </style>
 </head>
 <body>
@@ -143,6 +162,9 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
       <span id="sampleBox" hidden>operator samples: <span id="samples" class="row" style="gap:8px;display:inline-flex"></span></span>
     </div>
     <div id="progress">
+      <ol class="steps" id="steps" aria-hidden="true">
+        <li data-s="0"><b>1</b>find it on YouTube</li><li data-s="1"><b>2</b>download</li><li data-s="2"><b>3</b>listen (analyse the whole song)</li><li data-s="3"><b>4</b>find matches</li>
+      </ol>
       <div><span id="stageTxt" class="mono">starting…</span> <span id="elapsed" class="mono" style="color:var(--muted)"></span></div>
       <div class="stagebar"><i></i></div>
       <div class="tip" id="tip"></div>
@@ -164,11 +186,11 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
     <div class="topbar"><div class="now" style="margin:0"><span class="eyebrow">your song</span><h2 id="nowTitle"></h2><span id="nowArtist" class="mono" style="color:var(--muted)"></span></div>
       <button class="btn" id="next" type="button">next person</button></div>
     <div class="tabs" id="tabs" role="tablist" aria-label="Your songs"></div>
-    <p class="nomix" id="nomix">Each song gets its own matches. We never mix songs: blending different styles gives muddy results.</p>
+
     <div id="heard" class="heard"></div>
     <div id="warn"></div>
-    <p class="nomix" id="pctNote">How to read the numbers: each one is a <b>ranking against the whole pool</b>. "Closer than 99.6% of the songs" means only 0.4% of the pool is closer to your song; it does not mean the two songs are 99.6% the same.</p>
-    <div class="langrow"><span class="eyebrow">languages</span>
+    <p class="howto" id="pctNote"><b>How to read it:</b> every number is a ranking against the whole pool: <b>"closer than 99%"</b> means only 1% of the songs are closer to yours (not "99% the same"). Press ▶ to listen. Each of your songs gets its own lists: we never mix songs.</p>
+    <div class="langrow"><span class="eyebrow">show songs in</span>
       <div class="chips" id="langs" role="group" aria-label="Languages of the recommended songs">
         <button class="chipbtn" data-l="english" aria-pressed="true" type="button">English</button>
         <button class="chipbtn" data-l="chinese" aria-pressed="true" type="button">Chinese</button>
@@ -179,12 +201,12 @@ footer { margin-top: 36px; color: var(--muted); font-size: 13px; max-width: 760p
     </div>
     <div class="cols">
       <div class="col">
-        <h3>closest in sound</h3>
+        <h3><span class="num">1</span>closest in sound</h3>
         <p class="sub">Matched on the overall sound alone.</p>
         <div id="listA"></div>
       </div>
       <div class="col">
-        <h3>sound, plus what you care about</h3>
+        <h3><span class="num">2</span>sound, plus what you care about</h3>
         <p class="sub">Also has to be a good match on every feature you pick (top 35% on each).</p>
         <div class="chips" id="chips" role="group" aria-label="Features that must also match">
           <button class="chipbtn" data-f="mood" aria-pressed="true" type="button">the mood</button>
@@ -220,7 +242,7 @@ function setLight() {
     $("lightTxt").textContent = s.error ? "the pool did not load: " + s.error : s.busy ? "working…" : s.ready ? `ready · ${s.pool.toLocaleString()} songs` : "loading the song pool…";
     if (!busy) { $("go").disabled = !s.ready || s.busy; }
     if (s.ready && OPERATOR && !$("samples").dataset.done) { $("sampleBox").hidden = false; loadSamples(); }
-    if (s.busy && busy) { $("stageTxt").textContent = s.stage || "working…"; $("elapsed").textContent = s.elapsed + " s"; }
+    if (s.busy && busy) { $("stageTxt").textContent = s.stage || "working…"; $("elapsed").textContent = s.elapsed + " s"; setSteps(s.stage); }
   }).catch(() => { $("dot").className = "dot"; $("lightTxt").textContent = "cannot reach the demo server"; });
 }
 setInterval(setLight, 1500); setLight();
@@ -233,6 +255,19 @@ function loadSamples() {
   });
 }
 
+let stepSkip = [];
+function setSteps(stage) {                               // the four steps of a search, lit up as the server reports its stage (a stored song skips 2 and 3)
+  const t = (stage || "").toLowerCase();
+  $("steps").style.display = /record|sending|capture/.test(t) ? "none" : "";
+  let now = -1;
+  if (/search|looking up/.test(t)) now = 0;
+  else if (/download/.test(t)) now = 1;
+  else if (/listening|analys/.test(t)) now = 2;
+  else if (/stored numbers/.test(t)) { now = 3; stepSkip = [1, 2]; }
+  else if (/finding matches/.test(t)) now = 3;
+  if (now < 0) return;
+  document.querySelectorAll("#steps li").forEach(li => { const i = +li.dataset.s; li.className = stepSkip.includes(i) ? "skip" : i < now ? "done" : i === now ? "now" : ""; });
+}
 function showBusy(on, label) {
   busy = on;
   clearInterval(tipTimer);
@@ -243,7 +278,8 @@ function showBusy(on, label) {
       $("tip").textContent = (Date.now() - t0 > 25000 && i % 2 === 0) ? "Still listening: we analyse the whole song so the matches are accurate, which takes a minute or so for a new song. Songs with the INSTANT badge are immediate." : TIPS[i];
     }, 6000);
   }
-  if (on && label) $("stageTxt").textContent = label;
+  if (on) { stepSkip = []; document.querySelectorAll("#steps li").forEach(li => li.className = ""); }
+  if (on && label) { $("stageTxt").textContent = label; setSteps(label); }
   $("progress").classList.toggle("on", on);
   $("go").disabled = on || !ready; $("capBtn").disabled = on; $("capGo").disabled = on;
   document.querySelectorAll("#chips button, #langs button").forEach(b => b.disabled = on);
@@ -306,6 +342,7 @@ function showCandidates(list, q) {
 
 function resetAll() {
   if (busy) return;
+  document.body.classList.remove("has-results");
   $("url").value = ""; $("cands").classList.remove("on"); $("cands").innerHTML = ""; message(""); $("fallback").classList.remove("on");
   $("results").classList.remove("on"); $("listA").innerHTML = ""; $("listB").innerHTML = ""; $("heard").innerHTML = ""; $("warn").innerHTML = ""; token = "";
   songs = []; active = -1; $("tabs").innerHTML = ""; visitor = newVisitor();
@@ -393,6 +430,7 @@ function render(d) {                                       // a new result: eith
 
 function showSong(i) {
   active = i; const d = songs[i]; token = d.token;
+  document.body.classList.add("has-results");
   $("nowTitle").textContent = d.input.title || d.input.id; $("nowArtist").textContent = d.input.artist || "";
   $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : "";
   document.querySelectorAll("#chips button").forEach(b => b.setAttribute("aria-pressed", d.features.includes(b.dataset.f) ? "true" : "false"));
@@ -400,7 +438,8 @@ function showSong(i) {
   renderHeard(d.heard);
   renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B");
   renderTabs();
-  $("results").classList.add("on"); $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("results").classList.add("on");
+  setTimeout(() => $("results").scrollIntoView({ behavior: "smooth", block: "start" }), 80);   // after the progress box has closed, or the page lands too far down
 }
 
 function renderTabs() {
