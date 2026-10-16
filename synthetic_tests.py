@@ -1723,6 +1723,36 @@ def data_safety_test():
     print("   old songs leave only with a real replacement, the block list stays intact, proposals approvals and earlier sheets are kept")
 
 
+def add_song_test():
+    """add_song.py: hand-picked songs go into their own list, songs already in the pool (or marked out) are skipped, live streams refused."""
+    print("\n27. ADDING SINGLE SONGS BY HAND")
+    import add_song as asg, csv, os, tempfile
+    d = tempfile.mkdtemp()
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(asg.COLS)
+        w.writerow(["youtube", "aaaaaaaaaaa", "In pool", "A", 200, 1, "youtube-standard", "u", "pop", "yt_pop", ""])
+        w.writerow(["youtube", "bbbbbbbbbbb", "Marked", "B", 200, 1, "youtube-standard", "u", "pop", "yt_pop", "n"])
+    fake = {"ccccccccccc": dict(title="New Song (Official Audio)", channel="Singer - Topic", duration=201.0, views=5000, live=False),
+            "ddddddddddd": dict(title="Live now", channel="X", duration=0.0, views=0, live=True),
+            "eeeeeeeeeee": dict(title="Two hour mix", channel="Y", duration=7200.0, views=10, live=False)}
+    links = ["https://youtu.be/aaaaaaaaaaa", "https://www.youtube.com/watch?v=bbbbbbbbbbb", "https://www.youtube.com/watch?v=ccccccccccc&list=RDx",
+             "https://youtu.be/ddddddddddd", "https://youtu.be/eeeeeeeeeee", "hello"]
+    p = asg.plan(links, "chiphop", get_info=lambda v: fake[v], here=d)
+    notes = {v: (r is not None, n) for v, r, n in p}
+    assert notes["aaaaaaaaaaa"] == (False, "already in the pool") and notes["bbbbbbbbbbb"][1].startswith("marked out"), notes
+    assert notes["ccccccccccc"][0] and notes["ddddddddddd"] == (False, "a live stream or premiere, not a finished song") and "length 7200" in notes["eeeeeeeeeee"][1], notes
+    assert notes["hello"] == (False, "not a YouTube link")
+    row = next(r for v, r, _ in p if v == "ccccccccccc")
+    assert row["artist"] == "Singer" and row["group"] == "yt_chiphop" and row["listen"].endswith("ccccccccccc")
+    assert asg.apply(p, here=d) == 2                                                    # c and e (e only with a warning)
+    out = list(csv.DictReader(open(os.path.join(d, asg.LIST), encoding="utf-8-sig")))
+    assert [r["track_id"] for r in out] == ["ccccccccccc", "eeeeeeeeeee"] and list(out[0].keys()) == asg.COLS
+    assert "pool_handpicked.csv" in __import__("results_index").POOL_LISTS
+    p2 = asg.plan(["https://youtu.be/ccccccccccc"], "pop", get_info=lambda v: fake[v], here=d)
+    assert p2[0][1] is None and p2[0][2] == "already in the pool"                             # a second run adds nothing
+    print("   hand-picked songs go into pool_handpicked.csv; pool songs, marked-out songs and live streams are skipped")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1750,3 +1780,4 @@ if __name__ == "__main__":
     demo_bundle_test()
     demo_hardening_test()
     data_safety_test()
+    add_song_test()

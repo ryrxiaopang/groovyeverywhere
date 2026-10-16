@@ -27,7 +27,7 @@ def latest_rows(res=RES):
 
 
 POOL_LISTS = ("pool_list.csv", "pool_audius.csv", "pool_korean.csv", "pool_audius_more.csv", "pool_vocal.csv",
-              "pool_fma.csv", "pool_youtube.csv")
+              "pool_fma.csv", "pool_youtube.csv", "pool_handpicked.csv")      # pool_handpicked.csv: single songs added with add_song.py
 
 
 def excluded_keys(here=HERE):
