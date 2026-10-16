@@ -47,7 +47,7 @@ What is saved on the laptop (anonymous, no names, no audio): `results/demo_log.c
 The page also shows a **"what we heard"** strip under the starting song: the mood in plain words (from the happiness and energy scores, 1-9), the tempo (only when the beat detector is sure, otherwise "tempo unclear": rhythm is the weakest feature) and the main instruments (singing and beats left out).
 
 **YouTube downloads need a JavaScript runtime (found 16 Oct, rehearsal on the desktop: 2 of 17 downloads failed with "HTTP Error 403: Forbidden").** yt-dlp needs deno to unlock YouTube's audio links. On EVERY machine that runs the demo (desktop and laptop):
-`curl -fsSL https://deno.land/install.sh | sh`, open a new terminal, then `source .venv/bin/activate && pip install -U "yt-dlp[default]"`. `python demo_server.py --check` now fails until deno is found.
+`curl -fsSL https://deno.land/install.sh | sh`, open a new terminal, then `source .venv/bin/activate && pip install -U "yt-dlp[default]"`. `python demo_server.py --check` now fails until deno is found. With deno installed the official audio of "Blinding Lights" still gave 403 until yt-dlp fetched the current puzzle solver (`--remote-components ejs:github`); `sources.temp_audio` now adds that option itself (yt-dlp 2025.11 or newer; `HG_YT_REMOTE_EJS=0` turns it off). It needs github.com to be reachable the first time.
 
 ## 2b. The booth laptop (the demo runs there, not on the desktop)
 

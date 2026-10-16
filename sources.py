@@ -228,6 +228,26 @@ def sweep_stale_temp(max_age_s=7200):
     return n
 
 
+_YT_EXTRA = None
+
+
+def _yt_extra():
+    """Extra yt-dlp options for downloads. YouTube hides its audio links behind a JavaScript puzzle; the solver scripts that pip installs (yt-dlp-ejs) can lag
+    behind YouTube, which ends in "HTTP Error 403: Forbidden" (16 Oct rehearsal: 2 of 17 songs). --remote-components ejs:github lets yt-dlp fetch the current
+    solver (it fixed both). Only added when this yt-dlp knows the option (2025.11 or newer); HG_YT_REMOTE_EJS=0 turns it off. Needs deno installed."""
+    global _YT_EXTRA
+    if _YT_EXTRA is None:
+        _YT_EXTRA = []
+        if os.environ.get("HG_YT_REMOTE_EJS", "1") != "0":
+            try:
+                v = (subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True, timeout=20).stdout or "").strip()
+                if re.match(r"\d{4}\.\d{2}\.\d{2}", v) and v[:10] >= "2025.11.12":
+                    _YT_EXTRA = ["--remote-components", "ejs:github"]
+            except Exception:
+                pass
+    return _YT_EXTRA
+
+
 @contextlib.contextmanager
 def temp_audio(info):
     """Download into a temp folder, yield the path, delete everything afterwards."""
@@ -255,7 +275,7 @@ def temp_audio(info):
     if info["source"] == "youtube":                      # audio fetched with yt-dlp, then deleted straight away
         with tempfile.TemporaryDirectory(prefix="hg_") as d:
             out = os.path.join(d, "song.%(ext)s")
-            cmd = ["yt-dlp", "-q", "--no-warnings", "--no-playlist", "--force-ipv4",
+            cmd = ["yt-dlp", *_yt_extra(), "-q", "--no-warnings", "--no-playlist", "--force-ipv4",
                    "--retries", "3", "--socket-timeout", "30", "--sleep-requests", "1",
                    "-f", "bestaudio/best", "-x", "--audio-format", "mp3", "--audio-quality", "0",
                    "-o", out, info["download_url"]]
