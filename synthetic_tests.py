@@ -1780,11 +1780,12 @@ def language_filter_test():
     fake = {"Despacito": [("spanish", 0.94), ("english", 0.01)], "Le bruit des vagues": [("french", 0.45), ("english", 0.16)],
             "La Di Da": [("malay", 0.14), ("english", 0.03)], "Heather": [("english", 0.51)], "Glue Song": [("tagalog", 0.2), ("english", 0.17)],
             "NIENTE AMORE": [("italian", 0.36), ("english", 0.1)], "Testo": [("italian", 0.99)], "Kiss Me Better": [("english", 0.33), ("german", 0.23)],
-            "Julie Bergan": [("german", 0.95)], "frank": [("german", 0.54), ("english", 0.18)]}
+            "Julie Bergan": [("german", 0.95)], "frank": [("german", 0.54), ("english", 0.18)], "sabes que": [("spanish", 0.97)],
+            "Hurt You": [("english", 0.6)], "Gesaffelstein": [("german", 0.9)], "Fais pas": [("french", 0.82)]}
     det = lambda text: next((v for k, v in fake.items() if k in text), [("english", 0.5)])
     cases = {("稻香", "Jay", "yt_pop"): "chinese", ("Lazy", "WOOSUNG", "yt_kindie"): "korean", ("Hello", "x", "yt_jrock"): "japanese",
              ("ยังไม่ชิน (NOT USED TO)", "x", "yt_pop"): "other", ("MƯA VỘI PHÓNG", "HYO", "yt_pop"): "other", ("Mañana", "x", "yt_pop"): "other",
-             ("Despacito (Official Video)", "Luis Fonsi", "yt_pop"): "other", ("Le bruit des vagues", "R", "yt_hiphop"): "other",
+             ("Despacito (Official Video)", "Luis Fonsi", "yt_pop"): "english", ("Le bruit des vagues", "R", "yt_hiphop"): "english",   # one word / only leaning: kept
              ("La Di Da", "Lennon Stella", "yt_pop"): "english", ("Heather", "Conan Gray", "yt_pop"): "english", ("Glue Song", "beabadoobee", "yt_indie"): "english",
              ("Song", "周杰倫", "yt_pop"): "chinese", ("A45S", "Andos", "yt_hiphop"): "unknown", ("Lydia", "F.I.R.", "yt_mrock"): "chinese"}
     for (t, a, g), want in cases.items():
@@ -1793,7 +1794,12 @@ def language_filter_test():
     assert sl.label_song("NIENTE AMORE", "Metah", "yt_hiphop", "Testo: niente amore per me stanotte, solo la strada e il rumore", det)[0] == "other"   # title leans, description agrees
     assert sl.label_song("NIENTE AMORE", "Metah", "yt_hiphop", "", det)[0] == "english"                                                        # leaning alone is not enough
     assert sl.label_song("Kiss Me Better (Official Music Video)", "Julie Bergan", "yt_pop", "Julie Bergan sitt nye singel er ute naa, hor den i dag", det)[0] == "english"
-    assert sl.label_song("frank", "x", "yt_pop", "", det)[0] == "english"                                                                     # one-word titles need 0.6
+    assert sl.label_song("frank", "x", "yt_pop", "", det)[0] == "english"                                                                     # one word: never from the title alone
+    assert sl.label_song("Despacito (Official Video)", "Luis Fonsi", "yt_pop", "Si, sabes que ya llevo un rato mirandote, tengo que bailar contigo hoy", det)[0] == "other"
+    assert sl.song_part("The Weeknd - Hurt You feat. Gesaffelstein (Official Audio)", "The Weeknd") == "Hurt You"                                 # artist names out
+    assert sl.song_part("Dominique Fils-Aimé | Sleepy", "Dominique Fils-Aime") == "Sleepy" and sl.song_part("kindergarten - chloe moriondo", "chloe moriondo") == "kindergarten"
+    assert sl.label_song("The Weeknd - Hurt You feat. Gesaffelstein (Official Audio)", "The Weeknd", "yt_rnb", "", det)[0] == "english"
+    assert sl.label_song("Fais pas ça (Clip Officiel)", "La Plaie", "yt_hiphop", "", det) == ("other", "'clip officiel' / 'letra' ... in the title")
     assert sl.clean_description("Provided to YouTube by X\nhttps://x.y\nSí, sabes que ya llevo un rato\n#tag") == "Sí, sabes que ya llevo un rato"
     p = os.path.join(tempfile.mkdtemp(), "song_languages.csv")
     rows = [dict(key="youtube_a", title="稻香"), dict(key="youtube_b", title="Heather")]

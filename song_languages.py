@@ -10,11 +10,12 @@ How a song is labelled, in this order (the first rule that applies wins):
   1. the writing in the TITLE: Hangul = Korean, kana = Japanese, Chinese characters = Chinese, Thai / Cyrillic / Arabic / ... = other;
   2. the search group it came from (kpop, khiphop ... = Korean; cpop, mrnb, chiphop, twindie, mrock, cantopop = Chinese; jpop, jrock ... = Japanese);
   3. the writing in the ARTIST name (same as 1);
-  4. Latin-script titles: the detector (English, Spanish, Portuguese, French, Italian, German, Vietnamese, Indonesian) reads the TITLE, with English
-     stock words such as "official video" left out. "Other" only when fairly sure: another language at least 0.6 and 0.3 ahead of English, or at
-     least 0.4 (0.6 for one-word titles) while English is under 0.2; letters such as ñ ¿ ã or Vietnamese ones also count. When the title only
-     leans that way, the song's own YouTube description (link lines, hashtags, stock phrases removed) must agree strongly (0.8). Otherwise the song
-     counts as English, so an English song is rarely hidden; the price is that some Spanish or French songs stay visible.
+  4. Latin-script titles: the detector (English, Spanish, Portuguese, French, Italian, German, Vietnamese, Indonesian) reads the SONG NAME only
+     (brackets, "feat. ...", the artist's name and stock words such as "official video" taken out). "Other" only when fairly sure: another language
+     at least 0.6 and 0.3 ahead of English, never from a one-word name alone; letters such as ñ ¿ ã or Vietnamese ones, and phrases such as
+     "clip officiel" or "letra", also count. When the name only leans that way, the song's own YouTube description (link lines, hashtags, stock
+     phrases removed) must agree strongly (0.8). Otherwise the song counts as English, so an English song is rarely hidden; the price is that some
+     Spanish or French songs stay visible. (Second fix 16 Oct: artist names in titles made 8 of 15 sampled "other" songs wrong.)
      (The first version read title + description together: 10 of 15 sampled "other" songs were English, because descriptions are often in the
      artist's or label's language. Fixed 16 Oct.)
 Mandarin and Cantonese are one label (Chinese): they cannot be told apart from the characters.
@@ -37,6 +38,22 @@ IBERIAN = re.compile(r"[ñ¿¡ãõ]", re.I)
 BOILER = re.compile(r"https?://|www\.|@|#|provided to youtube|auto-generated|℗|©|\b(listen|stream|follow|subscribe|download|official|"
                     r"directed|produced|producer|director|lyrics|music video|video by|spotify|apple music|instagram|tiktok|twitter|facebook|"
                     r"management|booking|records|label|copyright|all rights)\b", re.I)
+
+
+MARKERS = re.compile(r"\b(clip officiel|paroles|letra|clipe oficial|v[ií]deo oficial|videoclip oficial|en vivo|ao vivo)\b", re.I)   # stock words of French / Spanish / Portuguese uploads
+
+
+def song_part(title, artist):
+    """The song's own name inside a YouTube title: bracketed parts, "feat. ..." and the "Artist - " / " | Artist" segments taken out, because
+    artist names (Fousheé, Gesaffelstein, chloe moriondo) make the detector guess French or German for English songs."""
+    from tag_ai import norm_name
+    t = re.sub(r"[\(\[【《「][^\)\]】》」]*[\)\]】》」]", " ", title or "")
+    t = re.sub(r"\b(feat|ft|featuring|prod|with)\b\.?.*$", " ", t, flags=re.I)
+    a = norm_name(artist)
+    parts = [x for x in re.split(r"\s+[-–—|:]\s+|\s*\|\s*", t) if x.strip()]
+    keep = [x for x in parts if not (a and (norm_name(x) == a or (len(a) > 3 and a in norm_name(x))))]
+    out = " ".join(keep or parts).strip()
+    return out or (title or "")
 
 
 def script_label(text):
@@ -97,19 +114,21 @@ def label_song(title, artist, group, description, detect):
         return "other", "vietnamese letters in the title"
     if IBERIAN.search(title or ""):
         return "other", "spanish / portuguese letters in the title"
-    t = STOCK.sub(" ", title or "")
+    if MARKERS.search(title or ""):
+        return "other", "'clip officiel' / 'letra' ... in the title"
+    t = STOCK.sub(" ", song_part(title, artist))
     if not re.search(r"[A-Za-zÀ-ÿ]{2,}", t):
         return "unknown", "no words to read"
-    conf = detect(t)                                   # the TITLE decides: descriptions are often in the artist's or label's language, not the song's
+    conf = detect(t)                                   # the SONG TITLE decides: descriptions are often in the artist's or label's language, not the song's
     if not conf:
         return "english", "detector gave nothing"
     best, p = conf[0]
     en = next((v for l, v in conf if l == "english"), 0.0)
-    need = 0.6 if len(re.findall(r"[A-Za-zÀ-ÿ']+", t)) <= 1 else 0.4          # one-word titles fool the detector more easily
-    if best != "english" and ((p >= 0.6 and p - en >= 0.3) or (en < 0.2 and p >= need)):
+    one_word = len(re.findall(r"[A-Za-zÀ-ÿ']+", t)) <= 1                         # one-word titles ("Santeria", "kindergarten") fool the detector
+    if best != "english" and not one_word and p >= 0.6 and p - en >= 0.3:
         return "other", f"{best} {p:.2f} (title)"
     desc = clean_description(description)
-    if best != "english" and len(desc) >= 40:          # the title leans to another language but not clearly: the song's own description must agree, strongly
+    if best != "english" and p >= 0.3 and len(desc) >= 40:     # the title leans to another language but not clearly: the song's own description must agree, strongly
         dc = detect(desc)
         if dc and dc[0][0] == best and dc[0][1] >= 0.8:
             return "other", f"{best} {p:.2f} (title) + description {dc[0][1]:.2f}"
