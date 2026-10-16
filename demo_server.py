@@ -798,7 +798,10 @@ def doctor(port=8765, run=_run, which=None, meminfo="/proc/meminfo", here=HERE, 
         add("warn", f"could not check the models ({type(e).__name__})")
     if lists:
         from results_index import pool_keys
+        import blind_test as bt
         keys = pool_keys(here)
+        if "all" not in bt.POOL_SOURCES:                        # the demo recommends only from these sites (default youtube): older FMA / Jamendo / Audius songs are not needed
+            keys = {k for k in keys if k.split("_", 1)[0] in bt.POOL_SOURCES}
         have = sum(os.path.exists(os.path.join(here, "results", f"{k}.npz")) for k in keys)
         add("ok" if keys and have >= 0.98 * len(keys) else "fail", f"{have} of {len(keys)} pool songs have their numbers" + ("" if keys and have >= 0.98 * len(keys) else " (on a booth laptop: unzip the demo bundle inside the project folder; on the desktop: finish the analysis)"))
     running = other_jobs_running() if jobs is None else jobs

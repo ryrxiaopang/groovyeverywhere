@@ -47,17 +47,26 @@ def slim_npz(path):
     return buf.getvalue()
 
 
+def pool_members(here=HERE):
+    """The keys of the songs the recommender uses: the pool lists, limited to the sites in HG_POOL_SOURCES (default youtube; the older FMA / Jamendo / Audius songs would only make the zip bigger)."""
+    import blind_test as bt
+    members = pool_keys(here)
+    if "all" not in bt.POOL_SOURCES:
+        members = {k for k in members if k.split("_", 1)[0] in bt.POOL_SOURCES}
+    return members
+
+
 def pool_rows(here=HERE):
     """{key: its latest index row} for every pool song that has finished numbers."""
     res = os.path.join(here, "results")
-    members = pool_keys(here)
+    members = pool_members(here)
     return {k: r for k, r in latest_rows(res).items() if k in members and r.get("status") == "done" and os.path.exists(os.path.join(res, f"{k}.npz"))}, res
 
 
 def build(here=HERE, out_dir=".", dry_run=False, when=None):
     """Write demo-bundle-<date>.zip. Returns dict(zip, songs, mb, listed, missing) (zip is None for a dry run)."""
     rows, res = pool_rows(here)
-    listed = len(pool_keys(here))
+    listed = len(pool_members(here))
     when = when or time.strftime("%Y%m%d-%H%M")
     out = os.path.join(out_dir, f"demo-bundle-{when}.zip")
     total = 0
