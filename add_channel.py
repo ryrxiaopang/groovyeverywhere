@@ -15,7 +15,8 @@ from build_youtube import NOT_A_SONG
 from results_index import pool_keys, latest_rows, write_list
 
 SKIP = re.compile(r"\b(intro|outro|interlude|skit|instrumental|1 ?hour|hours?|loop|short film|trailer|behind the|teaser|making of|"
-                  r"live (session|at|from)|reaction|cover|karaoke)\b|1시간|반복", re.I)
+                  r"live (session|at|from)|reaction|cover|karaoke|vlog|diary|documentary|unboxing|back ?story|jacket shooting|recap|"
+                  r"short ver(sion)?|on sale|tickets?)\b|1시간|반복|日誌|日记|紀錄|纪录|紀實|纪实|開箱|开箱|開賣|开卖|購物台|花絮|幕後|幕后|回顧|回顾|拍攝|拍摄|back ?story|unboxing", re.I)   # 16 Oct: a band channel's vlogs, tour films, unboxings
 
 
 def key_of(title, artist):
