@@ -87,9 +87,33 @@ def show(T, n):
             print(f"  {k:32s} {v:6d}  {100 * v / n:5.1f}%")
 
 
+def cross(rows, printer=print):
+    """Genre x language: songs per cell, plus how many different artists each genre has (a genre of 300 songs by 20 artists is thinner than it looks).
+    Returns {genre: Counter(language)}."""
+    langs = ["English / other Latin-script", "Mandarin", "Cantonese", "Korean", "Japanese", "Chinese (not split)"]
+    short = {"English / other Latin-script": "Eng/Latin", "Chinese (not split)": "Chinese?"}
+    T = collections.defaultdict(collections.Counter)
+    artists = collections.defaultdict(set)
+    for r in rows:
+        g = genre_of(r.get("group"))
+        T[g][language_of(r)] += 1
+        artists[g].add((r.get("artist") or "").strip().lower())
+    head = f"{'genre':16s}{'songs':>7s}{'artists':>8s}" + "".join(f"{short.get(l, l):>11s}" for l in langs)
+    printer("\ngenre x language (songs), most songs first")
+    printer(head)
+    for g, c in sorted(T.items(), key=lambda x: -sum(x[1].values())):
+        printer(f"{str(g)[:16]:16s}{sum(c.values()):7d}{len(artists[g]):8d}" + "".join(f"{c.get(l, 0):11d}" for l in langs))
+    tot = collections.Counter()
+    for c in T.values():
+        tot.update(c)
+    printer(f"{'ALL':16s}{sum(tot.values()):7d}{len(set().union(*artists.values())) if artists else 0:8d}" + "".join(f"{tot.get(l, 0):11d}" for l in langs))
+    return T
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--all-sites", action="store_true", help="count every site, not only HG_POOL_SOURCES (default youtube)")
+    ap.add_argument("--cross", action="store_true", help="also print a genre x language table with the number of artists per genre (where to grow the pool)")
     a = ap.parse_args()
     import blind_test as bt                      # for POOL_SOURCES; importing it does not load the pool
     rows = read_pool()
@@ -106,6 +130,8 @@ def main():
     import tag_ai
     tags = tag_ai.load_tags()
     show(summarise(rows, analysed, bad, {k: v[0] for k, v in tags.items()} if tags else None), len(rows))
+    if a.cross:
+        cross(rows)
 
 
 if __name__ == "__main__":
