@@ -111,9 +111,29 @@ def cross(rows, printer=print):
     return T
 
 
+def artists(rows, path, printer=print):
+    """Write one row per artist (songs in the pool, their genres and languages, most songs first) to a CSV. Returns the number of artists."""
+    by = collections.defaultdict(lambda: dict(songs=0, genres=collections.Counter(), languages=collections.Counter(), name=""))
+    for r in rows:
+        name = (r.get("artist") or "?").strip()
+        a = by[name.lower()]
+        a["name"] = a["name"] or name
+        a["songs"] += 1
+        a["genres"][genre_of(r.get("group"))] += 1
+        a["languages"][language_of(r)] += 1
+    out = sorted(by.values(), key=lambda a: (-a["songs"], a["name"].lower()))
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["artist", "songs", "genres", "languages"])
+        for a in out:
+            w.writerow([a["name"], a["songs"], "; ".join(g for g, _ in a["genres"].most_common()), "; ".join(l for l, _ in a["languages"].most_common())])
+    printer(f"\n{len(out)} artists written to {path} (open it in Excel; most songs first)")
+    return len(out)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--all-sites", action="store_true", help="count every site, not only HG_POOL_SOURCES (default youtube)")
+    ap.add_argument("--artists", nargs="?", const="pool_artists.csv", metavar="FILE", help="also write every artist with their song count, genres and languages to FILE (default pool_artists.csv)")
     ap.add_argument("--cross", action="store_true", help="also print a genre x language table with the number of artists per genre (where to grow the pool)")
     a = ap.parse_args()
     import blind_test as bt                      # for POOL_SOURCES; importing it does not load the pool
@@ -133,6 +153,8 @@ def main():
     show(summarise(rows, analysed, bad, {k: v[0] for k, v in tags.items()} if tags else None), len(rows))
     if a.cross:
         cross(rows)
+    if a.artists:
+        artists(rows, a.artists)
 
 
 if __name__ == "__main__":
