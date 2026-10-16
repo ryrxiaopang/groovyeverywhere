@@ -438,6 +438,7 @@ class Demo:
             return 200, body
         except DemoError as e:
             err = e.code
+            times["_detail"] = e.message[:240]                # the reason (e.g. yt-dlp's error) goes into the log's detail column
             return e.status, dict(error=e.code, message=e.message, fallback=e.fallback)
         except BaseException as e:                            # one bad request must never stop the server
             err = f"internal: {type(e).__name__}"
