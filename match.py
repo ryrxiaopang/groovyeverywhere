@@ -108,6 +108,12 @@ _win = None
 _win_plain = None
 
 
+def window_means(ch):
+    """The raw (unrescaled) average of every sliding stretch of one song's per-chunk Sound numbers, [n_windows, 1280] float16."""
+    ch = np.asarray(ch, np.float32)
+    return np.stack([ch[st: st + WIN].mean(axis=0).astype(np.float16) for st in range(0, max(1, len(ch) - WIN + 1), HOP)])
+
+
 def windows(scaled=True):
     """(owner index per window, rescaled unit vectors [n_windows,1280]): every ~30 s stretch of every song, so a
     clip from ANY part of a song has a stored stretch to match, not just the 3 sampled parts.
@@ -138,9 +144,8 @@ def windows(scaled=True):
                 ch = d["effnet_chunks"].astype(np.float32)
         except Exception:
             continue
-        starts = range(0, max(1, len(ch) - WIN + 1), HOP)
-        for st in starts:
-            vecs.append(ch[st: st + WIN].mean(axis=0).astype(np.float16)); owner.append(i)     # raw means
+        for v in window_means(ch):
+            vecs.append(v); owner.append(i)                                                    # raw means
     owner = np.array(owner, np.int32); vecs = np.stack(vecs)
     np.savez(cache[:-4] + ".tmp.npz", keys=np.array(keys), owner=owner, vecs=vecs, raw=np.array(1))
     os.replace(cache[:-4] + ".tmp.npz", cache)

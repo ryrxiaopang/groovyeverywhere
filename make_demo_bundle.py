@@ -9,6 +9,7 @@ Run it on the machine that has the analysed songs (the desktop), AFTER the pool 
 What goes in (everything is NUMBERS and text: no audio exists anywhere in this project):
   * results/<key>.npz for every pool song, cut down to the arrays the recommender reads (Sound whole + parts, Instruments whole + parts, Mood whole + parts + the VGGish
     mood, the four rhythm numbers). The full files hold much more; the demo never reads it. A cut-down file gives the same query: tested.
+  * results/windows_cache.npz (the ~30 s stretches of every pool song, built here because the cut-down files no longer hold the per-chunk numbers; without it the laptop would give slightly different matches)
   * results/index.csv (only the pool songs' latest rows), results/meta/<key>.json (titles and artists), results/ai_tags.csv, results/pool_links.csv, results/link_alternatives.csv
   * the pool lists (pool_*.csv etc.: they say which songs are in the pool), ai_keep.txt, ai_block.txt, demo_samples.csv if it exists
 Not in it: the code (git pull on the laptop), the models (python models.py on the laptop, about 60 MB), the Sound scale (refitted on the laptop at the first start, a few seconds).
@@ -94,6 +95,22 @@ def build(here=HERE, out_dir=".", dry_run=False, when=None):
             total += len(buf.getvalue())
             if zf:
                 zf.writestr("results/index.csv", buf.getvalue().encode("utf-8-sig"))
+        # The recommender also compares a song with every ~30 s stretch of each pool song (match.windows). Those stretches come from the per-chunk numbers, which the cut-down
+        # files do not keep, so the stretch index is built here, in the order the laptop will list the songs, and shipped as results/windows_cache.npz.
+        if rows:
+            import match
+            owner, vecs = [], []
+            if not dry_run:
+                for i, k in enumerate(rows):
+                    with np.load(os.path.join(res, f"{k}.npz")) as d:
+                        wm = match.window_means(d["effnet_chunks"])
+                    vecs.append(wm); owner.extend([i] * len(wm))
+                buf = io.BytesIO()
+                np.savez(buf, keys=np.array(list(rows)), owner=np.array(owner, np.int32), vecs=np.concatenate(vecs), raw=np.array(1))
+                data = buf.getvalue(); total += len(data)
+                zf.writestr("results/windows_cache.npz", data)
+            else:
+                total += len(rows) * 40000                                   # an estimate: about 40 KB of stretch numbers per song
         extra = [(os.path.join(res, n), f"results/{n}") for n in RES_FILES] + [(os.path.join(here, n), n) for n in TOP_FILES + tuple(POOL_LISTS)]
         for src, name in extra:
             if os.path.exists(src):

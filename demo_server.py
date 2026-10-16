@@ -162,7 +162,13 @@ class Backends:
 
     def warm(self):
         import blind_test as bt
-        return len(bt.pool()["key"])
+        n = len(bt.pool()["key"])
+        try:                                                  # the ~30 s stretch index is built (or loaded) now, behind the warm-up light, not during the first visitor's song
+            import match
+            match.windows(); match.windows(False)
+        except Exception as e:
+            print(f"  (sliding windows not ready: {str(e)[:80]}; the first song will build them)")
+        return n
 
     def weak_cosine(self):
         import blind_test as bt

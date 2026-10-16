@@ -22,7 +22,7 @@ Recommendations tend to follow popularity. We wanted to see whether the *sound* 
 - Pretrained open audio models from Essentia: Discogs-EffNet embeddings (1,280 numbers per song for "Sound"), VGGish to emoMusic (happiness and energy), an instrument classifier (40 instruments), and a rhythm analysis.
 - Matching: cosine similarity on the Sound embeddings after a gentle rescaling fitted on the pool. We compared the metrics and measured the rescaling rather than assuming it helped.
 - Combining features: the best part of each song is chosen after combining features, and every chosen feature must reach the 65th percentile.
-- A pool of about 5,600 YouTube songs (English and other Latin-script about 68%, Korean 12.5%, Mandarin 8.7%, Japanese 7%, Cantonese 3%), grown from Spotify and Deezer artist lists aimed at younger listeners.
+- A pool of 8,062 YouTube songs on 16 Oct (on 11 Oct, at 5,600 songs, the mix was English and other Latin-script about 68%, Korean 12.5%, Mandarin 8.7%, Japanese 7%, Cantonese 3%) [RE-RUN pool_summary.py for today's mix], grown from Spotify and Deezer artist lists aimed at younger listeners.
 - An AI-music detector (text and metadata signals) that removes AI-generated uploads from the pool.
 
 ## Safety and responsible AI

@@ -20,7 +20,7 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 
   where $\mu$ and $\sigma$ are the pool's average and spread for each of the 1,280 numbers. A full z-score failed our own style pass mark, and we compared other distance measures before choosing this one.
 - **Combining features:** the best part of each song is chosen after combining features, and every chosen feature must reach the 65th percentile of the pool.
-- **The pool:** about 5,600 YouTube songs, grown from Spotify and Deezer artist lists and aimed at younger listeners. Mix: about 68% English or other Latin-script, 12.5% Korean, 8.7% Mandarin, 7% Japanese, 3% Cantonese.
+- **The pool:** about 8,000 YouTube songs, grown from Spotify and Deezer artist lists and aimed at younger listeners, mostly English-language with Korean, Mandarin, Japanese and Cantonese songs. [OPTIONAL: paste today's language mix from pool_summary.py]
 - **Stack:** Python, Essentia (TensorFlow), yt-dlp, NumPy, a small local web server with a single-page front end, and the YouTube Data API for metadata. Built with Claude Code.
 
 ## Safety and responsible AI

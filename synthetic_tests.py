@@ -1565,6 +1565,13 @@ def demo_bundle_test():
         names = set(z.namelist())
         assert {"results/youtube_a.npz", "results/youtube_b.npz", "results/index.csv", "results/meta/youtube_a.json", "pool_youtube.csv", "ai_keep.txt", "results/ai_tags.csv", "DEMO_BUNDLE_README.txt"} <= names, names
         assert "results/youtube_e.npz" not in names and "results/youtube_c.npz" not in names                      # marked out / no numbers: not in the bundle
+        assert "results/windows_cache.npz" in names, names
+        wc = np.load(io.BytesIO(z.read("results/windows_cache.npz")), allow_pickle=False)
+        assert list(wc["keys"]) == ["youtube_a", "youtube_b"] and "raw" in wc.files, list(wc["keys"])              # same order as the bundle's index.csv
+        import match
+        with np.load(os.path.join(res, "youtube_b.npz")) as fb:
+            want = match.window_means(fb["effnet_chunks"])
+        assert np.array_equal(wc["vecs"][wc["owner"] == 1], want) and set(wc["owner"]) == {0, 1}, "the stretch index must equal what match.windows would build"
         idx = list(csv.DictReader(io.StringIO(z.read("results/index.csv").decode("utf-8-sig"))))
         assert sorted(x["key"] for x in idx) == ["youtube_a", "youtube_b"], idx
         slim = np.load(io.BytesIO(z.read("results/youtube_a.npz")), allow_pickle=False)
