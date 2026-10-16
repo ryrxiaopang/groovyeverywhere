@@ -129,8 +129,8 @@ def check(names, pool, keep, block, printer=print):
     printer(f"{'given name':34s} {'in pool as':34s} {'songs':>5s}  status")
     for name, may_block in names:
         c = norm_name(name)
-        exact = [p for p in pool if p == c]
-        near = [p for p in pool if p != c and c and (c in p or (len(p) > 3 and p in c))]
+        exact = [p for p in pool if c and p in (c, c + " topic", c + " topics")]          # "<name> - Topic" is YouTube's automatic channel of the same artist
+        near = [p for p in pool if p not in exact and c and (c in p or (len(p) >= 8 and p in c))]   # short names (Muse, Synth) inside a longer one are not near matches
         if not exact and not near:
             printer(f"{name[:34]:34s} {'-':34s} {0:5d}  not in the pool")
             continue

@@ -1761,13 +1761,15 @@ def ai_names_check_test():
     open(p, "w", encoding="utf-8").write("# comment\nEchoMuse AI\nRainyCityPop\nLo Fi Study Chill\n?L.Dre\nNot There\n")
     names = ac.read_names(p)
     assert names == [("EchoMuse AI", True), ("RainyCityPop", True), ("Lo Fi Study Chill", True), ("L.Dre", False), ("Not There", True)], names
-    pool = {tag_ai.norm_name(n): dict(name=n, keys=["k"] * c) for n, c in [("EchoMuse AI", 5), ("RainyCityPop", 3), ("Lo Fi Study Chill Beats", 2), ("L.Dre", 4), ("Taylor Swift", 9)]}
+    pool = {tag_ai.norm_name(n): dict(name=n, keys=["k"] * c) for n, c in [("EchoMuse AI", 5), ("RainyCityPop", 3), ("Lo Fi Study Chill Beats", 2), ("L.Dre", 4),
+                                                                          ("Taylor Swift", 9), ("Muse", 2), ("EchoMuse AI - Topic", 1)]}
     lines = []
     found = ac.check(names, pool, set(), {tag_ai.norm_name("RainyCityPop")}, printer=lines.append)
     text = "\n".join(lines)
-    assert found == ["EchoMuse AI"], found                                              # blocked already, near match and look-only names are never added
+    assert found == ["EchoMuse AI", "EchoMuse AI - Topic"], found                         # its "- Topic" channel counts as the same channel
+    assert " Muse " not in text.replace("EchoMuse", ""), text                              # the band Muse is not a near match of "EchoMuse AI"                                              # blocked already, near match and look-only names are never added
     assert "NEAR MATCH" in text and "look only" in text and "already in ai_block.txt" in text and "not in the pool" in text, text
-    assert [n for n, _ in ac.mill_channels(pool, set(), set())] == ["EchoMuse AI", "Lo Fi Study Chill Beats"]
+    assert [n for n, _ in ac.mill_channels(pool, set(), set())] == ["EchoMuse AI", "Lo Fi Study Chill Beats", "EchoMuse AI - Topic"]
     print("   exact names can be blocked, near matches and ? names are only shown, mood / lofi / AI mill names are listed for reading")
 
 
