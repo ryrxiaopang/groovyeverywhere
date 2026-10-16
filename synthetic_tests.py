@@ -1776,7 +1776,9 @@ def language_filter_test():
     print("\n29. LANGUAGE FILTER")
     import song_languages as sl, demo_server as ds, tempfile, os, csv
     fake = {"Despacito": [("spanish", 0.94), ("english", 0.01)], "Le bruit des vagues": [("french", 0.45), ("english", 0.16)],
-            "La Di Da": [("malay", 0.14), ("english", 0.03)], "Heather": [("english", 0.51)], "Glue Song": [("tagalog", 0.2), ("english", 0.17)]}
+            "La Di Da": [("malay", 0.14), ("english", 0.03)], "Heather": [("english", 0.51)], "Glue Song": [("tagalog", 0.2), ("english", 0.17)],
+            "NIENTE AMORE": [("italian", 0.36), ("english", 0.1)], "Testo": [("italian", 0.99)], "Kiss Me Better": [("english", 0.33), ("german", 0.23)],
+            "Julie Bergan": [("german", 0.95)], "frank": [("german", 0.54), ("english", 0.18)]}
     det = lambda text: next((v for k, v in fake.items() if k in text), [("english", 0.5)])
     cases = {("稻香", "Jay", "yt_pop"): "chinese", ("Lazy", "WOOSUNG", "yt_kindie"): "korean", ("Hello", "x", "yt_jrock"): "japanese",
              ("ยังไม่ชิน (NOT USED TO)", "x", "yt_pop"): "other", ("MƯA VỘI PHÓNG", "HYO", "yt_pop"): "other", ("Mañana", "x", "yt_pop"): "other",
@@ -1786,6 +1788,10 @@ def language_filter_test():
     for (t, a, g), want in cases.items():
         got = sl.label_song(t, a, g, "", det)[0]
         assert got == want, (t, got, want)
+    assert sl.label_song("NIENTE AMORE", "Metah", "yt_hiphop", "Testo: niente amore per me stanotte, solo la strada e il rumore", det)[0] == "other"   # title leans, description agrees
+    assert sl.label_song("NIENTE AMORE", "Metah", "yt_hiphop", "", det)[0] == "english"                                                        # leaning alone is not enough
+    assert sl.label_song("Kiss Me Better (Official Music Video)", "Julie Bergan", "yt_pop", "Julie Bergan sitt nye singel er ute naa, hor den i dag", det)[0] == "english"
+    assert sl.label_song("frank", "x", "yt_pop", "", det)[0] == "english"                                                                     # one-word titles need 0.6
     assert sl.clean_description("Provided to YouTube by X\nhttps://x.y\nSí, sabes que ya llevo un rato\n#tag") == "Sí, sabes que ya llevo un rato"
     p = os.path.join(tempfile.mkdtemp(), "song_languages.csv")
     rows = [dict(key="youtube_a", title="稻香"), dict(key="youtube_b", title="Heather")]

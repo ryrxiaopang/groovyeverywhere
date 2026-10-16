@@ -10,10 +10,13 @@ How a song is labelled, in this order (the first rule that applies wins):
   1. the writing in the TITLE: Hangul = Korean, kana = Japanese, Chinese characters = Chinese, Thai / Cyrillic / Arabic / ... = other;
   2. the search group it came from (kpop, khiphop ... = Korean; cpop, mrnb, chiphop, twindie, mrock, cantopop = Chinese; jpop, jrock ... = Japanese);
   3. the writing in the ARTIST name (same as 1);
-  4. Latin-script text: the detector reads the title and the song's own YouTube description (link lines, hashtags and stock phrases such as
-     "Provided to YouTube by" removed; English stock words such as "official video" left out). It says "other" only when it is fairly sure (another
-     language at least 0.6 and 0.3 ahead of English, or at least 0.4 while English is under 0.2; letters such as ñ ¿ ã or Vietnamese ones also count);
-     otherwise the song counts as English, so an English song is rarely hidden; the price is that some Spanish or French songs stay visible.
+  4. Latin-script titles: the detector (English, Spanish, Portuguese, French, Italian, German, Vietnamese, Indonesian) reads the TITLE, with English
+     stock words such as "official video" left out. "Other" only when fairly sure: another language at least 0.6 and 0.3 ahead of English, or at
+     least 0.4 (0.6 for one-word titles) while English is under 0.2; letters such as ñ ¿ ã or Vietnamese ones also count. When the title only
+     leans that way, the song's own YouTube description (link lines, hashtags, stock phrases removed) must agree strongly (0.8). Otherwise the song
+     counts as English, so an English song is rarely hidden; the price is that some Spanish or French songs stay visible.
+     (The first version read title + description together: 10 of 15 sampled "other" songs were English, because descriptions are often in the
+     artist's or label's language. Fixed 16 Oct.)
 Mandarin and Cantonese are one label (Chinese): they cannot be told apart from the characters.
 """
 import argparse, collections, csv, json, os, random, re, sys
@@ -68,8 +71,8 @@ def make_detector():
         from lingua import Language, LanguageDetectorBuilder
     except ImportError:
         raise SystemExit("the language detector is not installed: run  pip install lingua-language-detector  (desktop only), then try again")
-    names = ("ENGLISH", "SPANISH", "PORTUGUESE", "FRENCH", "ITALIAN", "GERMAN", "DUTCH", "VIETNAMESE", "INDONESIAN", "MALAY", "TAGALOG",
-             "TURKISH", "POLISH", "SWEDISH", "LATIN")
+    names = ("ENGLISH", "SPANISH", "PORTUGUESE", "FRENCH", "ITALIAN", "GERMAN", "VIETNAMESE", "INDONESIAN")   # 16 Oct: Latin, Tagalog, Dutch, Swedish ...
+                                                                                                               # were mostly false alarms on English titles
     langs = [getattr(Language, n) for n in names if hasattr(Language, n)]
     det = LanguageDetectorBuilder.from_languages(*langs).build()
 
@@ -95,17 +98,22 @@ def label_song(title, artist, group, description, detect):
     if IBERIAN.search(title or ""):
         return "other", "spanish / portuguese letters in the title"
     t = STOCK.sub(" ", title or "")
-    text = " ".join(x for x in (t, t, clean_description(description)) if x.strip())      # the title counts twice: it is always about the song
-    if not re.search(r"[A-Za-zÀ-ÿ]{2,}", text):
+    if not re.search(r"[A-Za-zÀ-ÿ]{2,}", t):
         return "unknown", "no words to read"
-    conf = detect(text)
+    conf = detect(t)                                   # the TITLE decides: descriptions are often in the artist's or label's language, not the song's
     if not conf:
         return "english", "detector gave nothing"
     best, p = conf[0]
     en = next((v for l, v in conf if l == "english"), 0.0)
-    if best != "english" and ((p >= 0.6 and p - en >= 0.3) or (en < 0.2 and p >= 0.4)):      # fairly sure it is not English (checked on 60 titles: no English song hidden)
-        return "other", f"{best} {p:.2f}"
-    return "english", f"english {en:.2f}" + (f" (best {best} {p:.2f}, not sure)" if best != "english" else "")
+    need = 0.6 if len(re.findall(r"[A-Za-zÀ-ÿ']+", t)) <= 1 else 0.4          # one-word titles fool the detector more easily
+    if best != "english" and ((p >= 0.6 and p - en >= 0.3) or (en < 0.2 and p >= need)):
+        return "other", f"{best} {p:.2f} (title)"
+    desc = clean_description(description)
+    if best != "english" and len(desc) >= 40:          # the title leans to another language but not clearly: the song's own description must agree, strongly
+        dc = detect(desc)
+        if dc and dc[0][0] == best and dc[0][1] >= 0.8:
+            return "other", f"{best} {p:.2f} (title) + description {dc[0][1]:.2f}"
+    return "english", f"english {en:.2f}" + (f" (title leans {best} {p:.2f}, not sure)" if best != "english" else "")
 
 
 def load_meta(res=RES):
