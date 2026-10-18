@@ -19,3 +19,19 @@ nohup.out
 .env
 .venv-voice/
 ai_check_sheet*.csv
+# Never commit: a signed-in YouTube cookies file (a credential), demo bundles and backups, filled-in listening sheets, local run outputs
+cookies*.txt
+*cookies*.txt
+*.zip
+youtube_listen_sheet*.csv
+songs_to_check.csv
+demo_samples.csv
+links.txt
+model_urls.txt
+deezer_artists*.json
+voice_dev_report*.md
+voice_dev_summary.json
+voice_dev_choice.json
+# outputs of evaluate.py --split all (they mix in the sealed test songs); the committed reports are report_test / report_validation
+report.html
+evidence_summary.json

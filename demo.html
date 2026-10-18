@@ -310,7 +310,7 @@ function looksLikeLink(t) { return /youtu\.?be|youtube\.com/i.test(t); }        
 $("go").onclick = () => {
   const t = $("url").value.trim();
   if (!t) return;
-  if (songs.length >= MAX_SONGS) { message("That is " + MAX_SONGS + " songs. Press “next person” for a fresh start.", "warn"); return; }
+  if (tooMany()) return;
   $("cands").classList.remove("on"); $("cands").innerHTML = "";
   if (looksLikeLink(t)) run("/api/link", { url: t }); else search(t);
 };
@@ -360,7 +360,11 @@ setInterval(() => {                                      // clicks inside the Yo
 ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(ev => window.addEventListener(ev, touchIdle, { passive: true }));
 touchIdle();
 $("url").addEventListener("keydown", e => { if (e.key === "Enter" && !$("go").disabled) $("go").click(); });
-$("capBtn").onclick = () => { message(""); $("fallback").classList.add("on"); $("fallback").scrollIntoView({ behavior: "smooth", block: "center" }); };
+function tooMany() {                                       // the 3-song limit, for every way in (search, link and tab capture)
+  if (songs.length < MAX_SONGS) return false;
+  message("That is " + MAX_SONGS + " songs. Press “next person” for a fresh start.", "warn"); return true;
+}
+$("capBtn").onclick = () => { if (tooMany()) return; message(""); $("fallback").classList.add("on"); $("fallback").scrollIntoView({ behavior: "smooth", block: "center" }); };
 
 function wav(samples, rate) {
   const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
@@ -375,6 +379,7 @@ function wav(samples, rate) {
 
 $("capGo").onclick = async () => {
   const SECONDS = 30; let stream;
+  if (tooMany()) return;
   message(""); showBusy(true);
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
@@ -413,7 +418,8 @@ async function toggleChip(b, sel) {                       // a feature or a lang
     const d = await r.json();
     if (d.ok) {
       if (songs[idx]) { songs[idx].results = d.results; songs[idx].features = chosenFeatures().split("+"); songs[idx].languages = chosenLangs().split("+"); }
-      if (active === idx) { renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B"); }
+      if (songs[idx]) songs[idx].warning = d.warning || "";                                   // a language change can change how close the best match is
+      if (active === idx) { $("warn").innerHTML = d.warning ? `<div class="msg warn">${esc(d.warning)}</div>` : ""; renderList("listA", d.results.A, "A"); renderList("listB", d.results.B, "B"); }
     } else { b.setAttribute("aria-pressed", on ? "true" : "false"); message(d.message || "Could not update the lists.", "err"); }
   } catch (e) { b.setAttribute("aria-pressed", on ? "true" : "false"); message("Could not update the lists: " + e.message, "err"); }
   showBusy(false);
@@ -423,7 +429,7 @@ document.querySelectorAll("#langs button").forEach(b => b.onclick = () => toggle
 
 function render(d) {                                       // a new result: either a new song for this visitor (a new tab) or the tab of a song they already tried
   const dup = d.input.kind === "capture" ? -1 : songs.findIndex(x => x.input.id === d.input.id);
-  if (dup >= 0) { showSong(dup); return; }
+  if (dup >= 0) { songs[dup].token = d.token; showSong(dup); return; }      // the newest token: the server keeps the newest results
   songs.push({ token: d.token, input: d.input, results: d.results, heard: d.heard, warning: d.warning, features: ["mood", "rhythm", "instruments"], languages: (d.results && d.results.languages) || DEFAULT_LANGS });
   showSong(songs.length - 1);
 }
@@ -498,8 +504,10 @@ function renderList(id, items, which) {
     };
     card.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
       card.querySelectorAll("[data-add]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+      const undo = () => { b.setAttribute("aria-pressed", "false"); message("That answer was not saved. Try again.", "err"); };
       fetch("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, visitor, list: which, rec_key: r.key, rec_title: r.title, would_add: b.dataset.add }) });
+        body: JSON.stringify({ token, visitor, list: which, rec_key: r.key, rec_title: r.title, would_add: b.dataset.add }) })
+        .then(res => { if (!res.ok) undo(); }).catch(undo);
     });
   });
 }

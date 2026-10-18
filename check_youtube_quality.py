@@ -72,6 +72,9 @@ def report(rows):
 def make_sheet(rows, n, seed, flagged):
     rng = random.Random(seed)
     pick = rng.sample(rows, min(n, len(rows)))
+    if os.path.exists(SHEET):                    # it may hold your answers: never overwritten (rename or delete it to make a new one)
+        print(f"{SHEET} exists already: not overwritten (it may hold your answers). Rename or delete it to make a new sheet.")
+        return
     with open(SHEET, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["item", "genre", "title", "channel", "views", "seconds", "auto_flag", "listen_here"] + QUESTIONS)
@@ -116,6 +119,9 @@ def make_selected_sheet(n, seed):
     picks = [(k, "web list") for k in web[: n // 2]] + [(k, "your playlist") for k in mine[: n - n // 2]]
     rng.shuffle(picks)
     qs = QUESTIONS[:1] + ["is_this_the_artist_I_meant (y/n)"] + QUESTIONS[1:]
+    if os.path.exists(SHEET2):
+        print(f"{SHEET2} exists already: not overwritten (it may hold your answers). Rename or delete it to make a new sheet.")
+        return
     with open(SHEET2, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(["item", "from", "genre", "artist", "title", "views", "channel_followers", "like_rate_pct", "listen_here"] + qs)

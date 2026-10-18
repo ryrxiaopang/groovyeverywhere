@@ -1,18 +1,24 @@
 # Demo day: run sheet
 
-The demo is a small website that runs **on your laptop only**. A visitor sits at your laptop, pastes a YouTube link, and gets similar songs from the pool.
-Built 12 Oct 2026 (`demo_server.py` + `demo.html`); tested offline with a fake backend and in a browser, **not yet run with the real models: rehearse it** (section 2).
+The demo is a small website. A visitor types a song name or pastes a YouTube link and gets similar songs from the pool (about 9,000 songs by 2,460 artists).
+Built 12 Oct 2026 (`demo_server.py` + `demo.html`); rehearsed with real songs on the desktop on 16 Oct (17 of 17 worked; a new song about 20 s, a stored song 1-2 s). Not yet rehearsed on the booth laptop.
+
+It runs in two places:
+* **The public link** (https://ryrxiaopang.github.io/groovyeverywhere/, judges and anyone online): the DESKTOP runs `nohup python demo_server.py --k 5 > demo_live.log 2>&1 &` plus a Cloudflare quick tunnel
+  `nohup cloudflared tunnel --url http://localhost:8765 > tunnel.log 2>&1 &`. The GitHub Pages page (`docs/index.html`) checks that the demo answers and forwards to the tunnel address in its `LIVE = "..."` line.
+  After a code update restart only the demo server (the tunnel keeps its address); if cloudflared restarts, put the new address from `tunnel.log` in `LIVE` and push to master. Keep the desktop on and awake.
+* **The booth** (demo day): the LAPTOP runs it for visitors at the table (section 2b). Booth and online visitors on the same machine share one queue.
 
 ## 1. What it does: the booth setup (decided 12 Oct)
 
-The demo runs **on your laptop only**, at a **booth**: visitors sit at the laptop, say a song they love, and get recommendations on the spot. There are **no fixed songs**: everything starts from the visitor's own song.
+At the **booth** the demo runs on the laptop: visitors sit at the laptop, say a song they love, and get recommendations on the spot. There are **no fixed songs**: everything starts from the visitor's own song.
 
 | Way in | What happens | Time | Needs internet |
 | --- | --- | --- | --- |
 | **Type a song and artist** (main) | the page searches YouTube (yt-dlp, no API quota), shows 5 candidates with a thumbnail and length; the visitor taps the right one | search 3-8 s | yes |
-| ...that song is **already stored** | many popular songs are already in the pool, or an earlier visitor brought them (their NUMBERS are cached in `results/demo_cache/`, never audio). Such a candidate shows an **INSTANT** badge: no YouTube, no download, no analysis | 3-5 s | no |
-| ...a **new** song | downloads the audio with yt-dlp, analyses it with the same models as the pool, finds matches, deletes the audio, keeps the numbers | about 30 s | yes |
-| **Paste a YouTube link** | same as above without the search step | about 30 s | yes |
+| ...that song is **already stored** | many popular songs are already in the pool, or an earlier visitor brought them (their NUMBERS are cached in `results/demo_cache/`, never audio). Such a candidate shows an **INSTANT** badge: no YouTube, no download, no analysis | 1-2 s | no |
+| ...a **new** song | downloads the audio with yt-dlp, analyses it with the same models as the pool, finds matches, deletes the audio, keeps the numbers | about 20 s on the desktop (7 s download, 13 s analysis); the laptop is slower, not yet timed | yes |
+| **Paste a YouTube link** | same as above without the search step | as above | yes |
 | **Capture a browser tab** (Plan B) | if YouTube blocks the download: the song plays in another Chrome tab, the page records 30 s of that tab's audio and analyses that | about 60 s | yes |
 | *Operator samples (Plan C)* | `http://localhost:8765/?samples=1` shows sample buttons (from `demo_samples.csv`). They are hidden from visitors. Use only if everything else fails | instant | no |
 
@@ -32,8 +38,8 @@ What is saved on the laptop (anonymous, no names, no audio): `results/demo_log.c
 `http://localhost:8765`, that the page looks right on the projector, and that the tab-capture window opens (pick a tab, tick "Also share tab audio"). It never shows real results, so do not use it for the actual demo.
 
 **Real rehearsal (needs the machine free: stop analysis and pool-growing jobs first):**
-1. `git pull origin claude/brave-rubin-xs7hbb`, finish all analysis and pool-growing jobs, `python mark_ai_out.py --apply`, `python pool_duplicates.py --apply`, **freeze the pool**. (A changed pool changes the results the audience sees.)
-2. `source .venv/bin/activate && source env_keys.sh && python -m pip install -U yt-dlp` (an old yt-dlp is the most common reason for a blocked download).
+1. `git pull origin master`, finish all analysis and pool-growing jobs, `python mark_ai_out.py --apply`, `python pool_duplicates.py --apply`, **freeze the pool**. (A changed pool changes the results the audience sees.)
+2. `curl -fsSL https://deno.land/install.sh | sh` (once; open a new terminal afterwards), then `source .venv/bin/activate && source env_keys.sh && python -m pip install -U "yt-dlp[default]"` (an old yt-dlp, or no deno, is the most common reason for a blocked download).
 3. **`python demo_server.py --check`**: one line per thing that can fail on the day (yt-dlp age, ffmpeg, Essentia, memory, running jobs, the port, whether YouTube answers, the sample list, the address for a phone). Fix every `[FAIL]`, look at every `[warn]`.
 4. Make a text file with **10 or more songs**, one per line: a song NAME like a visitor would type it, or a link (`cp rehearsal_songs.txt links.txt` gives you a starting list: hits, the pool's styles, songs outside them, a long one). Run `python demo_server.py --rehearse links.txt`. It searches each name, takes the first candidate and runs it through the real
    pipeline without the browser, printing one line each (OK / FAIL, seconds, the song, its top match, `(stored)` when no download was needed, and CAPTURE where the tab-capture box would have appeared). `python demo_server.py --summary` then gives the median seconds per stage. Write the real numbers on your run sheet.
@@ -56,12 +62,13 @@ The page also shows a **"what we heard"** strip under the starting song: the moo
 The desktop analyses songs; the **laptop is the booth machine**, so it needs everything the demo reads. The full backup is about 10 GB; the demo needs a few hundred MB.
 1. **On the desktop, after the pool is frozen** (`mark_ai_out.py --apply`, `pool_duplicates.py --apply`, all analysis finished):
    `python make_demo_bundle.py --out /mnt/c/Users/NAME/Downloads` (add `--dry-run` first to see the size). It packs only the pool songs' numbers (cut down to what the recommender reads: tested to give the same query), the lists, the tags and a README.
-2. **Copy the zip to the laptop** (USB stick or Drive) and follow `DEMO_BUNDLE_README.txt` inside it: `git pull` the code, `unzip -o` the bundle in the project folder, install the requirements, `python models.py` (about 60 MB), `sudo apt install ffmpeg`, `pip install -U yt-dlp`.
+2. **Copy the zip to the laptop** (USB stick or Drive) and follow `DEMO_BUNDLE_README.txt` inside it: `git checkout master && git pull` the code, `unzip -o` the bundle in the project folder, install the requirements, `python models.py` (about 60 MB), `sudo apt install ffmpeg`, `pip install -U "yt-dlp[default]"`, and deno (`curl -fsSL https://deno.land/install.sh | sh`, then a new terminal).
+   The bundle does not carry `results/demo_cache/` (songs visitors brought to the desktop demo): on the laptop those are downloaded and analysed again, so `--rehearse` measures the laptop's real speed.
 3. `python demo_server.py --check`: it now also checks the models and that the pool's numbers are all there (a bundle that did not unzip properly shows up here).
 4. **Make a new bundle whenever the pool changes** (it must be the same pool as on the desktop).
 
-**Speed on the laptop (the CPU, not the memory, is the question; the GPU is not used at all by the analysis).** On the desktop a new song takes about 10-15 s to analyse. The laptop will be slower. What helps, in the order to try:
-* **Stored songs cost nothing:** a song already in the pool (or brought by an earlier visitor) is served in about 5 s with no download or analysis (the INSTANT badge). Steer visitors to the badge.
+**Speed on the laptop (the CPU, not the memory, is the question; the GPU is not used at all by the analysis).** On the desktop a new song takes about 13 s to analyse (about 20 s with the download). The laptop will be slower. What helps, in the order to try:
+* **Stored songs cost nothing:** a song already in the pool (or brought by an earlier visitor) is served in 1-2 s with no download or analysis (the INSTANT badge). Steer visitors to the badge.
 * **The demo uses the FULL analysis of the WHOLE song** (user decision, 12 Oct: accuracy first, a longer wait is fine): exactly the pipeline the pool songs went through. Two speed-ups exist but are OFF unless you start the server with them: `--fast` skips the models the app never reads (identical numbers on paper, checked only with fake models so far) and `--excerpt N` analyses only the middle of long songs (slightly different numbers).
 * **For information, measure what the speed-ups would do:** `python demo_server.py --benchmark "Blinding Lights The Weeknd"` on the laptop downloads one song and analyses it four ways (full, fast, fast + middle 90 s, fast + middle 60 s), printing the seconds, where the time went, and how many of the top 10 matches stay the same as with the full analysis. Run it for 3 songs of different styles. You have chosen accuracy, so the demo keeps whole songs; the numbers tell you what you are trading if a long queue ever makes you reconsider.
 * **The download** (yt-dlp plus ffmpeg's mp3 conversion) is shown separately in the benchmark. A phone hotspot with a good signal matters more than the CPU for it.
@@ -80,13 +87,13 @@ The desktop analyses songs; the **laptop is the booth machine**, so it needs eve
 ## 4. At the booth (about 1-2 minutes per visitor)
 
 1. **Hook (sign or you say it):** "Tell us a song you love. We'll find songs that sound like it." Point at the box.
-2. **Visitor types** the song and artist, taps the right candidate (the INSTANT badge = served at once). While a new song is analysed (about 30 s) the page explains what it is doing; you can say it too: "it turns the song into numbers for the sound, mood, beat and instruments; the audio is thrown away; only numbers stay."
+2. **Visitor types** the song and artist, taps the right candidate (the INSTANT badge = served at once). While a new song is analysed (about 20 s on the desktop, longer on the laptop) the page explains what it is doing; you can say it too: "it turns the song into numbers for the sound, mood, beat and instruments; the audio is thrown away; only numbers stay."
 3. **Read the results together.** "What we heard" (is the mood right?), the left list (closest in sound), the right list (also matching what you care about: untick "the rhythm" and the list changes). Play one match.
 3b. **Offer a second song** ("+ another song", up to 3): "Got another one you love?" It gets its own tab; the songs are never mixed.
 4. **Ask:** "Would you add this to a playlist?" and tap **would add** / **skip** for them on two or three matches. That is the feedback you collect.
 5. Press **next person**.
 
-**Queue:** one song at a time (about 30 s for a new song, 5 s for a stored one). While one person's song is being analysed, ask the next person to think of their song and spell the artist. Do not run a second browser window.
+**Queue:** one song at a time (about 20 s for a new song on the desktop, 1-2 s for a stored one). Changing chips on a result never waits for the queue. While one person's song is being analysed, ask the next person to think of their song and spell the artist. Do not run a second browser window.
 **Sound:** the play buttons use the laptop speaker. A small speaker or a headphone splitter helps in a noisy hall.
 **Internet:** use your phone's hotspot as the main connection, not the venue Wi-Fi (a crowded Wi-Fi is the most likely cause of failed searches).
 **Keep it running:** laptop plugged in, no sleep, the WSL window open. Re-run `python demo_server.py --check` at the start of each session.
@@ -98,20 +105,20 @@ The desktop analyses songs; the **laptop is the booth machine**, so it needs eve
 | --- | --- | --- |
 | "YouTube blocked the download" + a yellow Plan B box | YouTube returned 403 (it blocked 4 of 23 downloads on 11 Oct) | press **start the 30-second capture**, pick the tab with the song playing, tick "Also share tab audio" |
 | "The recording was (almost) silent" | the audio box was not ticked, or the tab was muted | repeat; make sure the song is audible in that tab |
-| "Another song is being analysed" | one request at a time | wait 20 s |
+| "Another song is being analysed" | one analysis at a time (online visitors share the queue) | wait 20 s |
 | Light stays orange / "pool did not load" | the pool or models failed to load | look at the WSL window for the error; restart `python demo_server.py` (about a minute); meanwhile show the backup video |
 | "That video is N minutes long" | a mix or a live stream | pick a single song |
 | No thumbnails, play buttons do nothing | no internet | the matches are still right; use the "open on YouTube" links later; samples still work |
-| Matches look odd for a song | it may sit outside the pool's styles (mostly pop, R&B, indie, K/C/J-pop) | say so: "the pool has about 5,300 songs; a metal or classical track has no close neighbours here" |
-| Everything fails | | show the backup video, then explain the design and the friends' results |
+| Matches look odd for a song | it may sit outside the pool's styles (mostly pop, R&B, indie, K/C/J-pop) | say so: "the pool has about 9,000 songs; a metal or classical track has no close neighbours here" |
+| Everything fails | | show the backup video, then explain the design and the sealed-test results (README, "Results") |
 
 ## 6. Say this honestly (what the demo does NOT prove)
 
-- It is a **recommendation by sound**, from a pool of about 5,300 songs (YouTube only, mostly pop, R&B, indie and Asian pop). It is not a general music service.
-- The match scores are not "how much you will like it". The friends' test is the evidence for that, and it had only a handful of friends.
+- It is a **recommendation by sound**, from a pool of about 9,000 songs (YouTube only, mostly pop, R&B, indie and Asian pop). It is not a general music service.
+- The match scores are not "how much you will like it". There is no scored listener test yet: the first friends' round was confounded by AI uploads, and the second was not scored (the ratings did not come back).
 - Rhythm is the weakest of the four features (the beat-detection checks failed at 64-67% against an 85% bar).
 - AI-generated songs were removed with a tagger that finds about 77% of them: some remain.
-- Nothing is stored except numbers, titles and your "would add" answers on this laptop.
+- Nothing is stored except numbers, titles and the "would add" answers, on the machine that runs the demo.
 
 ## 7. After the demo
 

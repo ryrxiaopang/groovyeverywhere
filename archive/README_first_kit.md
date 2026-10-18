@@ -5,7 +5,7 @@ Main tools added since the first kit: `build_youtube.py`, `deezer_discover.py`, 
 `blind_test.py`, `build_friend_lists.py` (friends' lists and scoring); `recommend_song.py`, `demo_server.py` + `demo.html`, `make_demo_bundle.py` (recommendations and the demo).
 
 
-# Hidden Gems – first tests with Essentia's models
+# groovyeverywhere – first tests with Essentia's models (the original kit)
 
 ## Quick setup on a new machine (desktop)
 

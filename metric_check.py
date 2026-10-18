@@ -19,6 +19,9 @@ import os
 
 def load(keys_wanted=("effnet_whole", "musicnn_whole", "cand_vggish_whole")):
     rows = latest_rows(RES)
+    from evaluate import mtg_test_ids
+    sealed = mtg_test_ids()                  # rule 2: the sealed test songs never help choose how Sound is measured
+    rows = {k: r for k, r in rows.items() if k not in sealed}
     out = {"key": [], "artist": [], "group": []}
     emb = {k: [] for k in keys_wanted}
     for k, r in sorted(rows.items()):

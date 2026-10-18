@@ -1,4 +1,5 @@
-"""The live demo: paste a YouTube link, get similar songs from the pool. Runs on this laptop only.
+"""The live demo: type a song name or paste a YouTube link, get similar songs from the pool. Runs on the booth laptop, and on the desktop for the public link
+(a Cloudflare tunnel to this port; see DEMO.md).
 
   python demo_server.py                     # then open http://localhost:8765 in Chrome (the pool takes a minute to load: the page says when it is ready)
   python demo_server.py --k 8 --port 8800   # 8 songs per list; another port
@@ -13,7 +14,8 @@ the same rules as the friends' test (recommend_song.recommend_query). The audio 
 only numbers are used. Logs (numbers and titles, no audio): results/demo_log.csv (every run, with the seconds each stage took) and
 results/demo_feedback.csv (the "would you add it?" answers).
 
-One request at a time (the models use a lot of memory): a second request while one runs gets "busy".
+One analysis at a time (the models use a lot of memory): a second song while one runs gets "busy". Changing chips on a result already shown
+does not wait for another visitor's analysis (it only re-ranks stored numbers); at most 2 YouTube searches run at once.
 """
 import argparse, collections, csv, json, os, re, subprocess, sys, tempfile, threading, time
 import numpy as np
@@ -34,10 +36,13 @@ CAPTURE_MSG = "The recording does not sound much like music (noise or a very qui
 FEEDBACK_COLS = ["time", "visitor", "token", "kind", "input", "list", "rec_key", "rec_title", "rating", "would_add"]
 MAX_SECONDS = 600                       # a song, not a mix or a live stream
 MAX_CLIP_BYTES = 25 * 1024 * 1024
+KEEP_RESULTS = 500                      # results kept for chip changes and answers (about 15 KB each); booth and online visitors share them
+MAX_SEARCHES = 2                        # YouTube searches running at once (each is a yt-dlp process): more get "busy"
 VALID_FEATURES = ("mood", "rhythm", "instruments")
 DEFAULT_FEATURES = "mood+rhythm+instruments"
 VALID_LANGUAGES = ("english", "chinese", "korean", "japanese", "other")   # labels from song_languages.py (results/song_languages.csv)
 DEFAULT_LANGUAGES = ("english", "chinese", "korean")                     # user decision 16 Oct: Japanese and other languages are opt-in chips
+PAGES_ORIGIN = "https://ryrxiaopang.github.io"          # docs/index.html (the public link) may read /api/status, nothing else
 YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
 _ID = r"[A-Za-z0-9_-]{11}"
 
@@ -57,12 +62,16 @@ def clean_visitor(x):
 def video_id(text):
     """The 11-character YouTube id in a pasted link (watch?v=, youtu.be/, shorts/, embed/, live/) or a bare id; None for anything else.
     Only the id is used afterwards (the server rebuilds the address itself), so nothing but YouTube can be fetched."""
-    t = (text or "").strip()
+    t = str(text or "").strip()
     if re.fullmatch(_ID, t):
         return t
     if not t or " " in t:
         return None
-    u = urlparse(t if "://" in t else "https://" + t)
+    try:
+        u = urlparse(t if "://" in t else "https://" + t)
+        u.hostname                                            # raises ValueError for a broken address such as https://[youtube.com/x
+    except ValueError:
+        return None
     host = (u.hostname or "").lower()
     if host not in YT_HOSTS:
         return None
@@ -79,6 +88,30 @@ def video_id(text):
 def yt_id_of(link):
     m = re.search(rf"(?:v=|youtu\.be/|/shorts/|/embed/)({_ID})", link or "")
     return m.group(1) if m else ""
+
+
+def artist_names(title, channel):
+    """The names the starting song's artist may go by, so that artist is never recommended back: the channel without ' - Topic' / 'VEVO' / 'Official',
+    and the artist part of an "Artist - Song" title (each name of "A, B & C - Song"). A label channel (HYBE LABELS) alone would let the artist's own
+    channel through; the title usually names the artist."""
+    out = []
+    ch = re.sub(r"\s*-\s*Topic\s*$", "", channel or "", flags=re.I)
+    ch = re.sub(r"(?i)vevo$|\bofficial\b|\bmusic\b|\bchannel\b", " ", ch).strip(" -|")
+    if ch:
+        out.append(ch)
+    parts = re.split(r"\s+[-–—]\s+", title or "", maxsplit=1)
+    if len(parts) == 2 and 0 < len(parts[0]) <= 60:
+        left = re.sub(r"[\(\[].*?[\)\]]", " ", parts[0])
+        out += [a.strip() for a in re.split(r",|&|\bx\b|\bfeat\.?|\bft\.?", left, flags=re.I) if len(a.strip()) >= 3]
+    else:                                                     # K-pop style "BTS (방탄소년단) 'Dynamite' Official MV" on a label channel
+        m = re.match(r"^\s*([^'\"‘“()\[\]]{2,40}?)\s*(?:\([^)]*\))?\s+['\"‘“][^'\"’”]{1,60}['\"’”]", title or "")
+        if m and len(m.group(1).strip()) >= 2:
+            out.append(m.group(1).strip())
+    seen, res = set(), []
+    for a in out:
+        if a.lower() not in seen:
+            seen.add(a.lower()); res.append(a)
+    return res
 
 
 def _plain(o):
@@ -169,7 +202,7 @@ class Backends:
             import match
             match.windows(); match.windows(False)
         except Exception as e:
-            print(f"  (sliding windows not ready: {str(e)[:80]}; the first song will build them)")
+            print(f"!! sliding windows not ready: {str(e)[:300]}\n   matches will skip the ~30 s stretches (slightly different from the desktop)")
         return n
 
     def weak_cosine(self):
@@ -266,8 +299,11 @@ class Backends:
         return q, meta
 
     def cache_put(self, vid, feats, meta):
-        """Keep the analysed NUMBERS (never the audio) of a visitor's song so that the next visitor with the same song is served at once."""
+        """Keep the analysed NUMBERS (never the audio) of a visitor's song so that the next visitor with the same song is served at once.
+        Not when --excerpt is on: those numbers come from part of the song, and a stored song is served as if it were a full analysis."""
         import numpy as np
+        if int(os.environ.get("HG_DEMO_EXCERPT", "0") or 0):
+            return
         arrays = {}
         for k, v in feats.items():
             try:
@@ -400,10 +436,13 @@ class Demo:
     def __init__(self, backends=None, k=6, log=LOG, feedback=FEEDBACK):
         self.b = backends or Backends()
         self.k, self.log, self.feedback = k, log, feedback
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()                          # one analysis at a time
+        self.match_lock = threading.Lock()                    # one re-ranking at a time (chips): does not wait for an analysis
+        self.mem_lock = threading.Lock()                      # guards self.last
+        self.search_slots = threading.BoundedSemaphore(MAX_SEARCHES)
         self.ready, self.pool_size, self.warm_error = False, 0, ""
         self.stage, self.since = "", 0.0
-        self.last = collections.OrderedDict()                # token -> (query, meta, input description): kept for "refine"
+        self.last = collections.OrderedDict()                # token -> (query, meta, input description): kept for "refine" and "rate" (KEEP_RESULTS newest)
         self.counter = 0
         self.samples_cache = None
         self.fake = False                                     # practice mode (canned matches): the page shows a banner so it can never be mistaken for the real thing
@@ -455,22 +494,28 @@ class Demo:
     def _finish(self, kind, ident, q, meta, features, times, extra_input, source="new"):
         t = time.time()
         self._stage("finding matches")
-        res = shape(self.b.recommend(q, meta, self.k, features, languages=list(DEFAULT_LANGUAGES)), self.k)
+        with self.match_lock:
+            res = shape(self.b.recommend(q, meta, self.k, features, languages=list(DEFAULT_LANGUAGES)), self.k)
         times["match"] = time.time() - t
         try:
             heard = self.b.heard(q)
         except BaseException:                                # the strip is a bonus: never let it break a result
             heard = {}
-        self.counter += 1
-        token = f"{int(time.time())}-{self.counter}"
-        self.last[token] = (q, meta, dict(kind=kind, id=ident))
-        while len(self.last) > 8:
-            self.last.popitem(last=False)
+        with self.mem_lock:
+            self.counter += 1
+            token = f"{int(time.time())}-{self.counter}"
+            self.last[token] = (q, meta, dict(kind=kind, id=ident))
+            while len(self.last) > KEEP_RESULTS:
+                self.last.popitem(last=False)
         body = dict(ok=True, token=token, input=dict(kind=kind, id=ident, **extra_input), results=res, heard=heard, source=source)
-        bs = res.get("best_sound")
-        if bs is not None and bs < self.b.weak_cosine():           # nothing in the pool is really close: say so instead of presenting weak matches as good
-            body["warning"] = CAPTURE_MSG if kind == "capture" else POOL_MSG
+        self._warn(body, kind)
         return body
+
+    def _warn(self, body, kind):
+        """Nothing in the pool is really close: say so instead of presenting weak matches as good (also after a chip change, which can change the best match)."""
+        bs = body["results"].get("best_sound")
+        if bs is not None and bs < self.b.weak_cosine():
+            body["warning"] = CAPTURE_MSG if kind == "capture" else POOL_MSG
 
     # ---- the three ways in
     def from_link(self, text, visitor=""):
@@ -491,7 +536,7 @@ class Demo:
             if stored:
                 q, meta = stored
                 ttl, art = meta.get("title") or vid, meta.get("artist") or ""
-                return self._finish("link", vid, q, dict(title=ttl, artist=art), DEFAULT_FEATURES, times,
+                return self._finish("link", vid, q, dict(title=ttl, artist=art, aliases=artist_names(ttl, art)), DEFAULT_FEATURES, times,
                                     dict(title=ttl, artist=art, seconds=meta.get("duration") or 0), source="stored")
             t = time.time(); self._stage("looking up the song")
             info = self.b.info(vid)
@@ -523,17 +568,19 @@ class Demo:
                 except BaseException:                         # a full disk or an odd value must not cost the visitor their result
                     pass
             q = self.b.query(feats)
-            return self._finish("link", vid, q, dict(title=info["title"], artist=info["channel"]), DEFAULT_FEATURES, times,
+            return self._finish("link", vid, q, dict(title=info["title"], artist=info["channel"], aliases=artist_names(info["title"], info["channel"])), DEFAULT_FEATURES, times,
                                 dict(title=info["title"], artist=info["channel"], seconds=info["duration"]))
         return self._job("link", vid, run, visitor)
 
     def search(self, text, visitor=""):
         """Candidates for a typed song name (not a 'job': it only reads YouTube's search page). Each candidate says whether its numbers are stored already."""
-        q = re.sub(r"\s+", " ", (text or "").strip())[:90]
+        q = re.sub(r"\s+", " ", str(text or "").strip())[:90]
         if len(q) < 2:
             return 400, dict(error="empty", message="Type a song name, and the artist if you can.")
         if not self.ready:
             return 503, dict(error="warming_up", message=self.warm_error or "The song pool is still loading: wait for the green light at the top of the page.")
+        if not self.search_slots.acquire(blocking=False):
+            return 200, dict(ok=False, error="busy", message="A few searches are running already. Try again in a moment.", query=q, results=[])
         t0, err, res = time.time(), "", []
         try:
             res = self.b.search(q, 5)
@@ -548,6 +595,7 @@ class Demo:
             err = f"internal: {type(e).__name__}"
             return 200, dict(ok=False, error="search_failed", message="YouTube search did not answer. Paste the song's link instead.", query=q, results=[])
         finally:
+            self.search_slots.release()
             append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(visitor), kind="search", input=q, title=f"{len(res)} results", ok=int(not err), error=err,
                                                 seconds_total=round(time.time() - t0, 1)))
 
@@ -596,21 +644,36 @@ class Demo:
         """New lists for a result already shown: other features and / or other languages (no new analysis)."""
         feats = [f for f in (features or "").split("+") if f in VALID_FEATURES]
         langs = [l for l in str(languages or "+".join(DEFAULT_LANGUAGES)).split("+") if l in VALID_LANGUAGES]
-        if token not in self.last or not feats or not langs:
-            return 400, dict(error="bad_request", message="Unknown result, or no feature or language chosen.")
-        q, meta, inp = self.last[token]
-
-        def run(times):
-            res = shape(self.b.recommend(q, meta, self.k, "+".join(feats), languages=langs), self.k)
-            return dict(ok=True, token=token, input=dict(inp), results=res)
-        return self._job("refine", token, run)
+        with self.mem_lock:
+            got = self.last.get(token)
+        if not self.ready:
+            return 503, dict(error="warming_up", message="The song pool is still loading.")
+        if got is None or not feats or not langs:
+            return 400, dict(error="bad_request", message="This result has expired (the demo was restarted). Bring the song again." if feats and langs
+                             else "Choose at least one feature and one language.")
+        q, meta, inp = got
+        t0, err = time.time(), ""
+        try:
+            with self.match_lock:                                 # re-ranking stored numbers: never waits for another visitor's analysis
+                res = shape(self.b.recommend(q, meta, self.k, "+".join(feats), languages=langs), self.k)
+            body = dict(ok=True, token=token, input=dict(inp), results=res)
+            self._warn(body, inp.get("kind"))
+            return 200, body
+        except BaseException as e:
+            err = f"internal: {type(e).__name__}"
+            return 500, dict(error="internal", message=f"Something went wrong inside the demo ({type(e).__name__}).")
+        finally:
+            append_row(self.log, LOG_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), kind="refine", input=token, ok=int(not err), error=err,
+                                                seconds_total=round(time.time() - t0, 1), detail=f"{'+'.join(feats)} / {'+'.join(langs)}"))
 
     def rate(self, data):
         token, which = str(data.get("token", "")), str(data.get("list", ""))
         rating, add = data.get("rating"), str(data.get("would_add", "")).lower()
-        if token not in self.last or which not in ("A", "B") or add not in ("yes", "no", "") or not (rating in (None, "") or rating in (1, 2, 3, 4, 5)):
+        if not token or which not in ("A", "B") or add not in ("yes", "no", "") or not (rating in (None, "") or rating in (1, 2, 3, 4, 5)):
             return 400, dict(error="bad_request", message="Could not save that answer.")
-        inp = self.last[token][2]
+        with self.mem_lock:
+            got = self.last.get(token)
+        inp = got[2] if got else dict(kind="", id="")                # an answer to an older result (e.g. after a restart) is still saved
         append_row(self.feedback, FEEDBACK_COLS, dict(time=time.strftime("%Y-%m-%d %H:%M:%S"), visitor=clean_visitor(data.get("visitor")), token=token, kind=inp["kind"], input=inp["id"], list=which,
                                                        rec_key=str(data.get("rec_key", ""))[:60], rec_title=str(data.get("rec_title", ""))[:120],
                                                        rating=rating if rating is not None else "", would_add=add))
@@ -619,12 +682,16 @@ class Demo:
 
 def make_handler(demo, html_path):
     class H(BaseHTTPRequestHandler):
+        timeout = 30                                              # a client that sends its request very slowly does not hold a thread for ever
+
         def log_message(self, *a):
             pass
 
-        def _send(self, code, body, ctype="application/json; charset=utf-8"):
+        def _send(self, code, body, ctype="application/json; charset=utf-8", cors=False):
             b = body if isinstance(body, bytes) else (json.dumps(body, default=_plain) if not isinstance(body, str) else body).encode("utf-8")
             self.send_response(code); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(b)))
+            if cors:                                              # only /api/status: the GitHub Pages front door checks the demo is up before it forwards
+                self.send_header("Access-Control-Allow-Origin", PAGES_ORIGIN)
             self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(b)
 
         def _length(self, limit):
@@ -653,7 +720,7 @@ def make_handler(demo, html_path):
                 with open(html_path, "rb") as f:
                     return self._send(200, f.read(), "text/html; charset=utf-8")
             if path == "/api/status":
-                return self._send(200, demo.status())
+                return self._send(200, demo.status(), cors=True)
             if path == "/api/samples":
                 return self._send(200, demo.get_samples())
             self._send(404, {})
@@ -667,9 +734,9 @@ def make_handler(demo, html_path):
                 else:
                     d = self._json_body()
                     if u.path == "/api/link":
-                        code, body = demo.from_link(d.get("url"), d.get("visitor"))
+                        code, body = demo.from_link(str(d.get("url") or ""), d.get("visitor"))
                     elif u.path == "/api/search":
-                        code, body = demo.search(d.get("q"), d.get("visitor"))
+                        code, body = demo.search(str(d.get("q") or ""), d.get("visitor"))
                     elif u.path == "/api/sample":
                         code, body = demo.from_sample(str(d.get("key", "")), d.get("visitor"))
                     elif u.path == "/api/refine":
@@ -680,6 +747,8 @@ def make_handler(demo, html_path):
                         code, body = 404, {}
             except DemoError as e:
                 code, body = e.status, dict(error=e.code, message=e.message)
+            except Exception as e:                                # an odd request gets an answer, not a dropped connection
+                code, body = 500, dict(error="internal", message=f"Could not handle that request ({type(e).__name__}).")
             self._send(code, body)
     return H
 
@@ -963,7 +1032,7 @@ def main():
     if other_jobs_running():
         print("!! an analysis / pool-growing job is running: the demo will be slow and may run out of memory. Stop it before the demo day.")
     import sources
-    old = sources.sweep_stale_temp(120)                            # audio folders a killed demo / analysis left in the temp folder (rule 1: no audio is kept)
+    old = sources.sweep_stale_temp(600)                            # audio folders a killed demo / analysis left in the temp folder (rule 1: no audio is kept); 10 min so a running analysis is never touched
     if old:
         print(f"removed {old} leftover temporary audio folder(s) from an earlier run")
     demo = Demo(k=a.k)

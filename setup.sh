@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot setup for a new machine (Ubuntu / WSL2). Run from inside hidden-gems-tests:
+# One-shot setup for a new machine (Ubuntu / WSL2). Run from inside the project folder (~/groovyeverywhere):
 #   bash setup.sh
 # Safe to run again: every step skips what is already done.
 set -e

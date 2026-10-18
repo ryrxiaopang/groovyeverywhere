@@ -1,6 +1,8 @@
 # Voice feature: pipeline design (6 Oct 2026)
 
-Status: DESIGN ONLY. Nothing here is built, and nothing here touches the sealed test run.
+**Status (updated 18 Oct 2026): built on 7 Oct and DROPPED from version 1.** The development dry run (train-split songs only) gave Sound + Voice a gain of
++2.8 points (95% range -5.1 to +10.8) against the +10 bar set before the run (`voice_dev_analysis.py`), so the sealed test was not spent on it.
+The design below is kept as it was written on 6 Oct; nothing here touched the sealed test run.
 Goal: decide, with a test that can actually give an answer, whether a "match the singer" feature belongs in the
 recommender (TODO.md item 3: build or drop).
 
@@ -118,4 +120,3 @@ Code that must change if Voice is adopted: `blind_test.FEATURES` and `valid_feat
 4. Top up the test list, run it, score it once with `voice_test.py`, write the result into the report.
 5. Adopt (pool run, scoring, database) or drop (README and plan edit).
 
-Open decisions for the project owner are listed in the chat reply that came with this file.

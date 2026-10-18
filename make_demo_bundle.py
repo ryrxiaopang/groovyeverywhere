@@ -103,8 +103,11 @@ def build(here=HERE, out_dir=".", dry_run=False, when=None):
             owner, vecs = [], []
             if not dry_run:
                 for i, k in enumerate(rows):
-                    with np.load(os.path.join(res, f"{k}.npz")) as d:
-                        wm = match.window_means(d["effnet_chunks"])
+                    try:
+                        with np.load(os.path.join(res, f"{k}.npz")) as d:
+                            wm = match.window_means(d["effnet_chunks"])
+                    except Exception:                                    # one unreadable file must not stop the bundle half-way (match.windows skips it too)
+                        continue
                     vecs.append(wm); owner.extend([i] * len(wm))
                 buf = io.BytesIO()
                 np.savez(buf, keys=np.array(list(rows)), owner=np.array(owner, np.int32), vecs=np.concatenate(vecs), raw=np.array(1))

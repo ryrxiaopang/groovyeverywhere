@@ -31,6 +31,16 @@ def clean_title(title, artist):
     return t.strip() or title
 
 
+def _growth_running():
+    """True while a pool-growing job runs (they read pool_youtube.csv once and rewrite it after each search)."""
+    import subprocess
+    try:
+        out = subprocess.run(["pgrep", "-f", "[b]oost_artists.sh|[g]row_more.sh|[b]uild_youtube.py|[b]uild_from_spotify.py"], capture_output=True, text=True).stdout.split()
+    except OSError:
+        return False
+    return any(p != str(os.getpid()) for p in out)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("url")
@@ -45,6 +55,9 @@ def main():
         info = ydl.extract_info(url, download=False)
     except Exception:                                   # e.g. an auto-generated 'Topic' channel has no Videos tab
         info = ydl.extract_info(a.url, download=False)
+    if not a.dry_run and _growth_running():
+        raise SystemExit("a pool-growing job (boost_artists.sh / grow_more.sh / build_youtube.py / build_from_spotify.py) is running: it keeps its own copy of "
+                         "pool_youtube.csv and would overwrite these songs. Run this again when it has finished (or add --dry-run to look).")
     existing = list(csv.DictReader(open(os.path.join(HERE, "pool_youtube.csv"), encoding="utf-8-sig")))
     taken = set(pool_keys()) | set(latest_rows()) | {f"youtube_{r['track_id']}" for r in existing}
     best = {}

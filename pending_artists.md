@@ -1,7 +1,7 @@
 # Artists queued for the next pool expansion (added 11 Oct 2026)
 
 Spotify artist links the user wants in the pool next time it is expanded. Not yet looked up: names and genres are unknown.
-Spotify cannot be reached from the cloud sandbox, so this step runs on the user's machine.
+**On hold: the pool is frozen at about 9,000 songs for the hackathon demo (18 Oct 2026).** Run this on the desktop after the demo period.
 
 | # | Spotify artist | Status |
 | --- | --- | --- |

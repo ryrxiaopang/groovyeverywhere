@@ -106,6 +106,7 @@ def library():
 WIN, HOP = 30, 15        # sliding windows: 30 chunks (~30 s), a new one every 15 chunks (~15 s)
 _win = None
 _win_plain = None
+_win_error = None                       # set when the index cannot be built here (e.g. a demo laptop whose cut-down files have no per-chunk numbers): not retried per request
 
 
 def window_means(ch):
@@ -119,7 +120,9 @@ def windows(scaled=True):
     clip from ANY part of a song has a stored stretch to match, not just the 3 sampled parts.
     Built from the per-chunk numbers in results/*.npz; the raw window averages are cached in
     results/windows_cache.npz and rescaled with sound_scale() when loaded."""
-    global _win, _win_plain
+    global _win, _win_plain, _win_error
+    if _win_error:
+        raise RuntimeError(_win_error)
     if not scaled:                      # plain (unrescaled) unit vectors, for checks calibrated on plain cosine
         if _win_plain is None:
             windows()                   # makes sure the cache file exists and is current
@@ -146,6 +149,10 @@ def windows(scaled=True):
             continue
         for v in window_means(ch):
             vecs.append(v); owner.append(i)                                                    # raw means
+    if not vecs:
+        _win_error = ("the sliding-window index does not match these songs and cannot be rebuilt here (no per-chunk numbers: a demo bundle?). "
+                      "Make a new bundle on the desktop, or delete results/windows_cache.npz on the machine that has the full files")
+        raise RuntimeError(_win_error)
     owner = np.array(owner, np.int32); vecs = np.stack(vecs)
     np.savez(cache[:-4] + ".tmp.npz", keys=np.array(keys), owner=owner, vecs=vecs, raw=np.array(1))
     os.replace(cache[:-4] + ".tmp.npz", cache)

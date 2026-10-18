@@ -1,25 +1,28 @@
-# To-do (updated 11 Oct 2026)
+# To-do (updated 18 Oct 2026, after the hackathon submission)
 
 Read CLAUDE.md first, starting with its "START HERE" section: it has the state of the project, the decisions already made and the ordered list of what is waiting.
 Keep the core rules: no audio is ever kept, the MTG test split is sealed, never run two analysis runs at once, pass marks are set before looking.
 Run the offline tests after every change and finish each task with a short plain-language summary of what changed and any numbers measured.
 
-## Waiting on the user's machine (details and commands in CLAUDE.md > START HERE > Pending)
-1. Round-2 ratings from five friends, then `python blind_test.py --score <round-2 sheets>` against `SUCCESS_RULE.md`.
-2. AI channels: `ai_channels.py --from-sheet ai_check_sheet.csv` (preview, then `--write`), confirm other SEO-style AI channels for `ai_block.txt`.
-3. Six replacements from the listening-sheet comments: `replace_songs.py ai_check_sheet.csv` (preview, then `--apply`).
-4. Covers and fan lyric videos -> the artist's own upload: `find_official_versions.py --search --limit 50 --deezer --explain 12`, review, approve, `replace_songs.py --proposals ...`.
-5. One analysis run (`run_tests.py --list pool_youtube.csv`), then `pool_duplicates.py` (`--apply` before round 3).
-6. `pending_artists.md`: 10 queued Spotify artists for the next pool expansion.
+## Now
+1. Keep the public demo alive until finalists are picked (desktop on; restart `demo_server.py` after a code update, the tunnel keeps its address; if cloudflared restarts, update `LIVE` in `docs/index.html`).
+2. After this update, on the desktop: `python song_languages.py` (the labelling rules changed on 18 Oct), then restart the demo server.
+3. Booth laptop: a new bundle from the desktop (`make_demo_bundle.py`), then on the laptop deno, `pip install -U "yt-dlp[default]"`, unzip, `python demo_server.py --check`, `--rehearse links.txt`.
 
-## Next (for a coding session)
-- After round 2 is scored: update the Project Guide doc and the Evidence Report; decide round 3 (more indie rock / alternative rock / singer-songwriter; list sizes; whether list D stays).
-- Re-run the AI-tagger check on a fresh sample if the tagger is retuned (the first 99 songs must not be reused to validate a new rule).
+## Decided (18 Oct)
+- Round 2 of the friends' blind test is **not scored** (the ratings did not come back); no claim is made about it. If ratings ever arrive, score them against `SUCCESS_RULE.md` and say the lists were built with the old AI policy.
+- The pool stays frozen at about 9,000 songs for the demo.
+
+## Later (optional)
+- More Japanese indie / rock / rap and folk artists; `pending_artists.md` (queued before the freeze).
+- Covers and fan lyric videos -> the artist's own upload (`find_official_versions.py`).
+- Calibrate the weak-match threshold from `results/demo_log.csv`.
 - Rhythm: finish tapping (11 of 50) and decide its role (weak / optional).
-- Housekeeping: README refresh, merge the two link checkers, `similar.py` on the rescaled Sound, optional `psycopg` + database setup.
+- Re-run the AI-tagger check on a fresh sample if the tagger is retuned (the first 99 songs must not be reused to validate a new rule).
+- Housekeeping: merge the two link checkers, `similar.py` on the rescaled Sound, optional `psycopg` + database setup; update the Project Guide and Evidence Report docs.
 
 ## Done (recent)
-- Round 2 design: YouTube-only pool, best match first, lists A/B/C/D, no repeats, success rule written before sending, friend-resampled ranges, Sound scale fitted on the YouTube pool.
-- Pool growth: 33 Spotify artists, 60 Deezer-discovered artists (`deezer_discover.py`), pool tools (`pool_summary.py`, `pool_duplicates.py`).
-- AI music: tagger check (`ai_tag_check.py`), policy `hide` by default, `ai_keep.txt` / `ai_block.txt`, `ai_channels.py`.
-- Official versions: `find_official_versions.py` + `replace_songs.py` (two real batches run and fixed).
+- Hackathon submission (18 Oct): Devpost story, demo video, public link (GitHub Pages -> Cloudflare tunnel -> desktop), README rewrite, licence and credits.
+- Review fixes (18 Oct): demo (results kept for chip changes, chips never wait for another analysis, artist's other names left out, odd requests answered), language labels, sealed-test guard in `evaluate.py`, AI block list for untagged songs.
+- Language filter, AI channel block list from the user's names, pool growth to about 9,000 songs (16 Oct).
+- Round 2 design: YouTube-only pool, best match first, lists A/B/C/D, no repeats, success rule written before sending, friend-resampled ranges.

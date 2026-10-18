@@ -16,7 +16,7 @@ import requests
 
 JAMENDO = "https://api.jamendo.com/v3.0"
 AUDIUS = "https://api.audius.co/v1"
-UA = {"User-Agent": "HiddenGems-student-project/0.1"}
+UA = {"User-Agent": "groovyeverywhere-student-project/0.1"}
 _last = [0.0]
 
 

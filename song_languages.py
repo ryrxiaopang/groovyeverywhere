@@ -60,7 +60,7 @@ def script_label(text):
     """The label given by the writing alone, or None for Latin script / no letters."""
     if re.search(r"[가-힯ᄀ-ᇿ]", text):
         return "korean"
-    if re.search(r"[぀-ヿ]", text):
+    if re.search(r"[ぁ-ゖァ-ヺ]", text):                     # kana letters only: "・" and "ー" also appear in Latin and Chinese titles ("Love・Song")
         return "japanese"
     if re.search(r"[一-鿿]", text):
         return "chinese"
@@ -102,9 +102,11 @@ def make_detector():
 def label_song(title, artist, group, description, detect):
     """(label, how it was decided)."""
     s = script_label(title or "")
-    if s:
-        return s, "title script"
     g = GROUP_LABEL.get(group_key(group))
+    if s:
+        if s in ("chinese", "japanese") and g in ("chinese", "japanese"):      # Japanese titles can be all kanji ("紅蓮華"), Chinese ones can use "の": the search group decides
+            return g, f"group {group_key(group)} (title in Chinese characters / kana)"
+        return s, "title script"
     if g:
         return g, f"group {group_key(group)}"
     s = script_label(artist or "")
@@ -112,11 +114,8 @@ def label_song(title, artist, group, description, detect):
         return s, "artist script"
     if VIET.search(title or ""):
         return "other", "vietnamese letters in the title"
-    if IBERIAN.search(title or ""):
-        return "other", "spanish / portuguese letters in the title"
-    if MARKERS.search(title or ""):
-        return "other", "'clip officiel' / 'letra' ... in the title"
-    t = STOCK.sub(" ", song_part(title, artist))
+    part = song_part(title, artist)
+    t = STOCK.sub(" ", part)
     if not re.search(r"[A-Za-zÀ-ÿ]{2,}", t):
         return "unknown", "no words to read"
     conf = detect(t)                                   # the SONG TITLE decides: descriptions are often in the artist's or label's language, not the song's
@@ -125,6 +124,12 @@ def label_song(title, artist, group, description, detect):
     best, p = conf[0]
     en = next((v for l, v in conf if l == "english"), 0.0)
     one_word = len(re.findall(r"[A-Za-zÀ-ÿ']+", t)) <= 1                         # one-word titles ("Santeria", "kindergarten") fool the detector
+    # letters such as ñ / ã and phrases such as "letra" count only in the song's own name (not in brackets or the artist's name), and not when the name
+    # is one word or reads as English (18 Oct: "Señorita", "Young and Beautiful (Letra/Lyrics)" were hidden as other)
+    hint = ("spanish / portuguese letters in the title" if IBERIAN.search(part) else
+            "'clip officiel' / 'letra' ... in the title" if MARKERS.search(part) else "")
+    if hint and not one_word and en < 0.5:
+        return "other", hint
     if best != "english" and not one_word and p >= 0.6 and p - en >= 0.3:
         return "other", f"{best} {p:.2f} (title)"
     desc = clean_description(description)

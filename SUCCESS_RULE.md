@@ -1,6 +1,6 @@
 # Round 2 success rule (written 11 Oct 2026, BEFORE the round-2 sheets are sent)
 
-Why this file exists: the model checks have pass marks set in advance (README), but the friend test had none, so any result could be
+Why this file exists: the model checks have pass marks set in advance (the pass-mark table in `archive/README_first_kit.md`), but the friend test had none, so any result could be
 read as a win. This file fixes what counts as success *before* anyone has rated a song. The commit date of this file is the
 timestamp. Do not edit the numbers after results arrive; if something must change, add a dated note at the bottom saying what and why.
 
@@ -71,3 +71,9 @@ Possible verdicts, printed by `python blind_test.py --score <round-2 sheets>`:
 * The pool was seeded partly from the friends' own artists and from Spotify and Deezer related-artist lists, so even list C may sit near their taste.
 * List D uses YouTube views, which are not comparable with Spotify streams.
 * A few friends with similar taste cannot speak for everyone.
+
+## Notes added later
+
+* **18 Oct 2026:** the round-2 ratings did not come back before the hackathon deadline, so round 2 was **not scored** and no claim is made about it.
+  The numbers above are unchanged. If ratings arrive later, score only the round-2 sheets against this rule, and say that the lists were built with the
+  AI policy of 11 Oct (AI-tagged songs under 10,000 views left out); the policy was later changed to leave out every AI-tagged song.

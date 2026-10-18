@@ -40,6 +40,17 @@ address in the `LIVE = "..."` line of `docs/index.html` and push to master. The 
 * **Measured earlier (unchanged):** sealed test 16 pass / 3 fail / 6 warn / 2 skipped; Sound finds a same-artist song on another album in the top 10 for 29%; Voice dropped (+2.8, range -5.1 to +10.8, bar +10);
   AI tagger finds ~77% of AI music (59-85%).
 
+**18 Oct review (three independent read-only reviews; every finding checked, fixed and tested in sections 31-32 of `synthetic_tests.py`):** demo keeps the newest 500 results
+(chips / answers kept working after only 8 before), chip changes no longer wait for another visitor's analysis (own `match_lock`), at most 2 searches at once, a 30 s socket timeout, odd requests get
+an answer, `artist_names()` + `blind_test.squash_name()` keep the start song's artist out under its VEVO / Topic / "Artist - Song" / K-pop-label names, the weak-match warning follows the chips, the
+3-song limit covers tab capture, `--excerpt` numbers are not cached, `/api/status` answers the GitHub Pages origin (CORS) so `docs/index.html` forwards only when the demo is up.
+Language labels: kana letters only, the search group wins over kanji / kana titles, ñ / "letra" count only in the song's own name and not for one word or English-reading names
+(**re-run `python song_languages.py` on the desktop, then make a new bundle**). Data: `evaluate.py` defaults to `--split validation` and needs `--sealed-rerun` for test / all; `metric_check.py` leaves
+the sealed songs out; `ai_block.txt` also catches songs with no tag record (artist field); `ai_channels.py --suggest` counts AI songs already marked out; listening sheets are never overwritten;
+`add_channel.py` refuses while a growth job runs; `run_tests.py` honours `i_agree = n` for `./pool_x.csv`. Public files: MIT `LICENSE` + `NOTICE.md` (Essentia AGPL, models and MTG-Jamendo
+CC BY-NC-SA), `.gitignore` covers cookies / zips / listening sheets, docs refreshed (DEMO, TODO, VOICE_PIPELINE, SUCCESS_RULE note, README Results). Not changed: backup zip names and the
+database name still say hidden-gems / hiddengems (internal; renaming would break pruning of old backups); `friends_inputs.csv` (first names + song picks, no ratings) is still tracked.
+
 **Pending, in this order**
 1. Keep the public demo alive until finalists are picked (desktop on; restart demo + tunnel and update `docs/index.html` if it goes down).
 2. **Laptop for demo day:** on the desktop `python make_demo_bundle.py --out /mnt/c/Users/<you>/Downloads` (ships the cut-down numbers, the stretch index `windows_cache.npz`, tags, language labels, lists); on the laptop
@@ -70,7 +81,7 @@ Added 12 Oct: `--fake` (PRACTICE MODE with canned matches and an orange banner, 
 **Language filter (16 Oct, user decision):** `song_languages.py` (desktop only, needs `pip install lingua-language-detector`) labels every pool song english / chinese / korean / japanese / other / unknown (title script, then search group, then artist script, then an offline detector on the title + cleaned YouTube description that says "other" only when fairly sure) -> `results/song_languages.csv` (in the bundle). `recommend_query(languages=...)` leaves out songs whose label is not chosen (unlabelled songs always stay); the demo shows language chips, **defaults English + Chinese + Korean, Japanese and Other are opt-in**; Chinese is one chip (Mandarin and Cantonese together). Re-run it after pool growth. Hand-picked single songs: `add_song.py` -> `pool_handpicked.csv`. Given AI channel names: `ai_channels.py --check ai_check_names.txt [--write]`, `--patterns`.
 
 **Known gaps (from a fresh review; see the Project Guide doc; README rewritten 18 Oct, the first kit's README is archive/README_first_kit.md)**: AI tagger recall ~77% (the block list is the fix); the pool was seeded from the friends' own artists (list C may be an easy baseline, list D helps); few friends (ranges are rough);
-Rhythm is the weakest feature; the research question drifted from "hidden gems" to "does sound matching recommend songs people keep"; no live demo path; README still describes the first 160-song kit; results/ live only on the user's machine + backups.
+Rhythm is the weakest feature; the research question drifted from "hidden gems" to "does sound matching recommend songs people keep"; results/ live only on the user's machine + backups.
 
 **Fresh-eyes review (12 Oct 2026; two independent read-only reviews, every finding checked in the code before it was fixed).** Fixed: demo (temp audio swept at start, CSV formulas, atomic cache entries, live streams refused, analysis vs download errors, Content-Length, page state bugs; section 24), data safety (section 25): `replace_songs` no longer marks the old song out when its replacement is missing or itself marked out; `tag_ai.py` keeps the tags of songs that left the pool (merge, atomic write) so `mark_ai_out --restore` and the sheet scoring stay right; `find_official_versions` keeps a timestamped `.bak` of the proposals sheet and your approvals on unchanged proposals; `ai_channels.write_block` survives a missing final newline; `refresh_sheets` / `add_listen_links` keep a one-time `.orig` of each sheet; `backup.py` now also stores the hand-made lists and text files.
 **Known and NOT fixed (so you are not surprised):** `.bak` copies of the pool lists are one step deep (each write replaces the previous .bak); `build_youtube.py` / `build_from_spotify.py` read a pool list once and rewrite it after each search, so do NOT run `replace_songs --apply`, `mark_ai_out --apply` or `pool_duplicates --apply` while `grow_more.sh` / `boost_artists.sh` is running (their stale copy would overwrite your change); the other JSON caches are written without a temporary file (a kill mid-write needs the cache file deleted).
@@ -88,7 +99,7 @@ Rhythm is the weakest feature; the research question drifted from "hidden gems" 
    `test_split_freeze.json` ARE committed on purpose.
 
 ## Environment (Windows desktop, work happens in WSL Ubuntu)
-* Repo: `~/groovyeverywhere` in WSL; since 10 Oct the user works on branch `claude/brave-rubin-xs7hbb` (pulled from GitHub; `hidden-gems-kit` / PR #1 is the older kit). The older big-data
+* Repo: `~/groovyeverywhere` in WSL; the main branch is `master` (since 18 Oct; `claude/brave-rubin-xs7hbb` has the same history; `hidden-gems-kit` / PR #1 is the older kit). The older big-data
   folder `~/hidden-gems-tests` is a copy of the original kit; its results were MERGED into this repo's `results/`.
 * Edit WSL files from Windows with the editor tools at `\\wsl.localhost\Ubuntu\home\xiaopang\groovyeverywhere\...`.
   Run commands with `wsl -e bash -c '...'` and `source .venv/bin/activate`. Use `bash -ic` when a key from `~/.bashrc`
@@ -138,7 +149,7 @@ Rhythm is the weakest feature; the research question drifted from "hidden gems" 
   `build_underrated.py --add`, so run it again afterwards.
 * **YouTube quality:** about 38% of early titles were not songs (tutorials, playlists, covers, type beats, lessons). The filter is
   `build_youtube.NOT_A_SONG` (regex; extend it when new junk appears, then run `mark_*`-style marking of matching rows to `n`).
-  The user has permission for YouTube terms: do not raise them again.
+  YouTube's terms were discussed with the user and settled: do not raise them again.
 * **Underrated-artist search:** `underrated_artists.csv` (genre, artist, hint, source, why, channel_url) holds 120+ artists from web
   lists plus the user's own playlist (genre `playlist`, kept whole, matched STRICTLY: own channel or "Name - Song" title,
   aliases in `build_underrated.ALIASES`, or a `channel_url` the user supplied). `python -u build_underrated.py [--genres ..] [--add]`
@@ -208,12 +219,12 @@ jrnb, citypop, singer, rnb), then `spotify_boost.sh` (4 playlists + 1 artist pag
   mini sheet of the rows a friend could not open. `blind_test.py --score` now reads "n (link don't work)" and 1.5-style ratings, leaves
   broken-link rows out, and prints the result with and without AI-tagged songs.
 * **Round 1 is confounded:** in the sheets sent, 58% of the "Sound only" songs and 44% of "Sound + feature" songs are AI-tagged, against
-  8% of the random list (the hidden-gem rule picks the least-played songs, which are mostly AI uploads). Isaac (16 ratings): would add
-  Sound only 0%, Sound + feature 0%, random 75%; 5 of his 7 Sound-only songs were AI-tagged. Round 2 should use best-match-first,
+  8% of the random list (the hidden-gem rule picks the least-played songs, which are mostly AI uploads). One friend's sheet showed the effect clearly (most of the
+  Sound-only songs on it were AI-tagged and none were "would add"; per-person ratings are kept off this public file). Round 2 should use best-match-first,
   the AI policy and verified links.
 
 ## Round 2 settings (10 Oct 2026, after the second feedback: Javen and Felicia)
-* **Why:** across Javen's and Felicia's sheets YouTube songs got "would add" 11 of 31 (35%, mean rating 2.8); FMA + Jamendo got 0 of 8 (mean 1.5).
+* **Why:** across two friends' sheets YouTube songs got "would add" 11 of 31 (35%, mean rating 2.8); FMA + Jamendo got 0 of 8 (mean 1.5).
   The friends' own songs are mostly Spotify-popular artists, and the FMA picks were often lo-fi live-radio recordings. Only 8 ratings, so a hint.
 * **YouTube-only pool:** `blind_test.POOL_SOURCES` (env `HG_POOL_SOURCES`, default `youtube`; `all` = every site) is applied inside
   `blind_test.apply_quality`, which now runs whichever store the numbers came from (before, the PostgreSQL path skipped it). FMA / Jamendo / Audius
@@ -297,7 +308,7 @@ The ordered list of what is waiting is in START HERE ("Pending"). Longer-term it
    stays the least validated model: finish tapping 50 songs (11 done) to choose the speed method; present it as weak/optional.
 3. Pool freeze as "version 1" and the user's own test after the friends' rounds.
 4. Housekeeping: switch `similar.py` to the rescaled Sound; install `psycopg` + `bash setup_db.sh` if the database is wanted;
-   re-run `check_platforms.py` when Spotify's limit resets; keep the Evidence Report and Project Guide docs in step with new results; refresh `README.md` (it still describes the first kit).
+   re-run `check_platforms.py` when Spotify's limit resets; keep the Evidence Report and Project Guide docs in step with new results.
 5. The deleted-file clean-up: ~100 scripts sit in the repo root; two link checkers exist (`check_links.py`, `check_pool_links.py`): merge or archive when time allows.
 
 ## Conventions

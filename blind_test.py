@@ -358,7 +358,14 @@ def _bare_title(t):
 NEAR_COPY_SOUND = 0.80      # plain Sound cosine above which a song carrying the starting song's title counts as a copy of it
 
 
-def near_copy_mask(P, plain, start_title="", start_artist=""):
+def squash_name(s):
+    """An artist or channel name with spaces, ' - Topic', 'VEVO' and 'Official' taken out: 'TheWeekndVEVO' and 'The Weeknd - Topic' both give 'theweeknd'."""
+    import re
+    t = re.sub(r"\s*-\s*topic\s*$", "", (s or "").lower())
+    return re.sub(r"vevo$|official$", "", "".join(w for w in _toks(t) if w not in ("official", "music", "channel")))
+
+
+def near_copy_mask(P, plain, start_title="", start_artist="", squash=False):
     """Pool songs that are probably the starting song itself under another upload (re-upload, cover, slowed / sped-up / lyric / 8D
     version, remix) or other songs by the starting song's artist, found by NAME as well as by sound:
       * the pool title contains every word of the starting title AND it sounds close (plain Sound >= NEAR_COPY_SOUND), or
@@ -376,6 +383,9 @@ def near_copy_mask(P, plain, start_title="", start_artist=""):
             hay = set(ct) | set(_toks(P["artist_name"][i]))
             if sum(w in hay for w in at) >= max(1, int(0.8 * len(at) + 0.5)):
                 mask[i] = True
+    sq = squash_name(start_artist) if squash else ""
+    if len(sq) >= 4:                     # the same name written without spaces or with a channel suffix (the demo: 'TheWeekndVEVO' starts, 'The Weeknd' in the pool)
+        mask |= np.array([squash_name(a) == sq for a in P["artist_name"]], bool)
     return mask
 
 

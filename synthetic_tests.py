@@ -705,17 +705,17 @@ def seen_songs_test():
     def cap(name, friend, A, B, C):
         json.dump(dict(friend=friend, A=[dict(key=k) for k in A], B=[dict(key=k) for k in B], C=[dict(key=k) for k in C]),
                   open(os.path.join(d, name), "w"))
-    cap("1.json", "Felicia", ["youtube_1"], ["youtube_2"], ["youtube_3"])
-    cap("2.json", "Isaac", ["youtube_9"], [], [])
+    cap("1.json", "FriendA", ["youtube_1"], ["youtube_2"], ["youtube_3"])
+    cap("2.json", "FriendB", ["youtube_9"], [], [])
     open(os.path.join(d, "bad.json"), "w").write("{not json")
-    assert bt.previously_recommended("Felicia", d) == {"youtube_1", "youtube_2", "youtube_3"}
+    assert bt.previously_recommended("FriendA", d) == {"youtube_1", "youtube_2", "youtube_3"}
     assert bt.previously_recommended("Nobody", d) == set()
     _b = bt.BLIND
     try:
         bt.BLIND = d + "_preview"                                      # a preview run: BLIND is elsewhere, the real captures still count
         real = os.path.join(bt.RES, "blind")
-        assert bt.previously_recommended("Felicia", d) == {"youtube_1", "youtube_2", "youtube_3"}
-        assert bt.previously_recommended("Felicia") == bt.previously_recommended("Felicia", real)     # default = results/blind
+        assert bt.previously_recommended("FriendA", d) == {"youtube_1", "youtube_2", "youtube_3"}
+        assert bt.previously_recommended("FriendA") == bt.previously_recommended("FriendA", real)     # default = results/blind
     finally:
         bt.BLIND = _b
     # (b) make_lists with a synthetic pool: the excluded songs appear in no list, and the lists are still full
@@ -913,10 +913,10 @@ def pool_duplicates_test():
     kc = os.path.join(d, "key.csv")
     with open(kc, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f); w.writerow(["item", "friend", "key", "lists"])
-        for fr, k in (("Isaac", "youtube_t0"), ("Isaac", "youtube_t1"), ("Felicia", "youtube_t2"), ("Felicia", "youtube_t5")):
+        for fr, k in (("FriendB", "youtube_t0"), ("FriendB", "youtube_t1"), ("FriendA", "youtube_t2"), ("FriendA", "youtube_t5")):
             w.writerow([f"{fr}-1", fr, k, "A"])
     tw = pdp.sheet_twins(P, clusters, kc)
-    assert tw == {"Isaac": [("Hold On", "Hold On (Official Audio)")]}, tw
+    assert tw == {"FriendB": [("Hold On", "Hold On (Official Audio)")]}, tw
     print("   a triple upload is grouped and the most-viewed copy kept; sound-alikes with other titles are only listed; marking is idempotent; the sheet check shows titles only")
 
 
@@ -1343,8 +1343,11 @@ def demo_server_test():
         assert J(call("/api/refine", dict(token=token, features="bogus")))[0] == 400 and J(call("/api/refine", dict(token="x", features="mood")))[0] == 400
         # ratings are saved with the song they belong to; bad ones are refused
         assert J(call("/api/rate", dict(token=token, visitor="v1x", list="A", rec_key="youtube_x0a", rec_title="Rec 0", would_add="yes")))[0] == 200
-        assert J(call("/api/rate", dict(token=token, list="Z", would_add="yes")))[0] == 400 and J(call("/api/rate", dict(token="x", list="A")))[0] == 400
+        assert J(call("/api/rate", dict(token=token, list="Z", would_add="yes")))[0] == 400 and J(call("/api/rate", dict(token="", list="A")))[0] == 400
+        assert J(call("/api/rate", dict(token="x", list="A", would_add="no")))[0] == 200            # an answer to a result the server no longer holds is still saved (18 Oct)
         fb = list(csv.DictReader(open(os.path.join(d, "fb.csv"), encoding="utf-8-sig")))
+        assert len(fb) == 2 and fb[1]["token"] == "x" and fb[1]["input"] == "", fb
+        fb = fb[:1]
         assert len(fb) == 1 and fb[0]["rec_key"] == "youtube_x0a" and fb[0]["would_add"] == "yes" and fb[0]["input"] == "aaaaaaaaaaa" and fb[0]["visitor"] == "v1x", fb
         # booth: a typed song name finds candidates (each says whether its numbers are stored), and a stored song needs no YouTube, no download, no analysis
         code, b = J(call("/api/search", dict(q="  hello   world ")))
@@ -1440,7 +1443,7 @@ def demo_server_test():
     with _cl.redirect_stdout(buf):
         ds.summary(os.path.join(d, "log.csv"), os.path.join(d, "fb.csv"))
     out = buf.getvalue()
-    assert "runs:" in out and "download_failed" in out and "link, new song (downloaded and analysed): median" in out and "would add 1 of 1" in out and "1 visitors with at least one song" in out and "never blended" in out, out
+    assert "runs:" in out and "download_failed" in out and "link, new song (downloaded and analysed): median" in out and "would add 1 of 2" in out and "1 visitors with at least one song" in out and "never blended" in out, out
     print("   links are checked, one job at a time, every failure offers the tab capture, audio is deleted, ratings and runs are logged")
 
 
@@ -1781,10 +1784,12 @@ def language_filter_test():
             "La Di Da": [("malay", 0.14), ("english", 0.03)], "Heather": [("english", 0.51)], "Glue Song": [("tagalog", 0.2), ("english", 0.17)],
             "NIENTE AMORE": [("italian", 0.36), ("english", 0.1)], "Testo": [("italian", 0.99)], "Kiss Me Better": [("english", 0.33), ("german", 0.23)],
             "Julie Bergan": [("german", 0.95)], "frank": [("german", 0.54), ("english", 0.18)], "sabes que": [("spanish", 0.97)],
-            "Hurt You": [("english", 0.6)], "Gesaffelstein": [("german", 0.9)], "Fais pas": [("french", 0.82)]}
+            "Hurt You": [("english", 0.6)], "Gesaffelstein": [("german", 0.9)], "Fais pas": [("french", 0.82)], "Mañana de sol": [("spanish", 0.4), ("english", 0.2)]}
     det = lambda text: next((v for k, v in fake.items() if k in text), [("english", 0.5)])
     cases = {("稻香", "Jay", "yt_pop"): "chinese", ("Lazy", "WOOSUNG", "yt_kindie"): "korean", ("Hello", "x", "yt_jrock"): "japanese",
-             ("ยังไม่ชิน (NOT USED TO)", "x", "yt_pop"): "other", ("MƯA VỘI PHÓNG", "HYO", "yt_pop"): "other", ("Mañana", "x", "yt_pop"): "other",
+             ("ยังไม่ชิน (NOT USED TO)", "x", "yt_pop"): "other", ("MƯA VỘI PHÓNG", "HYO", "yt_pop"): "other", ("Mañana", "x", "yt_pop"): "english", ("Mañana de sol", "x", "yt_pop"): "other",
+             ("Shawn Mendes, Camila Cabello - Señorita", "Shawn Mendes", "yt_pop"): "english", ("Lana Del Rey - Young and Beautiful (Letra/Lyrics)", "x", "yt_pop"): "english",
+             ("Love・Song", "x", "yt_pop"): "english", ("紅蓮華", "LiSA", "yt_jpop"): "japanese", ("ちいさな恋のうた", "x", "yt_cpop"): "chinese",   # 18 Oct review
              ("Despacito (Official Video)", "Luis Fonsi", "yt_pop"): "english", ("Le bruit des vagues", "R", "yt_hiphop"): "english",   # one word / only leaning: kept
              ("La Di Da", "Lennon Stella", "yt_pop"): "english", ("Heather", "Conan Gray", "yt_pop"): "english", ("Glue Song", "beabadoobee", "yt_indie"): "english",
              ("Song", "周杰倫", "yt_pop"): "chinese", ("A45S", "Andos", "yt_hiphop"): "unknown", ("Lydia", "F.I.R.", "yt_mrock"): "chinese"}
@@ -1799,7 +1804,7 @@ def language_filter_test():
     assert sl.song_part("The Weeknd - Hurt You feat. Gesaffelstein (Official Audio)", "The Weeknd") == "Hurt You"                                 # artist names out
     assert sl.song_part("Dominique Fils-Aimé | Sleepy", "Dominique Fils-Aime") == "Sleepy" and sl.song_part("kindergarten - chloe moriondo", "chloe moriondo") == "kindergarten"
     assert sl.label_song("The Weeknd - Hurt You feat. Gesaffelstein (Official Audio)", "The Weeknd", "yt_rnb", "", det)[0] == "english"
-    assert sl.label_song("Fais pas ça (Clip Officiel)", "La Plaie", "yt_hiphop", "", det) == ("other", "'clip officiel' / 'letra' ... in the title")
+    assert sl.label_song("Fais pas ça (Clip Officiel)", "La Plaie", "yt_hiphop", "", det)[0] == "other"
     assert sl.clean_description("Provided to YouTube by X\nhttps://x.y\nSí, sabes que ya llevo un rato\n#tag") == "Sí, sabes que ya llevo un rato"
     p = os.path.join(tempfile.mkdtemp(), "song_languages.csv")
     rows = [dict(key="youtube_a", title="稻香"), dict(key="youtube_b", title="Heather")]
@@ -1859,6 +1864,117 @@ def lost_tags_test():
     print("   songs marked out as AI keep their status even when their tag record was lost; --restore leaves them out")
 
 
+def review_fixes_test():
+    """Fixes from the 18 Oct review: results kept for chip changes after many songs, chips not blocked by another visitor's analysis, answers saved after a restart,
+    odd requests answered, at most 2 searches at once, the artist's other names (VEVO, Topic, label channels) never recommended back, a refreshed weak-match warning."""
+    print("\n31. DEMO FIXES FROM THE 18 OCT REVIEW")
+    import contextlib, json, os, tempfile, threading, urllib.request, urllib.error
+    import numpy as np
+    import demo_server as ds, blind_test as bt
+    d = tempfile.mkdtemp()
+    best = dict(v=0.9)
+
+    class Fake:
+        def warm(self): return 10
+        def weak_cosine(self): return 0.45
+        def info(self, vid): return dict(title=f"Artist {vid[:2]} - Song", channel="Chan", duration=200.0)
+        @contextlib.contextmanager
+        def download(self, vid):
+            yield "/dev/null"
+        def analyse(self, path): return dict(fake=1)
+        def query(self, feats): return dict(fake=1)
+        def recommend(self, q, meta, k, features, languages=None):
+            self.meta = meta
+            return dict(A=[], B=[], features=features.split("+"), pool=10, best_sound=best["v"], languages=languages)
+        def heard(self, q): return {}
+        def search(self, q, n=5):
+            gate.wait(5); return []
+    gate = threading.Event()
+    demo = ds.Demo(Fake(), k=3, log=os.path.join(d, "log.csv"), feedback=os.path.join(d, "fb.csv"))
+    demo.warm()
+    # (a) the first song's result still answers chip changes and ratings after 20 more songs
+    code, first = demo.from_link("aaaaaaaaaaa")
+    assert code == 200 and first["token"]
+    for i in range(20):
+        assert demo.from_link(f"b{i:02d}bbbbbbbb"[:11])[0] == 200
+    assert demo.refine(first["token"], "mood", "english")[0] == 200
+    assert demo.rate(dict(token=first["token"], list="A", would_add="yes"))[0] == 200
+    # (b) a chip change does not wait for (or get "busy" from) another visitor's analysis
+    assert demo.lock.acquire(blocking=False)
+    try:
+        assert demo.refine(first["token"], "rhythm", "english+korean")[0] == 200
+    finally:
+        demo.lock.release()
+    # (c) the weak-match warning follows the chips
+    best["v"] = 0.2
+    code, body = demo.refine(first["token"], "mood", "japanese")
+    assert code == 200 and body.get("warning") == ds.POOL_MSG, body
+    best["v"] = 0.9
+    assert "warning" not in demo.refine(first["token"], "mood", "english")[1]
+    # (d) an expired result says so in plain words; an answer to it is still saved
+    code, body = demo.refine("gone-1", "mood", "english")
+    assert code == 400 and "expired" in body["message"]
+    assert demo.rate(dict(token="gone-1", list="B", would_add="no"))[0] == 200
+    # (e) at most two searches at once: a third gets "busy" at once instead of starting another yt-dlp
+    res = []
+    th = [threading.Thread(target=lambda: res.append(demo.search("some song"))) for _ in range(2)]
+    [t.start() for t in th]
+    import time as _t; _t.sleep(0.3)
+    code, body = demo.search("third song")
+    assert body["error"] == "busy", body
+    gate.set(); [t.join() for t in th]
+    assert all(b["ok"] for _, b in res), res
+    # (f) odd requests get an answer, not a dropped connection
+    assert ds.video_id(5) is None and ds.video_id("https://[youtube.com/x") is None
+    srv = ds.make_server(demo, "127.0.0.1", 0)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    def call(path, body):
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    for path, body in (("/api/link", {"url": 5}), ("/api/search", {"q": 5}), ("/api/link", {"url": "https://[youtube.com/x"}), ("/api/refine", {"token": [1]})):
+        assert call(path, body) in (200, 400, 500), path
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=10) as r:      # the public front door may read the status (and only that)
+        assert r.headers.get("Access-Control-Allow-Origin") == ds.PAGES_ORIGIN
+    srv.shutdown(); srv.server_close()
+    # (g) the artist's other names: VEVO / Topic channels, "Artist - Song" titles, K-pop label channels
+    assert ds.artist_names("The Weeknd - Blinding Lights (Official Video)", "TheWeekndVEVO") == ["TheWeeknd", "The Weeknd"]
+    assert ds.artist_names("BTS (방탄소년단) 'Dynamite' Official MV", "HYBE LABELS") == ["HYBE LABELS", "BTS"]
+    assert ds.artist_names("I can't stop", "Joji") == ["Joji"]
+    assert bt.squash_name("TheWeekndVEVO") == bt.squash_name("The Weeknd - Topic") == "theweeknd"
+    P = dict(key=["k1", "k2", "k3"], title=["Save Your Tears", "Other Song", "Dynamite"], artist_name=["The Weeknd", "Someone", "BTS"])
+    plain = np.zeros(3)
+    assert bt.near_copy_mask(P, plain, "Blinding Lights", "TheWeekndVEVO").tolist() == [False, False, False]      # the old rule: missed
+    assert bt.near_copy_mask(P, plain, "Blinding Lights", "TheWeekndVEVO", squash=True).tolist() == [True, False, False]
+    demo.from_link("ccccccccccc")
+    assert "Artist cc" in demo.b.meta["aliases"]
+    print("   chips and answers keep working after many songs and during another analysis; odd requests answered; the artist's other names are left out")
+
+
+def data_review_fixes_test():
+    """Data fixes from the 18 Oct review: a blocked channel catches songs not tagged yet, --suggest still sees channels whose AI songs were marked out,
+    evaluate.py does not look at the sealed test songs unless told to, filled listening sheets are not overwritten."""
+    print("\n32. DATA FIXES FROM THE 18 OCT REVIEW")
+    import os, subprocess, sys, tempfile
+    import tag_ai, ai_channels as ac
+    block = {tag_ai.norm_name("Mood Mill")}
+    assert tag_ai.ai_reason("none", 50, "", tag_ai.norm_name("Mood Mill"), "hide", set(), block) == "blocked channel"     # no tag record yet: the artist field decides
+    assert tag_ai.ai_reason("none", 50, "", tag_ai.norm_name("Mood Mill"), "hide", {tag_ai.norm_name("Mood Mill")}, block) is None
+    rows = [dict(site="youtube", key=f"youtube_m{i}") for i in range(2)]
+    chans = {f"youtube_m{i}": "Mood Mill" for i in range(6)}
+    tags = {f"youtube_m{i}": ("likely", "", 10) for i in range(2, 6)} | {"youtube_m0": ("none", "", 10), "youtube_m1": ("none", "", 10)}
+    pool = ac.by_channel(rows, chans, tags, gone=[f"youtube_m{i}" for i in range(2, 6)])
+    got = ac.suggest(pool, set())
+    assert got == [("Mood Mill", 6, 4, 2)], got                      # 4 of 6 songs were AI and are already marked out; the 2 left are worth a look
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "evaluate.py"), "--split", "test"], capture_output=True, text=True, cwd=tempfile.mkdtemp())
+    assert r.returncode != 0 and "sealed-rerun" in (r.stderr + r.stdout), r.stderr[-300:]
+    print("   blocked channels catch untagged songs, --suggest sees marked-out AI songs, the sealed test needs --sealed-rerun")
+
+
 if __name__ == "__main__":
     rhythm_tests()
     trim_and_parts_tests()
@@ -1890,3 +2006,5 @@ if __name__ == "__main__":
     ai_names_check_test()
     language_filter_test()
     lost_tags_test()
+    review_fixes_test()
+    data_review_fixes_test()

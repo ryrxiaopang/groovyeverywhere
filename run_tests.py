@@ -149,7 +149,7 @@ def main():
 
     with open(os.path.join(HERE, a.list), encoding="utf-8-sig") as f:
         rows = [r for r in csv.DictReader(f) if not a.groups or r["group"] in a.groups]
-    if a.list.startswith("pool"):                # pool songs you marked i_agree = n are left out of the pool
+    if os.path.basename(a.list).startswith("pool"):  # pool songs you marked i_agree = n are left out of the pool (also for ./pool_x.csv or a full path)
         dropped = [r for r in rows if (r.get("i_agree") or "").strip().lower() in ("n", "no")]
         rows = [r for r in rows if r not in dropped]
         if dropped:

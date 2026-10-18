@@ -40,9 +40,14 @@ def flagged_channels(sheet):
     return out
 
 
-def by_channel(rows, channels, tags):
-    """{normalised channel: dict(name, keys, tagged, untagged)} for the YouTube pool songs."""
+def by_channel(rows, channels, tags, gone=()):
+    """{normalised channel: dict(name, keys, tagged, untagged, gone)} for the YouTube pool songs. gone = AI-tagged songs that already left the pool
+    (mark_ai_out.py marks them out): counted per channel as 'gone', so a channel whose tagged songs were all marked out still shows as mostly AI."""
     out = {}
+    for k in gone:
+        name = channels.get(k, "")
+        if norm_name(name):
+            out.setdefault(norm_name(name), dict(name=name, keys=[], tagged=0, untagged=0, untagged_keys=[], gone=0))["gone"] += 1
     for r in rows:
         if r["site"] != "youtube":
             continue
@@ -50,7 +55,7 @@ def by_channel(rows, channels, tags):
         c = norm_name(name)
         if not c:
             continue
-        d = out.setdefault(c, dict(name=name, keys=[], tagged=0, untagged=0, untagged_keys=[]))
+        d = out.setdefault(c, dict(name=name, keys=[], tagged=0, untagged=0, untagged_keys=[], gone=0))
         d["keys"].append(r["key"])
         if tags.get(r["key"], ("none",))[0] != "none":
             d["tagged"] += 1
@@ -67,11 +72,11 @@ def preview(flags, pool, keep, titles):
     for c, f in sorted(flags.items(), key=lambda x: -x[1]["y"]):
         if not f["y"]:
             continue
-        p = pool.get(c, dict(keys=[], tagged=0, untagged=0, untagged_keys=[]))
+        p = pool.get(c, dict(keys=[], tagged=0, untagged=0, untagged_keys=[], gone=0))
         kept = c in keep
         ans = f"{f['y']}y {f['n']}n {f['unsure']}?"
         note = "  KEPT (ai_keep.txt)" if kept else ("  !! you also answered n: check this channel" if f["n"] else "")
-        print(f"{f['name'][:34]:34s} {ans:>14s} {len(p['keys']):10d} {p['tagged']:18d} {0 if kept else p['untagged']:14d}{note}")
+        print(f"{f['name'][:34]:34s} {ans:>14s} {len(p['keys']):10d} {p['tagged'] + p.get('gone', 0):18d} {0 if kept else p['untagged']:14d}{note}")
         if not kept:
             blocked.append(c); new_songs += p["untagged"]
     print(f"\nblocking these {len(blocked)} channels would remove {new_songs} more songs than the AI tags alone remove. Some of them:")
@@ -87,8 +92,9 @@ def preview(flags, pool, keep, titles):
 def suggest(pool, keep, min_songs=3, min_share=0.5, limit=30):
     """Channels not blocked yet whose songs are mostly tagged AI: [(name, songs, tagged, untagged)], the biggest untagged count first."""
     block = tag_ai.load_name_list("ai_block.txt")
-    rows = [(d["name"], len(d["keys"]), d["tagged"], d["untagged"]) for c, d in pool.items()
-            if c not in block and c not in keep and len(d["keys"]) >= min_songs and d["tagged"] / len(d["keys"]) >= min_share and d["untagged"] > 0]
+    rows = [(d["name"], len(d["keys"]) + d.get("gone", 0), d["tagged"] + d.get("gone", 0), d["untagged"]) for c, d in pool.items()
+            if c not in block and c not in keep and len(d["keys"]) + d.get("gone", 0) >= min_songs and d["untagged"] > 0
+            and (d["tagged"] + d.get("gone", 0)) / (len(d["keys"]) + d.get("gone", 0)) >= min_share]
     return sorted(rows, key=lambda r: -r[3])[:limit]
 
 
@@ -160,7 +166,9 @@ def main():
     from pool_summary import read_pool
     rows = read_pool()
     channels, tags, keep = tag_ai.load_channels(), tag_ai.load_tags(), tag_ai.load_name_list("ai_keep.txt")
-    pool = by_channel(rows, channels, tags)
+    live = {r["key"] for r in rows}
+    gone = {k for k, t in tags.items() if k.startswith("youtube_") and t[0] != "none" and k not in live}      # tagged AI and already marked out of the lists
+    pool = by_channel(rows, channels, tags, gone)
     titles = {r["key"]: (r.get("title") or "", norm_name(channels.get(r["key"], "")) in keep) for r in rows}
     print(f"{len(rows)} pool songs; AI-tagged: {sum(1 for r in rows if tags.get(r['key'], ('none',))[0] != 'none')} "
           f"(the new default removes all of them); ai_keep.txt keeps: {', '.join(sorted(keep)) or 'nobody'}\n")

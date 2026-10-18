@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time PostgreSQL + pgvector setup inside Ubuntu (WSL2). Run from hidden-gems-tests:
+# One-time PostgreSQL + pgvector setup inside Ubuntu (WSL2). Run from the project folder (~/groovyeverywhere):
 #   bash setup_db.sh
 # Creates database "hiddengems" with user "hg" (password "hg", local only), installs the
 # Python drivers, saves HG_DB in ~/.bashrc and imports everything already in results/.

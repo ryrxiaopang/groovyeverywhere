@@ -1,8 +1,8 @@
-# Linux / WSL2 only (essentia-tensorflow has no native Windows or Apple-silicon wheel).
-# Pinned to the build used on the laptop (Python 3.14) so every machine gives identical numbers.
-# If pip says this version doesn't exist for your Python, check `python3 --version` (laptop: 3.14).
+# Python 3.14 on Linux / WSL2 (the pinned essentia-tensorflow build has wheels for Python 3.14 only; there is no native Windows wheel).
+# Pinned to the build used on the desktop and the laptop so every machine gives identical numbers.
+# If pip says this version doesn't exist for your Python, check `python3 --version` (it must be 3.14).
 essentia-tensorflow==2.1b6.dev1438
 numpy
 requests
 matplotlib
-yt-dlp          # YouTube audio for the recommendation pool (build_youtube.py); needs ffmpeg on PATH. Audio is deleted straight after analysis.
+yt-dlp[default] # YouTube audio (with its puzzle-solver scripts; also install deno) for the recommendation pool (build_youtube.py); needs ffmpeg on PATH. Audio is deleted straight after analysis.

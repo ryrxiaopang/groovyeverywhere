@@ -1,7 +1,7 @@
 #!/bin/bash
 # Analyse the songs just added to friends_songs.csv (+ anything pending in pool_youtube.csv), remove non-songs, then build the new
 # friend's FINAL lists and listening sheet (existing friends' captures and sheets are never touched).
-#   bash add_friend.sh Javen
+#   bash add_friend.sh NAME
 cd ~/groovyeverywhere || exit 1
 FRIEND="${1:?usage: add_friend.sh FRIEND_NAME}"
 source ./env_keys.sh

@@ -1093,10 +1093,15 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--with-pool", action="store_true", help="also score the real pool songs (no human tags)")
-    ap.add_argument("--split", choices=("all", "test", "validation"), default="all",
-                    help="'test' = ONLY the official MTG-Jamendo test-split songs (the final honest score, written to "
-                         "report_test.html); 'validation' = everything except them (report_validation.html)")
+    ap.add_argument("--split", choices=("all", "test", "validation"), default="validation",
+                    help="'validation' (default) = everything except the sealed test songs (report_validation.html); 'test' = ONLY the official MTG-Jamendo "
+                         "test-split songs (the sealed score, scored once on 6 Oct: needs --sealed-rerun); 'all' = both together (needs --sealed-rerun)")
+    ap.add_argument("--sealed-rerun", action="store_true", help="allow a run that looks at the sealed test songs (rule 2: say so, and never tune anything on it). "
+                    "It overwrites report_test.html / evidence_summary_test.json and uses today's Sound scale, not the frozen one")
     a = ap.parse_args()
+    if a.split != "validation" and not a.sealed_rerun:
+        raise SystemExit(f"--split {a.split} looks at the SEALED test songs (scored once, 6 Oct). Add --sealed-rerun if you really mean it, "
+                         "and disclose the re-run; for everyday checks use the default (--split validation).")
     rows, allsongs = load()
     if a.split != "all":
         test = mtg_test_ids()

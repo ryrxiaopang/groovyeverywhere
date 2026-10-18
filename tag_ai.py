@@ -269,7 +269,8 @@ def ai_reason(status, views, chan, artist, policy, keep, block):
     ai_keep.txt wins over everything; then a blocked channel; then the AI tag under the policy ('confirmed' / 'likely')."""
     if keep & ({chan, artist} - {""}):
         return None
-    if chan and chan in block:
+    c = chan or artist                       # a song not tagged yet has no channel record: the pool's artist field is the channel without " - Topic"
+    if c and c in block:
         return "blocked channel"
     if not ai_policy(status, views, policy):
         return status

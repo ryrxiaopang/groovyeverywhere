@@ -30,19 +30,19 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 
 ## Challenges we ran into
 
-- **AI music everywhere.** In our first test with friends, 58% of the "sound only" picks turned out to be AI-generated uploads (against 8% of the random picks), because the least-played songs on YouTube are often AI. We measured the problem, removed every AI-tagged song and blocked whole channels.
+- **AI music everywhere.** In our first test with friends, 58% of the "sound only" picks were tagged as AI-generated uploads (against 8% of the random picks), because the least-played songs on YouTube are often AI. We measured the problem, removed every AI-tagged song and blocked whole channels.
 - **YouTube fights downloads.** Downloads were throttled after a few hundred songs, and during our last rehearsal 2 of 17 songs failed with "403 Forbidden" until we found that yt-dlp needed a JavaScript runtime and an up-to-date puzzle solver. Many pool entries were covers or fan lyric videos, so we built tools to find the artist's own upload.
 - **Beat detection is unreliable.** Both rhythm checks scored 64-67% against an 85% bar, so rhythm is our weakest feature and we present it that way.
 - **Language is not in the sound.** A Chinese rap song matched French rap, because they really do sound alike. We added language labels and chips; the first version of the labels hid English songs because artists' names looked French or German, so we rebuilt it to read only the song's own name.
-- **Staying honest while the project kept changing.** Every change had to keep the offline self-check green (30 test sections), and an independent code review found problems in the demo and in our data scripts that we checked, fixed and tested.
+- **Staying honest while the project kept changing.** Every change had to keep the offline self-check green (32 test sections), and an independent code review found problems in the demo and in our data scripts that we checked, fixed and tested.
 
 ## Accomplishments that we're proud of
 
 - A live demo where anyone can bring their own song and get recommendations on the spot, with 17 of 17 real songs working in our final rehearsal.
 - Results we can defend: pass marks fixed before we looked, and a sealed test set of 1,143 songs scored once (16 checks pass, 3 fail, 6 warn, 2 skipped). When our first scoring run turned out to be defective, we fixed it, disclosed it and kept the defective files.
-- On the sealed test, the Sound feature alone finds a song by the same artist from a different album in the top 10 for 29% of questions.
+- On the sealed test, the Sound feature alone finds a song by the same artist from a different album in the top 10 for 29% of questions (138 questions).
 - An honest AI-music filter, with its weak spot measured and stated.
-- A pool of 9,000 songs across English, Chinese and Korean that fits the people we built it for.
+- A pool of 9,000 songs across English, Chinese and Korean, aimed at the people we built it for.
 
 ## What we learned
 

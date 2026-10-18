@@ -28,7 +28,7 @@ from results_index import latest_rows, pool_keys, read_meta, RES, HERE, POOL_LIS
 
 OUT = os.path.join(RES, "links.csv")
 FIELDS = ["song_key", "source", "title", "artist", "own_link", "own_ok", "why", "best_link", "best_type", "checked"]
-UA = {"User-Agent": "HiddenGems-school-project/1.0 (link check, one request per song)"}
+UA = {"User-Agent": "groovyeverywhere-school-project/1.0 (link check, one request per song)"}
 KEEP_DAYS = 30
 _last = {}
 

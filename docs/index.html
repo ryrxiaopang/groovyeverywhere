@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>groovyeverywhere</title>
 <!-- The live demo runs on our own computer behind a Cloudflare tunnel whose address changes when the tunnel restarts.
-     This page is the stable link: change LIVE below (one line) and push; GitHub Pages serves it from master /docs. -->
+     This page is the stable link: change LIVE below (one line) and push; GitHub Pages serves it from master /docs.
+     It asks the demo's /api/status first and forwards only when the demo answers; otherwise it says the demo is offline and offers the video. -->
 <script>const LIVE = "https://alberta-yields-awarded-patricia.trycloudflare.com";</script>
 <style>
   :root { --bg: #0b0813; --ink: #f6eef8; --muted: #b3a4c2; --accent: #ff8fb3; --accent-2: #ffb48a; }
@@ -20,20 +21,29 @@
   a.btn { display: inline-block; padding: 13px 22px; border-radius: 12px; text-decoration: none; font-weight: 600; color: #1b0f1e;
           background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
   small { display: block; margin-top: 18px; color: var(--muted); }
-  small a { color: var(--accent); }
+  small a, p a { color: var(--accent); }
 </style>
 </head>
 <body>
 <main>
   <h1>groovyeverywhere<br><em>find songs that sound like yours</em></h1>
-  <p>Opening the live demo… Tell it a song you love and it finds songs that really sound like it.</p>
+  <p id="state">Checking that the live demo is up… Tell it a song you love and it finds songs that really sound like it.</p>
   <a class="btn" id="go" href="#">open the live demo</a>
-  <small>The demo runs live on our own computer, one song at a time. If it does not open, it is offline right now:
+  <small>The demo runs live on our own computer, one song at a time. If it is offline,
     watch the <a href="https://www.youtube.com/watch?v=jMhueRJbihI">demo video</a> or see the code on <a href="https://github.com/ryrxiaopang/groovyeverywhere">GitHub</a>.</small>
 </main>
 <script>
-  document.getElementById("go").href = LIVE;
-  setTimeout(() => { location.replace(LIVE); }, 900);
+  const go = document.getElementById("go"), state = document.getElementById("state");
+  go.href = LIVE;
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+  fetch(LIVE + "/api/status", { signal: ctl.signal, cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)))
+    .then(() => { state.textContent = "The live demo is up: opening it…"; location.replace(LIVE); })
+    .catch(() => {
+      state.innerHTML = 'The live demo did not answer, so it may be offline right now. Watch the <a href="https://www.youtube.com/watch?v=jMhueRJbihI">demo video</a>, or try opening it anyway.';
+      go.textContent = "try opening the live demo";
+    })
+    .finally(() => clearTimeout(timer));
 </script>
 </body>
 </html>
