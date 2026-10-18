@@ -1,4 +1,4 @@
--- Hidden Gems database (PostgreSQL + pgvector). Safe to run again: everything is IF NOT EXISTS.
+-- groovyeverywhere database (PostgreSQL + pgvector). Safe to run again: everything is IF NOT EXISTS.
 -- No audio is ever stored: only song details and the numbers the models produce.
 CREATE EXTENSION IF NOT EXISTS vector;
 

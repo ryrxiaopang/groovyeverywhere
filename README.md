@@ -1,4 +1,4 @@
-# Hidden Gems (groovyeverywhere)
+# groovyeverywhere
 
 Tell it a song you love; it listens to the song and finds songs in a pool of about 9,000 that really sound like it, not just the ones everyone has heard.
 Built for the AI Lodge Hackathon (October 2026).

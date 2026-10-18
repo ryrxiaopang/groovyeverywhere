@@ -1,4 +1,4 @@
-"""Scoring rules for Hidden Gems — the same code the app will use later.
+"""Scoring rules for groovyeverywhere — the same code the app will use later.
 
 Every feature produces a raw similarity (higher = more alike). Raw similarities are
 then turned into percentiles against the pool, combined, and re-ranked.

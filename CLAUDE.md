@@ -1,4 +1,6 @@
-# groovyeverywhere (a.k.a. Hidden Gems): project guide for Claude Code
+# groovyeverywhere: project guide for Claude Code
+
+**The project and the website are called groovyeverywhere** (user, 18 Oct; "Hidden Gems" was an early working name: do not use it in anything public). "Hidden gems" below means the ranking idea (good matches few people have played), not the name.
 
 A music **recommendation** research project. It analyses songs with Essentia models (Sound, Mood, Rhythm, Instruments),
 stores only numbers, and recommends "hidden gems": good matches that few people have played. `README.md` has the full

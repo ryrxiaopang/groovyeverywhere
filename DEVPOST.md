@@ -1,12 +1,12 @@
-# Devpost write-up draft: Hidden Gems (groovyeverywhere)
+# Devpost write-up draft: groovyeverywhere
 
 Track: **Projects for Daily Life** (music discovery). Everything in [SQUARE BRACKETS] is still to fill in. Only claims that are already measured are in here: check each number against the repo before submitting.
 
 ## Tagline (one line)
-Hidden Gems listens to a song you love and finds songs that really sound like it, without ever keeping the audio.
+groovyeverywhere listens to a song you love and finds songs that really sound like it, without ever keeping the audio.
 
 ## Elevator pitch (about 30 seconds)
-Streaming apps keep pushing what is already popular. Hidden Gems takes a song you love, listens to how it sounds, feels and moves (its sound, mood, rhythm and instruments), and finds songs that genuinely match it, not just the ones everyone has heard. It uses open audio-AI models and stores only numbers, never audio. It filters out AI-generated tracks. And we test it the hard way: pass marks set before we looked, a sealed test set scored once, and a friends' blind test with the success rule written down before it was sent. So we can say honestly where it works and where it does not.
+Streaming apps keep pushing what is already popular. groovyeverywhere takes a song you love, listens to how it sounds, feels and moves (its sound, mood, rhythm and instruments), and finds songs that genuinely match it, not just the ones everyone has heard. It uses open audio-AI models and stores only numbers, never audio. It filters out AI-generated tracks. And we test it the hard way: pass marks set before we looked, a sealed test set scored once, and a friends' blind test with the success rule written down before it was sent. So we can say honestly where it works and where it does not.
 
 ## Inspiration
 Recommendations tend to follow popularity. We wanted to see whether the *sound* of a song alone can find songs a listener would keep, and to measure it honestly instead of just demoing it.

@@ -1,6 +1,6 @@
 ## Inspiration
 
-Music recommendations tend to follow popularity: the more a song has been played, the more it gets pushed, and the songs our friends would actually love get buried. Our mentor asked us three questions that stuck with us. Should a whole song be analysed, or three parts of it? Can audio models tell a happy loud song from a sad loud one? And do those features combine into recommendations people would actually keep? We decided to answer them with numbers instead of opinions, and to build a recommender on top of the answers: **groovyeverywhere** (we call it Hidden Gems).
+Music recommendations tend to follow popularity: the more a song has been played, the more it gets pushed, and the songs we would actually love get buried. Furthermore, they tend to recommend songs which other people who listen to this song also listen to rather than songs that sound similar. Hence, I wanted to build a song recommender website to offer better recommendations to people: **groovyeverywhere**.
 
 ## What it does
 

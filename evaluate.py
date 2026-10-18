@@ -195,7 +195,7 @@ class Report:
         table{border-collapse:collapse;margin:8px 0 16px}td,th{border:1px solid #ccc;padding:4px 8px;font-size:13px}
         th{background:#f3f3f3}.v{padding:6px 10px;border-radius:6px}.PASS{background:#e5f5e8}.WARN{background:#fff4d6}
         .FAIL{background:#fde4e4}.SKIP{background:#eee}h2{margin-top:32px;border-bottom:1px solid #ddd}"""
-        top = "<h1>Hidden Gems – edge-case test report</h1>" + "<table><tr><th>Test</th><th>Result</th><th>Detail</th></tr>" + \
+        top = "<h1>groovyeverywhere – edge-case test report</h1>" + "<table><tr><th>Test</th><th>Result</th><th>Detail</th></tr>" + \
               "".join(f'<tr><td>{html.escape(a)}</td><td class="{b}">{b}</td><td>{html.escape(c)}</td></tr>' for a, b, c in self.summary) + "</table>"
         with open(path, "w") as f:
             f.write(f"<!doctype html><meta charset=utf-8><title>Edge-case report</title><style>{css}</style>{top}{''.join(self.parts)}")
