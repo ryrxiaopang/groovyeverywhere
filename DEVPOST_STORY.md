@@ -48,7 +48,7 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 
 On the sealed test, Sound finds a same-artist song on another album in the top 10 for 29% of questions. Round 2 of our friends' blind test was sent to five friends and the ratings are still coming in; the success rule (at least +10 points, 95% range above zero, at least four friends who rated both lists) was fixed in advance, and we will report the result either way. In a rehearsal with 17 real songs on our desktop, all 17 worked once we fixed a YouTube download problem we found in the first run (2 of 17 had failed). A new song takes about 20 seconds (7 s to download, 13 s to analyse the whole song); a song already in the pool is served in 1 to 2 seconds.
 
-**Try it:** https://ryrxiaopang.github.io/groovyeverywhere/ (it runs live on our own computer through a Cloudflare tunnel, one song at a time; if it is offline, the demo video shows the same thing).
+**Try it:** https://ryrxiaopang.github.io/groovyeverywhere/ (it runs live on our own computer through a Cloudflare tunnel, one song at a time; if it is offline, the [demo video](https://www.youtube.com/watch?v=jMhueRJbihI) shows the same thing).
 
 ## What's next
 

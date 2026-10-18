@@ -61,4 +61,4 @@ Score round 2, calibrate the weak-match threshold from real demo logs, add a bli
 ## Links
 - GitHub: https://github.com/ryrxiaopang/groovyeverywhere (branch `master`; checked: no API keys in the code or its history, and no data or audio)
 - Deployed project: https://ryrxiaopang.github.io/groovyeverywhere/ (live on our own computer through a Cloudflare tunnel; one song at a time)
-- Demo video: [LINK]
+- Demo video: https://www.youtube.com/watch?v=jMhueRJbihI
