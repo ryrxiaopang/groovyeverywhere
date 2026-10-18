@@ -29,9 +29,10 @@ TOP_FILES = ("ai_keep.txt", "ai_block.txt", "demo_samples.csv")
 README = """DEMO BUNDLE (made {when}, {songs} pool songs)
 
 On the booth laptop, in Ubuntu (WSL):
-  1. cd ~/groovyeverywhere && git fetch origin && git checkout claude/brave-rubin-xs7hbb && git pull      (the code)
+  1. cd ~/groovyeverywhere && git checkout master && git pull                                               (the code)
   2. unzip -o <this zip> -d ~/groovyeverywhere                                                              (the numbers: results/ and the pool lists)
-  3. source .venv/bin/activate && pip install -r requirements.txt && pip install -U yt-dlp && python models.py && sudo apt install -y ffmpeg
+  3. source .venv/bin/activate && pip install -r requirements.txt && pip install -U "yt-dlp[default]" && python models.py && sudo apt install -y ffmpeg
+     curl -fsSL https://deno.land/install.sh | sh      (yt-dlp needs deno for YouTube; open a new terminal afterwards)
   4. python demo_server.py --check          # fix every [FAIL]
   5. python demo_server.py --rehearse links.txt   # real timings ON THIS LAPTOP: new songs take longer than on the desktop
   6. python demo_server.py                  # then open http://localhost:8765 in Chrome
