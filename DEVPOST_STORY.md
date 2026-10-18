@@ -9,7 +9,7 @@ You type a song name or paste a YouTube link. The app listens to the audio, keep
 - **Sound only:** songs that sound like yours.
 - **Sound plus the features you choose:** mood, rhythm, instruments.
 
-A "what we heard" strip says what the models heard (the mood in words, the tempo if the beat detector is sure, the main instruments), and a warning appears when the best match is weak. A visitor can try up to three songs, each in its own tab. Songs are never blended into one list, because mixing genres averages their numbers and recommends rubbish.
+A "what we heard" strip says what the models heard (the mood in words, the tempo if the beat detector is sure, the main instruments), and a warning appears when the best match is weak. Language chips let the visitor choose which languages to see (English, Chinese and Korean by default; Japanese and other languages on request). A visitor can try up to three songs, each in its own tab. Songs are never blended into one list, because mixing genres averages their numbers and recommends rubbish.
 
 ## How we built it
 
@@ -20,7 +20,7 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 
   where $\mu$ and $\sigma$ are the pool's average and spread for each of the 1,280 numbers. A full z-score failed our own style pass mark, and we compared other distance measures before choosing this one.
 - **Combining features:** the best part of each song is chosen after combining features, and every chosen feature must reach the 65th percentile of the pool.
-- **The pool:** about 8,000 YouTube songs, grown from Spotify and Deezer artist lists and aimed at younger listeners, mostly English-language with Korean, Mandarin, Japanese and Cantonese songs. [OPTIONAL: paste today's language mix from pool_summary.py]
+- **The pool:** about 9,000 YouTube songs by 2,460 artists, grown from Spotify and Deezer artist lists and aimed at younger listeners like our friends: about 6,100 English, 1,400 Chinese, 1,100 Korean and 300 Japanese songs, including about 940 hip hop songs in English, Mandarin and Korean.
 - **Stack:** Python, Essentia (TensorFlow), yt-dlp, NumPy, a small local web server with a single-page front end, and the YouTube Data API for metadata. Built with Claude Code.
 
 ## Safety and responsible AI
@@ -35,7 +35,7 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 - **Beat detection is unreliable.** Both rhythm checks scored 64-67% against an 85% bar. Rhythm is our weakest feature, and we present it that way.
 - **AI music in the pool.** Our first friends' test was skewed: 58% of the "Sound only" songs were AI-tagged, against 8% of the random list. We caught it, rebuilt the pool without AI songs, and re-ran the test with a success rule written down before sending.
 - **YouTube throttling and covers.** Downloads were blocked after a few hundred songs, and many entries were covers or fan lyric videos instead of the artist's own upload, so we built tools to find the original.
-- **Staying honest while the project kept changing.** Every change had to keep the offline self-check green (25 test sections) without leaking test songs into the pool.
+- **Staying honest while the project kept changing.** Every change had to keep the offline self-check green (30 test sections) without leaking test songs into the pool.
 
 ## What we learned
 
