@@ -33,7 +33,7 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 ## Challenges
 
 - **Beat detection is unreliable.** Both rhythm checks scored 64-67% against an 85% bar. Rhythm is our weakest feature, and we present it that way.
-- **AI music in the pool.** Our first friends' test was skewed: 58% of the "Sound only" songs were AI-tagged, against 8% of the random list. We caught it, rebuilt the pool without AI songs, and re-ran the test with a success rule written down before sending.
+- **AI music in the pool.** Our first friends' test was skewed: 58% of the "Sound only" songs were AI-tagged, against 8% of the random list. We caught it, rebuilt the pool without AI songs, and prepared a second round with a success rule written down before sending.
 - **YouTube throttling and covers.** Downloads were blocked after a few hundred songs, and many entries were covers or fan lyric videos instead of the artist's own upload, so we built tools to find the original.
 - **Staying honest while the project kept changing.** Every change had to keep the offline self-check green (30 test sections) without leaking test songs into the pool.
 
@@ -46,10 +46,10 @@ A "what we heard" strip says what the models heard (the mood in words, the tempo
 
 ## Where things stand, honestly
 
-On the sealed test, Sound finds a same-artist song on another album in the top 10 for 29% of questions. Round 2 of our friends' blind test was sent to five friends and the ratings are still coming in; the success rule (at least +10 points, 95% range above zero, at least four friends who rated both lists) was fixed in advance, and we will report the result either way. In a rehearsal with 17 real songs on our desktop, all 17 worked once we fixed a YouTube download problem we found in the first run (2 of 17 had failed). A new song takes about 20 seconds (7 s to download, 13 s to analyse the whole song); a song already in the pool is served in 1 to 2 seconds.
+On the sealed test, Sound finds a same-artist song on another album in the top 10 for 29% of questions. A second round of our friends' blind test (lists A: sound only, B: sound plus a chosen feature, C: random same genre, D: most-viewed same style) was sent to five friends with its success rule written down in advance, but the ratings did not come back in time, so we make no claim about how often people keep the recommendations. In a rehearsal with 17 real songs on our desktop, all 17 worked once we fixed a YouTube download problem we found in the first run (2 of 17 had failed). A new song takes about 20 seconds (7 s to download, 13 s to analyse the whole song); a song already in the pool is served in 1 to 2 seconds.
 
 **Try it:** https://ryrxiaopang.github.io/groovyeverywhere/ (it runs live on our own computer through a Cloudflare tunnel, one song at a time; if it is offline, the [demo video](https://www.youtube.com/watch?v=jMhueRJbihI) shows the same thing).
 
 ## What's next
 
-Score round 2, calibrate the weak-match threshold from real demo logs, add a blind-test mode to the demo, and grow the thin styles (indie rock, singer-songwriter).
+Collect and score the friends' ratings against the pre-set rule, calibrate the weak-match threshold from real demo logs, add a blind-test mode to the demo, and grow the thin styles (indie rock, singer-songwriter).
