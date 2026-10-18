@@ -40,7 +40,7 @@ Music discovery for listeners who are tired of the same popular songs, with matc
 ## What is measured, what is not
 - Measured: the sealed test above, the AI detector check, the metric comparison, Sound finds a same-artist song on another album in the top 10 for 29% of questions.
 - **Round 2 of the friends' blind test (5 friends) was sent on 11 Oct and the ratings are still coming in.** The success rule is fixed in advance: at least +10 points, 95% range above 0, 4 or more friends who rated both lists. [UPDATE if ratings arrive before the deadline; otherwise keep this sentence as it is.]
-- [DEMO REHEARSAL RESULT: how many real songs worked, typical seconds for a new song on the booth laptop. Fill in only after the rehearsal.]
+- Demo rehearsal (desktop, 17 real songs): 17 of 17 worked after fixing a YouTube download problem found in the first run (2 of 17 had failed with HTTP 403); a new song takes about 20 s (download 7 s, analysis 13 s), a stored song 1-2 s.
 
 ## How we built it
 Python, Essentia (TensorFlow models), yt-dlp, numpy, a small local web server with a single-page HTML front end, YouTube Data API for pool metadata. Built with Claude Code. Models are CC BY-NC-SA, so this is a non-commercial student research project.
@@ -59,6 +59,6 @@ Score round 2, calibrate the weak-match threshold from real demo logs, add a bli
 5. [Optional] the AI-detector check numbers.
 
 ## Links
-- GitHub: https://github.com/ryrxiaopang/groovyeverywhere (branch `claude/brave-rubin-xs7hbb`) [MAKE PUBLIC OR ADD JUDGES; check no keys or data are in it]
-- Deployed project: [DECISION NEEDED: see below]
+- GitHub: https://github.com/ryrxiaopang/groovyeverywhere (branch `master`; checked: no API keys in the code or its history, and no data or audio)
+- Deployed project: https://alberta-yields-awarded-patricia.trycloudflare.com (live on our own computer through a Cloudflare tunnel; one song at a time)
 - Demo video: [LINK]
