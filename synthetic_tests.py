@@ -1588,6 +1588,81 @@ def demo_bundle_test():
     print("   the bundle holds only pool songs with numbers, in cut-down files that give the same query, plus the lists, tags and a README")
 
 
+def bundle_handoff_test():
+    """bundle_handoff.py: a complete bundle passes, a missing file / array, an audio file or a key fails, and the handoff zip gets the Sound scale and README.txt."""
+    print("\n33. HANDOFF COPY OF THE DEMO BUNDLE")
+    import make_demo_bundle as mb, bundle_handoff as bh, zipfile, tempfile, csv, os, io
+    d = tempfile.mkdtemp(); res = os.path.join(d, "results"); os.makedirs(os.path.join(res, "meta"))
+    rng = np.random.default_rng(5)
+    with open(os.path.join(res, "index.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["key", "status", "group", "artist", "title", "page", "listens"])
+        for k in ("a", "b"):
+            w.writerow([f"youtube_{k}", "done", "yt_pop", f"Artist {k}", f"Title {k}", f"https://www.youtube.com/watch?v={k}", 100])
+    for k in ("a", "b"):
+        np.savez_compressed(os.path.join(res, f"youtube_{k}.npz"), effnet_whole=rng.normal(size=1280), effnet_parts=rng.normal(size=(3, 1280)),
+                            effnet_chunks=rng.normal(size=(60, 1280)).astype(np.float16), instruments_whole=rng.random(40), instruments_parts=rng.random((3, 40)),
+                            emomusic_whole=np.array([5.0, 6.0]), emomusic_parts=rng.random((3, 2)) + 4, cand_emomusic_vggish_whole=np.array([5.5, 5.0]),
+                            rhythm_bpm=100.0, rhythm_confidence=3.0, rhythm_steadiness=0.1, rhythm_busyness=2.0)
+        open(os.path.join(res, "meta", f"youtube_{k}.json"), "w").write('{"title": "T"}')
+    with open(os.path.join(d, "pool_youtube.csv"), "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f); w.writerow(["source", "track_id", "title", "artist", "group", "i_agree"])
+        for k in ("a", "b"):
+            w.writerow(["youtube", k, f"Title {k}", f"Artist {k}", "yt_pop", ""])
+    for n in mb.RES_FILES:
+        open(os.path.join(res, n), "w").write("key,status\n")
+    for n in ("ai_keep.txt", "ai_block.txt"):
+        open(os.path.join(d, n), "w").write("someone\n")
+    zp = mb.build(d, os.path.join(d, "out"), when="t")["zip"]
+    assert bh.newest_bundle(os.path.join(d, "out")) == zp
+    env = {"YOUTUBE_API_KEY": "AIzaFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAK1"}
+    checks, facts = bh.check(zp, here=d, env=env)
+    bad = [c for c in checks if c[0] != "PASS"]
+    assert not bad and facts["songs"] == 2 and facts["windows"] >= 2, (bad, facts)
+
+    def variant(drop=(), add=()):
+        """A copy of the bundle without the entries in `drop` and with the (name, bytes) in `add`; returns the failing checks."""
+        p = os.path.join(d, "v.zip")
+        with zipfile.ZipFile(zp) as s, zipfile.ZipFile(p, "w") as t:
+            for i in s.infolist():
+                if i.filename not in drop:
+                    t.writestr(i, s.read(i.filename))
+            for name, data in add:
+                t.writestr(name, data)
+        return [c[1] for c in bh.check(p, here=d, env=env)[0] if c[0] == "FAIL"]
+    assert any("windows_cache" in w for w in variant(drop=("results/windows_cache.npz",)))
+    assert any("song_languages" in w for w in variant(drop=("results/song_languages.csv",)))
+    assert any("pool lists" in w for w in variant(drop=("pool_youtube.csv",)))
+    assert any("every pool song" in w for w in variant(drop=("results/youtube_b.npz",)))
+    buf = io.BytesIO(); np.savez(buf, effnet_whole=np.zeros(1280))                                    # a song file without its parts / instruments / mood
+    assert any("whole song + parts" in w for w in variant(drop=("results/youtube_b.npz",), add=(("results/youtube_b.npz", buf.getvalue()),)))
+    assert variant(add=(("results/song.mp3", b"ID3\x03..."),)) == ["no audio files"]
+    assert variant(add=(("results/x.bin", b"RIFF\x00\x00\x00\x00WAVEfmt "),)) == ["no audio files"]               # caught by its first bytes, whatever the name
+    assert variant(add=(("notes.txt", b"key=" + env["YOUTUBE_API_KEY"].encode()),)) == ["no API keys, cookies or other secrets"]
+    assert variant(add=(("notes.txt", b"# Netscape HTTP Cookie File\n"),)) == ["no API keys, cookies or other secrets"]
+    assert variant(add=(("cookies.txt", b"nothing"),)) == ["no API keys, cookies or other secrets"]
+    assert bh.secret_hits("results/meta/youtube_a.json", b'{"title": "Tokens of love"}', env={}) == []     # an ordinary title is not a secret
+    # finishing: the Sound scale and README.txt are added, every original entry is kept
+    sc = os.path.join(res, "sound_scale_youtube.npz")
+    X = np.stack([np.load(os.path.join(res, f"youtube_{k}.npz"))["effnet_whole"] for k in ("a", "b")])
+    mu, sd = scoring.fit_sound_scale(X)
+    np.savez(sc, hash=bh.expected_hash(facts["want"]), mu=mu, sd=sd, n=2)
+    old = bh.scale_file
+    bh.scale_file = lambda here=d: (sc, mu, sd, bh.expected_hash(facts["want"]), 2)
+    try:
+        out = os.path.join(d, "out", "groovy-demo-bundle.zip")
+        text = bh.finish(zp, out, facts, here=d, when="test")
+    finally:
+        bh.scale_file = old
+    with zipfile.ZipFile(zp) as s, zipfile.ZipFile(out) as z:
+        names = set(z.namelist())
+        assert set(s.namelist()) | {"README.txt", "results/sound_scale_youtube.npz"} == names, names ^ set(s.namelist())
+        assert z.read("README.txt").decode() == text and "discogs-effnet-bs64-1" in text and "** 0.25" in text and "similar.py" in text
+        got = np.load(io.BytesIO(z.read("results/sound_scale_youtube.npz")))
+        assert np.allclose(got["mu"], X.mean(0)) and np.allclose(got["sd"], (X.std(0) + 1e-6) ** 0.25)          # the README's recipe gives the shipped scale
+    assert not [c for c in bh.check(out, here=d, env=env)[0] if c[0] == "FAIL"]
+    print("   a complete bundle passes; a missing file or array, an audio file or a key fails; the handoff copy adds the Sound scale and README.txt")
+
+
 def demo_hardening_test():
     """Fixes from the 12 Oct review of the demo server: CSV formulas, unwritable logs, half-written cache entries, live streams, analysis errors, odd Content-Length."""
     print("\n24. DEMO SERVER HARDENING")
@@ -2008,3 +2083,4 @@ if __name__ == "__main__":
     lost_tags_test()
     review_fixes_test()
     data_review_fixes_test()
+    bundle_handoff_test()

@@ -131,7 +131,7 @@ Rhythm is the weakest feature; the research question drifted from "hidden gems" 
   `--split test` is the sealed score: do not run it again without saying so.
 * **Mood:** the chosen model is VGGish -> emoMusic (user decision 6 Oct; do not reopen unless asked). Per-part mood uses the
   original MusiCNN model because only it has parts.
-* Other scripts: `similar.py` (database demo, still PLAIN cosine), `capture_server.py` (tap page, mic capture; mic input is a
+* Other scripts: `bundle_handoff.py` (checks a demo bundle and adds the Sound scale + README.txt for handing it to another team; DEMO.md 2b step 5; section 33), `similar.py` (database demo, still PLAIN cosine), `capture_server.py` (tap page, mic capture; mic input is a
   known weak point), `check_youtube.py`, `check_platforms.py`, `pool_mix.py`, `export_catalogue.py`, `backup.py`, `carry.py`,
   `gem_guard_check.py`, `select_test_split.py`, `check_youtube_quality.py`.
 

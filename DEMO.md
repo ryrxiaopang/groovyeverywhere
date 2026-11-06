@@ -66,6 +66,9 @@ The desktop analyses songs; the **laptop is the booth machine**, so it needs eve
    The bundle does not carry `results/demo_cache/` (songs visitors brought to the desktop demo): on the laptop those are downloaded and analysed again, so `--rehearse` measures the laptop's real speed.
 3. `python demo_server.py --check`: it now also checks the models and that the pool's numbers are all there (a bundle that did not unzip properly shows up here).
 4. **Make a new bundle whenever the pool changes** (it must be the same pool as on the desktop).
+5. **Handing the bundle to another team** (e.g. a team hosting the live demo): on the desktop, after step 1 with `--out groovy-demo-bundle`, run `source env_keys.sh && python bundle_handoff.py groovy-demo-bundle`.
+   It checks the zip against `results/` and the pool lists (every pool song's numbers, the stretch index, lists, tags, language labels; no audio; no keys, cookies or private keys), prints PASS / WARN / FAIL,
+   and only if nothing FAILS writes `groovy-demo-bundle/groovy-demo-bundle.zip` with the Sound scale (`results/sound_scale_youtube.npz`) and a `README.txt` (files vs. code, model versions, how to refit the scale) added.
 
 **Speed on the laptop (the CPU, not the memory, is the question; the GPU is not used at all by the analysis).** On the desktop a new song takes about 13 s to analyse (about 20 s with the download). The laptop will be slower. What helps, in the order to try:
 * **Stored songs cost nothing:** a song already in the pool (or brought by an earlier visitor) is served in 1-2 s with no download or analysis (the INSTANT badge). Steer visitors to the badge.
